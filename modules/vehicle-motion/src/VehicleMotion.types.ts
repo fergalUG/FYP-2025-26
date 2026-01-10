@@ -10,10 +10,25 @@ export type MotionData = {
   z: number;
   pitch: number;
   roll: number;
+  yaw: number;
+  isCalibrated: boolean;
+};
+
+export type CalibrationResult = {
+  matrix: number[][];
+  sampleCount: number;
+};
+
+export type CalibrationStatus = {
+  status: 'detecting' | 'collecting' | 'complete';
+  message: string;
+  progress?: number;
 };
 
 export type VehicleMotionModuleEvents = {
   onMotionUpdate: (data: MotionData) => void;
+  onCalibrationComplete: (result: CalibrationResult) => void;
+  onCalibrationStatus: (status: CalibrationStatus) => void;
 };
 
 export type ChangeEventPayload = {
