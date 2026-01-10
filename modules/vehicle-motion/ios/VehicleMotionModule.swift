@@ -4,6 +4,8 @@ import ExpoModulesCore
 public class VehicleMotionModule: Module {
     private let motionManager = CMMotionManager()
     private let calibration = CalibrationEngine()
+
+    private let uiSignalProcessor = SignalProcessor(alpha: 0.15)
     
     public func definition() -> ModuleDefinition {
         Name("VehicleMotion")
@@ -16,6 +18,19 @@ public class VehicleMotionModule: Module {
         
         Function("stopTracking") {
             motionManager.stopDeviceMotionUpdates()
+            uiSignalProcessor.reset()
+        }
+
+        Function("captureReference") {
+            guard let data = motionManager.deviceMotion else { return }
+            let g = data.gravity
+            
+            calibration.captureReferenceMatrix(gravity: vector3(x: g.x, y: g.y, z: g.z))
+            
+            sendEvent("onCalibrationStatus", [
+                "status": "detecting",
+                "message": "Reference Captured. Drive straight to test calibration."
+            ])
         }
     }
     
@@ -50,25 +65,39 @@ public class VehicleMotionModule: Module {
                             ])
                         },
                         onComplete: { payload in
-                            self.sendEvent("onCalibrationComplete", payload)
+                            var finalPayload = payload
+                            if let errors = self.calibration.getCalibrationError() {
+                                finalPayload["errors"] = errors
+                            }
+                            self.sendEvent("onCalibrationComplete", finalPayload)
                         }
                     )
                 }
+
+                let rawAccel = vector3(x: accel.x, y: accel.y, z: accel.z)
+                let filteredAccel = self.uiSignalProcessor.update(current: rawAccel)
                 
                 let transformedAccel = self.calibration.applyRotation(
-                    x: accel.x,
-                    y: accel.y,
-                    z: accel.z
+                    x: filteredAccel.x,
+                    y: filteredAccel.y,
+                    z: filteredAccel.z
                 )
                 
                 self.sendEvent("onMotionUpdate", [
                     "x": transformedAccel.x,
                     "y": transformedAccel.y,
                     "z": transformedAccel.z,
-                    "pitch": attitude.pitch,
-                    "roll": attitude.roll,
-                    "yaw": attitude.yaw,
+
+                    "rawX": accel.x,
+                    "rawY": accel.y,
+                    "rawZ": accel.z,
+
+                    "filteredX": filteredAccel.x,
+                    "filteredY": filteredAccel.y,
+                    "filteredZ": filteredAccel.z,
+
                     "isCalibrated": self.calibration.hasCalibration,
+                    "hasReference": self.calibration.referenceMatrix != nil
                 ])
             }
         }

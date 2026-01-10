@@ -1,26 +1,6 @@
 import CoreMotion
 import SceneKit
 
-struct vector3 {
-    let x: Double
-    let y: Double
-    let z: Double
-    
-    func length() -> Double {
-        return (sqrt(x*x + y*y + z*z))
-    }
-    func normalized() -> vector3 {
-        let l = length();
-        return l > 0.00001 ? vector3(x: x/l, y: y/l, z: z/l) : vector3(x: 0, y: 0, z: 0)
-    }
-    func dot(_ other: vector3) -> Double {
-        return (x*other.x + y*other.y + z*other.z)
-    }
-    func cross(_ other: vector3) -> vector3 {
-        return vector3(x: y*other.z - z*other.y, y: z*other.x - x*other.z, z: x*other.y - y*other.x)
-    }
-}
-
 struct sample {
     var x: Double
     var y: Double
@@ -32,6 +12,8 @@ struct sample {
 final class CalibrationEngine {
     private(set) var isCalibrating = false
     var hasCalibration: Bool { return rotationMatrix != nil }
+
+    private let signalProcessor = SignalProcessor(alpha: 0.15)
     
     private var calibrationSamples: [sample] = []
     private var sampleBuffer: [vector3] = []
@@ -41,13 +23,18 @@ final class CalibrationEngine {
     private(set) var referenceAttitude: CMAttitude?
     private var calibrationStartYaw: Double?
     private var lastValidYaw: Double?
+
+    // for testing
+    private(set) var referenceMatrix: [[Double]]?
     
     func resetForTracking() {
         isCalibrating = true
         sampleBuffer.removeAll()
         calibrationSamples.removeAll()
+        rotationMatrix = nil
         calibrationStartYaw = nil
         lastValidYaw = nil
+        signalProcessor.reset()
     }
     
     /*
@@ -61,7 +48,10 @@ final class CalibrationEngine {
         onStatus: (_ status: String, _ message: String, _ progress: Double?) -> Void,
         onComplete: (_ payload: [String: Any]) -> Void
     ) {
-        sampleBuffer.append(vector3(x: accel.x, y: accel.y, z: accel.z))
+        let rawAccel = vector3(x: accel.x, y: accel.y, z: accel.z)
+        let filteredAccel = signalProcessor.update(current: rawAccel)
+
+        sampleBuffer.append(filteredAccel)
         if sampleBuffer.count > 50 {
             sampleBuffer.removeFirst()
         }
@@ -106,14 +96,14 @@ final class CalibrationEngine {
             
             lastValidYaw = currentYaw
             calibrationSamples.append(sample(
-                x: accel.x,
-                y: accel.y,
-                z: accel.z,
+                x: filteredAccel.x,
+                y: filteredAccel.y,
+                z: filteredAccel.z,
                 attitude: attitude.copy() as! CMAttitude,
                 gravity: vector3(x: gravity.x, y: gravity.y, z: gravity.z)
             ))
             
-            if calibrationSamples.count % 50 == 0 {
+            if calibrationSamples.count % 10 == 0 {
                 onStatus("collecting", "Collecting samples... \(calibrationSamples.count)/250", Double(calibrationSamples.count) / 250.0)
             }
             
@@ -181,5 +171,46 @@ final class CalibrationEngine {
             return input
         }
         return transform(accel: input, with: matrix)
+    }
+
+    //testing only
+
+    func getCalibrationError() -> [String: Double]? {
+        guard let ref = referenceMatrix, let auto = rotationMatrix else { return nil }
+        
+        let refZ = vector3(x: ref[2][0], y: ref[2][1], z: ref[2][2])
+        let autoZ = vector3(x: auto[2][0], y: auto[2][1], z: auto[2][2])
+        
+        let refX = vector3(x: ref[0][0], y: ref[0][1], z: ref[0][2])
+        let autoX = vector3(x: auto[0][0], y: auto[0][1], z: auto[0][2])
+        
+        let dotZ = min(max(refZ.dot(autoZ), -1.0), 1.0)
+        let dotX = min(max(refX.dot(autoX), -1.0), 1.0)
+        
+        let angleZ = acos(dotZ) * (180.0 / .pi)
+        let angleX = acos(dotX) * (180.0 / .pi)
+        
+        return [
+            "verticalError": angleZ,
+            "forwardError": angleX
+        ]
+    }
+
+    func captureReferenceMatrix(gravity: vector3) {
+        let zAxis = gravity.normalized()
+        
+        var tentativeForward = vector3(x: 0, y: 1, z: 0)
+        if abs(zAxis.y) > 0.8 {
+            tentativeForward = vector3(x: 0, y: 0, z: -1)
+        }
+        
+        let yAxis = zAxis.cross(tentativeForward).normalized()
+        let xAxis = yAxis.cross(zAxis).normalized()
+        
+        self.referenceMatrix = [
+            [xAxis.x, xAxis.y, xAxis.z],
+            [yAxis.x, yAxis.y, yAxis.z],
+            [zAxis.x, zAxis.y, zAxis.z]
+        ]
     }
 }
