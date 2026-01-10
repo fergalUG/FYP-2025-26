@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "InertiaApp",
-    "slug": "InertiaApp",
+    "name": "VeloMetry",
+    "slug": "VeloMetry",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.InertiaApp"
+      "bundleIdentifier": "com.anonymous.VeloMetry"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.InertiaApp"
+      "package": "com.anonymous.VeloMetry"
     },
     "web": {
       "favicon": "./assets/favicon.png"
