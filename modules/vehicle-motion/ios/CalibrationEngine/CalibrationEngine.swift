@@ -2,9 +2,7 @@ import CoreMotion
 import SceneKit
 
 struct sample {
-    var x: Double
-    var y: Double
-    var z: Double
+    var acceleration: vector3
     var attitude: CMAttitude
     var gravity: vector3
 }
@@ -13,7 +11,7 @@ final class CalibrationEngine {
     private(set) var isCalibrating = false
     var hasCalibration: Bool { return rotationMatrix != nil }
 
-    private let signalProcessor = SignalProcessor(alpha: 0.15)
+    let signalProcessor = SignalProcessor()
     
     private var calibrationSamples: [sample] = []
     private var sampleBuffer: [vector3] = []
@@ -23,6 +21,12 @@ final class CalibrationEngine {
     private(set) var referenceAttitude: CMAttitude?
     private var calibrationStartYaw: Double?
     private var lastValidYaw: Double?
+
+
+    private var accelerationThreshold: Double = 0.15
+    private var stabilityThreshold: Double = 0.98
+    private var turningThreshold: Double = 0.09 // ~5 degrees in radians
+    private var samplesNeeded: Int = 250
 
     // for testing
     private(set) var referenceMatrix: [[Double]]?
@@ -42,14 +46,14 @@ final class CalibrationEngine {
      and will add them to the buffer. Once the buffer is full the func will return
      */
     func handleAutoCalibration(
-        accel: CMAcceleration,
-        gravity: CMAcceleration,
+        accel: vector3,
+        gravity: vector3,
         attitude: CMAttitude,
+        gyro: vector3,
         onStatus: (_ status: String, _ message: String, _ progress: Double?) -> Void,
         onComplete: (_ payload: [String: Any]) -> Void
     ) {
-        let rawAccel = vector3(x: accel.x, y: accel.y, z: accel.z)
-        let filteredAccel = signalProcessor.update(current: rawAccel)
+        let filteredAccel = signalProcessor.update(accel: accel, gravity: gravity, gyro: gyro)
 
         sampleBuffer.append(filteredAccel)
         if sampleBuffer.count > 50 {
@@ -69,13 +73,13 @@ final class CalibrationEngine {
         var isStable: Bool = true
         for sample in sampleBuffer {
             let dotProduct: Double = sample.normalized().dot(avgVector.normalized())
-            if dotProduct < 0.98 {
+            if dotProduct < stabilityThreshold {
                 isStable = false
                 break
             }
         }
         
-        let isDrivingStraight: Bool = isStable && avgVectorMagnitude > 0.08
+        let isDrivingStraight: Bool = isStable && avgVectorMagnitude > accelerationThreshold
         let currentYaw: Double = attitude.yaw
         
         if isDrivingStraight {
@@ -88,26 +92,23 @@ final class CalibrationEngine {
             let yawDelta: Double = currentYaw - (lastValidYaw ?? currentYaw)
             let yawNormalised: Double = abs(atan2(sin(yawDelta), cos(yawDelta)))
             
-            //if turning more that 5 degrees (radians)
-            if yawNormalised > 0.09 {
+            if yawNormalised > turningThreshold {
                 calibrationSamples.removeAll()
                 return
             }
             
             lastValidYaw = currentYaw
             calibrationSamples.append(sample(
-                x: filteredAccel.x,
-                y: filteredAccel.y,
-                z: filteredAccel.z,
+                acceleration: filteredAccel,
                 attitude: attitude.copy() as! CMAttitude,
-                gravity: vector3(x: gravity.x, y: gravity.y, z: gravity.z)
+                gravity: gravity,
             ))
             
             if calibrationSamples.count % 10 == 0 {
-                onStatus("collecting", "Collecting samples... \(calibrationSamples.count)/250", Double(calibrationSamples.count) / 250.0)
+                onStatus("collecting", "Collecting samples... \(calibrationSamples.count)/\(samplesNeeded)", Double(calibrationSamples.count) / Double(samplesNeeded))
             }
             
-            if calibrationSamples.count >= 250 {
+            if calibrationSamples.count >= samplesNeeded {
                 performAutoCalibration(onStatus: onStatus, onComplete: onComplete)
             }
         } else {
@@ -120,7 +121,7 @@ final class CalibrationEngine {
         onStatus: (_ status: String, _ message: String, _ progress: Double?) -> Void,
         onComplete: (_ payload: [String: Any]) -> Void
     ) {
-        onStatus("processing", "Calculating Alignment...", 1.0)
+        onStatus("processing", "Calculating Alignment...", -1.0)
         
         let count: Double = Double(calibrationSamples.count)
         let avgGravity: vector3 = vector3(
@@ -129,13 +130,13 @@ final class CalibrationEngine {
             z: calibrationSamples.reduce(0.0) { $0 + $1.gravity.z } / count
         )
         let avgAcceleration: vector3 = vector3(
-            x: calibrationSamples.reduce(0.0) { $0 + $1.x } / count,
-            y: calibrationSamples.reduce(0.0) { $0 + $1.y } / count,
-            z: calibrationSamples.reduce(0.0) { $0 + $1.z } / count
+            x: calibrationSamples.reduce(0.0) { $0 + $1.acceleration.x } / count,
+            y: calibrationSamples.reduce(0.0) { $0 + $1.acceleration.y } / count,
+            z: calibrationSamples.reduce(0.0) { $0 + $1.acceleration.z } / count
         )
         
         //gravity is always down so we can use it to find the z axis
-        let zAxis: vector3 = avgGravity.normalized()
+        let zAxis: vector3 = avgGravity.normalized().inverted()
         
         //the cross product of the forward acceleration and the z axis gives the orthogonal y axis
         let yAxis: vector3 = zAxis.cross(avgAcceleration).normalized()
@@ -197,7 +198,7 @@ final class CalibrationEngine {
     }
 
     func captureReferenceMatrix(gravity: vector3) {
-        let zAxis = gravity.normalized()
+        let zAxis = gravity.normalized().inverted()
         
         var tentativeForward = vector3(x: 0, y: 1, z: 0)
         if abs(zAxis.y) > 0.8 {
