@@ -4,6 +4,7 @@ const colours = {
 
   PrimaryText: '#000000',
   SecondaryText: '#3C3C4399',
+  AltText: '#FFFFFF',
 
   AccentColor: '#007AFF',
 };

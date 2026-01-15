@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,28 +7,28 @@ import {
   ScrollView,
   SafeAreaView,
   Dimensions,
-} from "react-native";
-import VehicleMotion from "./modules/vehicle-motion";
+} from 'react-native';
+import VehicleMotion from './modules/vehicle-motion';
 import {
   MotionData,
   CalibrationStatus,
   CalibrationResult,
   SensorDiagnostics,
-} from "./modules/vehicle-motion/src/VehicleMotion.types";
-import { File, Paths } from "expo-file-system";
-import * as Sharing from "expo-sharing";
+} from './modules/vehicle-motion/src/VehicleMotion.types';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
-const { width } = Dimensions.get("window");
+const { width } = Dimensions.get('window');
 
 export default function VehicleMotionTest() {
-  const [activeTab, setActiveTab] = useState<"calibration" | "raw">(
-    "calibration"
+  const [activeTab, setActiveTab] = useState<'calibration' | 'raw'>(
+    'calibration'
   );
   const [isActive, setIsActive] = useState(false);
   const [hasRef, setHasRef] = useState(false);
   const [status, setStatus] = useState<CalibrationStatus>({
-    status: "detecting",
-    message: "Idle",
+    status: 'detecting',
+    message: 'Idle',
   });
   const [result, setResult] = useState<CalibrationResult | null>(null);
   const [motion, setMotion] = useState<MotionData | null>(null);
@@ -56,7 +56,7 @@ export default function VehicleMotionTest() {
   const [isLogging, setIsLogging] = useState(false);
   const isLoggingRef = useRef(false);
   const logBuffer = useRef<string[]>([]);
-  const LOG_FILE = new File(Paths.cache, "motion_logs.csv");
+  const LOG_FILE = new File(Paths.cache, 'motion_logs.csv');
 
   useEffect(() => {
     isLoggingRef.current = isLogging;
@@ -72,15 +72,15 @@ export default function VehicleMotionTest() {
       // Create/Reset file header when starting
       try {
         LOG_FILE.write(
-          "timestamp,rawX,rawY,rawZ,filtX,filtY,filtZ,calibratedX,calibratedY,calibratedZ\n"
+          'timestamp,rawX,rawY,rawZ,filtX,filtY,filtZ,calibratedX,calibratedY,calibratedZ\n'
         );
       } catch (e) {
-        console.error("Init log failed", e);
+        console.error('Init log failed', e);
       }
 
       interval = setInterval(() => {
         if (logBuffer.current.length > 0) {
-          const chunk = logBuffer.current.join("");
+          const chunk = logBuffer.current.join('');
           logBuffer.current = []; // Clear buffer immediately
           try {
             // Append using FileHandle
@@ -91,7 +91,7 @@ export default function VehicleMotionTest() {
             handle.writeBytes(bytes);
             handle.close();
           } catch (e) {
-            console.error("Log write failed", e);
+            console.error('Log write failed', e);
           }
         }
       }, 1000); // Write every 1 second
@@ -106,7 +106,7 @@ export default function VehicleMotionTest() {
     if (isLogging) {
       setIsLogging(false);
       if (logBuffer.current.length > 0) {
-        const chunk = logBuffer.current.join("");
+        const chunk = logBuffer.current.join('');
         logBuffer.current = [];
         try {
           const handle = LOG_FILE.open();
@@ -115,14 +115,14 @@ export default function VehicleMotionTest() {
           handle.writeBytes(bytes);
           handle.close();
         } catch (e) {
-          console.error("Final flush failed", e);
+          console.error('Final flush failed', e);
         }
       }
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(LOG_FILE.uri, {
-          mimeType: "text/csv",
-          dialogTitle: "Export Motion Logs",
+          mimeType: 'text/csv',
+          dialogTitle: 'Export Motion Logs',
         });
       }
     } else {
@@ -149,7 +149,7 @@ export default function VehicleMotionTest() {
 
       // Attach Listeners
       subMotion = VehicleMotion.addListener(
-        "onMotionUpdate",
+        'onMotionUpdate',
         (data: MotionData) => {
           setMotion(data);
           setHasRef(data.hasReference);
@@ -167,24 +167,24 @@ export default function VehicleMotionTest() {
 
           // Update vibration stats (only if needed, to save renders)
           // We use a functional update to avoid dependency on state
-          if (activeTab === "raw") {
+          if (activeTab === 'raw') {
             updateVibrationStats(data);
           }
         }
       );
 
       subStatus = VehicleMotion.addListener(
-        "onCalibrationStatus",
+        'onCalibrationStatus',
         (data: CalibrationStatus) => {
           setStatus(data);
         }
       );
 
       subComplete = VehicleMotion.addListener(
-        "onCalibrationComplete",
+        'onCalibrationComplete',
         (data: CalibrationResult) => {
           setResult(data);
-          setStatus({ status: "complete", message: "Calibration Complete" });
+          setStatus({ status: 'complete', message: 'Calibration Complete' });
         }
       );
     } else {
@@ -239,7 +239,7 @@ export default function VehicleMotionTest() {
       setIsActive(false);
       setResult(null);
       setHasRef(false);
-      setStatus({ status: "detecting", message: "Stopped" });
+      setStatus({ status: 'detecting', message: 'Stopped' });
     } else {
       setIsActive(true);
       setResult(null);
@@ -253,7 +253,7 @@ export default function VehicleMotionTest() {
         await VehicleMotion.captureReference();
         setHasRef(true);
       } catch (error) {
-        console.error("Failed to capture reference:", error);
+        console.error('Failed to capture reference:', error);
       }
     }
   };
@@ -296,27 +296,27 @@ export default function VehicleMotionTest() {
           <TouchableOpacity
             style={[
               styles.tab,
-              activeTab === "calibration" && styles.activeTab,
+              activeTab === 'calibration' && styles.activeTab,
             ]}
-            onPress={() => setActiveTab("calibration")}
+            onPress={() => setActiveTab('calibration')}
           >
             <Text
               style={[
                 styles.tabText,
-                activeTab === "calibration" && styles.activeTabText,
+                activeTab === 'calibration' && styles.activeTabText,
               ]}
             >
               Calibration
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, activeTab === "raw" && styles.activeTab]}
-            onPress={() => setActiveTab("raw")}
+            style={[styles.tab, activeTab === 'raw' && styles.activeTab]}
+            onPress={() => setActiveTab('raw')}
           >
             <Text
               style={[
                 styles.tabText,
-                activeTab === "raw" && styles.activeTabText,
+                activeTab === 'raw' && styles.activeTabText,
               ]}
             >
               Vibration (Raw)
@@ -330,33 +330,33 @@ export default function VehicleMotionTest() {
           style={[
             styles.btn,
             {
-              backgroundColor: isActive ? "#FF3B30" : "#34C759",
+              backgroundColor: isActive ? '#FF3B30' : '#34C759',
               marginBottom: 20,
             },
           ]}
           onPress={handleStartStop}
         >
-        <TouchableOpacity
-          style={[
-            styles.btn,
-            {
-              backgroundColor: isLogging ? "#FF9500" : "#5856D6",
-              marginBottom: 20,
-            },
-          ]}
-          onPress={handleToggleLogging}
-        >
+          <TouchableOpacity
+            style={[
+              styles.btn,
+              {
+                backgroundColor: isLogging ? '#FF9500' : '#5856D6',
+                marginBottom: 20,
+              },
+            ]}
+            onPress={handleToggleLogging}
+          >
+            <Text style={styles.btnText}>
+              {isLogging ? 'STOP & SHARE LOGS' : 'START DATA LOGGING'}
+            </Text>
+          </TouchableOpacity>
+
           <Text style={styles.btnText}>
-            {isLogging ? "STOP & SHARE LOGS" : "START DATA LOGGING"}
+            {isActive ? 'STOP SENSORS' : 'START SENSORS'}
           </Text>
         </TouchableOpacity>
 
-          <Text style={styles.btnText}>
-            {isActive ? "STOP SENSORS" : "START SENSORS"}
-          </Text>
-        </TouchableOpacity>
-
-        {activeTab === "raw" && (
+        {activeTab === 'raw' && (
           <View>
             {/* FILTER TUNER CARD */}
             <View style={styles.card}>
@@ -561,8 +561,8 @@ export default function VehicleMotionTest() {
                   style={[
                     styles.value,
                     {
-                      color: isSafe ? "#34C759" : "#FF9500",
-                      fontWeight: "800",
+                      color: isSafe ? '#34C759' : '#FF9500',
+                      fontWeight: '800',
                     },
                   ]}
                 >
@@ -573,7 +573,7 @@ export default function VehicleMotionTest() {
           </View>
         )}
 
-        {activeTab === "calibration" && (
+        {activeTab === 'calibration' && (
           <View>
             <View style={[styles.card, { opacity: isActive ? 1 : 0.5 }]}>
               <Text style={styles.stepTitle}>Step 1: Reference</Text>
@@ -583,13 +583,13 @@ export default function VehicleMotionTest() {
               <TouchableOpacity
                 style={[
                   styles.btn,
-                  { backgroundColor: "#007AFF", paddingVertical: 10 },
+                  { backgroundColor: '#007AFF', paddingVertical: 10 },
                 ]}
                 onPress={handleCaptureReference}
                 disabled={!isActive}
               >
                 <Text style={styles.btnText}>
-                  {hasRef ? "✓ Reference Captured" : "Capture Manual Reference"}
+                  {hasRef ? '✓ Reference Captured' : 'Capture Manual Reference'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -608,7 +608,7 @@ export default function VehicleMotionTest() {
                       ...styles.progressBar,
                       width: `${Math.max((status.progress ?? 0) * 100, 1)}%`,
                       backgroundColor:
-                        (status.progress ?? 0) > 0 ? "#007AFF" : "#C7C7CC",
+                        (status.progress ?? 0) > 0 ? '#007AFF' : '#C7C7CC',
                     }}
                   />
                 </View>
@@ -631,8 +631,8 @@ export default function VehicleMotionTest() {
                         styles.diagValue,
                         {
                           color: diagnostics.isAccelInRange
-                            ? "#34C759"
-                            : "#FF3B30",
+                            ? '#34C759'
+                            : '#FF3B30',
                         },
                       ]}
                     >
@@ -647,8 +647,8 @@ export default function VehicleMotionTest() {
                         styles.diagValue,
                         {
                           color: diagnostics.isAccelStable
-                            ? "#34C759"
-                            : "#FF3B30",
+                            ? '#34C759'
+                            : '#FF3B30',
                         },
                       ]}
                     >
@@ -660,13 +660,13 @@ export default function VehicleMotionTest() {
                 <View style={styles.divider} />
 
                 <Text style={styles.diagCaption}>
-                  {diagnostics.rejectionReason === "accel_low"
-                    ? "⚠ Accelerate more"
-                    : diagnostics.rejectionReason === "accel_unstable"
-                    ? "⚠ Too bumpy / unstable"
-                    : diagnostics.rejectionReason === "turning"
-                    ? "⚠ Drive straight"
-                    : "✓ Good Conditions"}
+                  {diagnostics.rejectionReason === 'accel_low'
+                    ? '⚠ Accelerate more'
+                    : diagnostics.rejectionReason === 'accel_unstable'
+                      ? '⚠ Too bumpy / unstable'
+                      : diagnostics.rejectionReason === 'turning'
+                        ? '⚠ Drive straight'
+                        : '✓ Good Conditions'}
                 </Text>
               </View>
             )}
@@ -685,147 +685,147 @@ export default function VehicleMotionTest() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F2F2F7" },
-  headerContainer: { padding: 20, paddingBottom: 10, backgroundColor: "#FFF" },
+  container: { flex: 1, backgroundColor: '#F2F2F7' },
+  headerContainer: { padding: 20, paddingBottom: 10, backgroundColor: '#FFF' },
   tabs: {
-    flexDirection: "row",
-    backgroundColor: "#E5E5EA",
+    flexDirection: 'row',
+    backgroundColor: '#E5E5EA',
     borderRadius: 10,
     padding: 2,
   },
-  tab: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 8 },
+  tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
   activeTab: {
-    backgroundColor: "#FFF",
-    shadowColor: "#000",
+    backgroundColor: '#FFF',
+    shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  tabText: { fontWeight: "600", color: "#8E8E93" },
-  activeTabText: { color: "#000" },
+  tabText: { fontWeight: '600', color: '#8E8E93' },
+  activeTabText: { color: '#000' },
   scroll: { padding: 20 },
   card: {
-    backgroundColor: "#FFF",
+    backgroundColor: '#FFF',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
   },
-  resultCard: { borderLeftWidth: 4, borderLeftColor: "#34C759" },
-  stepTitle: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
-  desc: { color: "#666", marginBottom: 12 },
-  btn: { padding: 16, borderRadius: 12, alignItems: "center" },
-  btnText: { color: "#FFF", fontWeight: "700", fontSize: 16 },
+  resultCard: { borderLeftWidth: 4, borderLeftColor: '#34C759' },
+  stepTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  desc: { color: '#666', marginBottom: 12 },
+  btn: { padding: 16, borderRadius: 12, alignItems: 'center' },
+  btnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
   statusText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#007AFF",
+    fontWeight: '600',
+    color: '#007AFF',
     marginBottom: 4,
   },
   progressContainer: { marginTop: 10 },
   progressTrack: {
     height: 10,
-    backgroundColor: "#E5E5EA",
+    backgroundColor: '#E5E5EA',
     borderRadius: 5,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
-  progressBar: { height: "100%", backgroundColor: "#007AFF" },
+  progressBar: { height: '100%', backgroundColor: '#007AFF' },
   progressText: {
-    textAlign: "right",
+    textAlign: 'right',
     marginTop: 4,
-    color: "#007AFF",
-    fontWeight: "bold",
+    color: '#007AFF',
+    fontWeight: 'bold',
     fontSize: 12,
   },
   row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
   statRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 12,
-    alignItems: "center",
+    alignItems: 'center',
   },
-  label: { color: "#666", fontSize: 16 },
-  value: { fontWeight: "700", fontSize: 16 },
-  divider: { height: 1, backgroundColor: "#EEE", marginVertical: 12 },
-  link: { color: "#007AFF", fontWeight: "600" },
+  label: { color: '#666', fontSize: 16 },
+  value: { fontWeight: '700', fontSize: 16 },
+  divider: { height: 1, backgroundColor: '#EEE', marginVertical: 12 },
+  link: { color: '#007AFF', fontWeight: '600' },
   tunerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 20,
   },
   tuneBtn: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#E5E5EA",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#E5E5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  tuneBtnText: { fontSize: 30, fontWeight: "600", color: "#007AFF" },
-  alphaDisplay: { alignItems: "center", marginHorizontal: 20, width: 120 },
-  alphaValue: { fontSize: 36, fontWeight: "800", color: "#000" },
+  tuneBtnText: { fontSize: 30, fontWeight: '600', color: '#007AFF' },
+  alphaDisplay: { alignItems: 'center', marginHorizontal: 20, width: 120 },
+  alphaValue: { fontSize: 36, fontWeight: '800', color: '#000' },
   alphaLabel: {
     fontSize: 10,
-    fontWeight: "700",
-    color: "#8E8E93",
+    fontWeight: '700',
+    color: '#8E8E93',
     letterSpacing: 1,
   },
-  presetRow: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
+  presetRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   presetBtn: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: "#F2F2F7",
+    backgroundColor: '#F2F2F7',
     borderRadius: 8,
-    alignItems: "center",
+    alignItems: 'center',
   },
-  presetActive: { backgroundColor: "#007AFF" },
-  presetText: { fontWeight: "600", color: "#333", fontSize: 12 },
-  presetTextActive: { color: "#FFF" },
+  presetActive: { backgroundColor: '#007AFF' },
+  presetText: { fontWeight: '600', color: '#333', fontSize: 12 },
+  presetTextActive: { color: '#FFF' },
   advancedRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
   advancedLabel: { flex: 1 },
-  smallDesc: { fontSize: 12, color: "#8E8E93", marginTop: 2 },
-  advancedControl: { flexDirection: "row", alignItems: "center", gap: 12 },
+  smallDesc: { fontSize: 12, color: '#8E8E93', marginTop: 2 },
+  advancedControl: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   advancedValue: {
-    fontWeight: "700",
+    fontWeight: '700',
     fontSize: 18,
     minWidth: 50,
-    textAlign: "center",
+    textAlign: 'center',
   },
   smallBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#E5E5EA",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#E5E5EA',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  smallBtnText: { fontSize: 20, fontWeight: "600", color: "#007AFF" },
+  smallBtnText: { fontSize: 20, fontWeight: '600', color: '#007AFF' },
   diagRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 12,
   },
   diagCol: { flex: 1, marginRight: 8 },
   diagLabel: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#8E8E93",
+    fontWeight: '600',
+    color: '#8E8E93',
     marginBottom: 4,
   },
-  diagValue: { fontSize: 18, fontWeight: "800", marginBottom: 2 },
+  diagValue: { fontSize: 18, fontWeight: '800', marginBottom: 2 },
   diagCaption: {
     fontSize: 13,
-    fontWeight: "600",
-    color: "#666",
-    textAlign: "center",
+    fontWeight: '600',
+    color: '#666',
+    textAlign: 'center',
     marginTop: 4,
   },
 });
