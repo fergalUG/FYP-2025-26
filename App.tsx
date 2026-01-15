@@ -26,9 +26,15 @@ export default function App() {
         <HoverButton
           text="TEST"
           onPress={() => setCurrentView('calibration')}
-          right={Dimensions.get('window').width - 100}
+          bottom={30}
+          left={30}
         />
-        <HoverButton text="GO" onPress={() => setCurrentView('journey')} />
+        <HoverButton
+          text="GO"
+          onPress={() => setCurrentView('journey')}
+          bottom={30}
+          right={30}
+        />
       </View>
     </SafeAreaProvider>
   );

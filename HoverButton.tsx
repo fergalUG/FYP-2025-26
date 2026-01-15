@@ -1,20 +1,40 @@
 import React from 'react';
-import { StyleSheet, TouchableOpacity, Text, View } from 'react-native';
+import {
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  View,
+  Dimensions,
+} from 'react-native';
 import colours from './colours';
 
 type ButtonProps = {
   text: string;
   onPress: () => void;
+  top?: number;
   bottom?: number;
+  left?: number;
   right?: number;
 };
 
 export default function HoverButton(props: ButtonProps) {
+  const stylesObj: any = {
+    position: 'absolute',
+    elevation: 8,
+    zIndex: 100,
+  };
+
+  if (props.top !== undefined) stylesObj.top = props.top;
+  if (props.bottom !== undefined) stylesObj.bottom = props.bottom;
+  if (props.left !== undefined) stylesObj.left = props.left;
+  if (props.right !== undefined) stylesObj.right = props.right;
+
+  // Defaults
+  if (props.top === undefined && props.bottom === undefined) stylesObj.bottom = 30;
+  if (props.left === undefined && props.right === undefined) stylesObj.right = 30;
+  
   return (
-    <View
-      style={[styles.container, { bottom: props.bottom ?? 30, right: props.right ?? 30 }]}
-      pointerEvents="box-none"
-    >
+    <View style={[styles.container, stylesObj]} pointerEvents="box-none">
       <TouchableOpacity
         style={styles.button}
         activeOpacity={0.8}
@@ -28,12 +48,8 @@ export default function HoverButton(props: ButtonProps) {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    bottom: 30,
-    right: 30,
-    zIndex: 100,
-    alignItems: 'flex-end',
-    justifyContent: 'flex-end',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   button: {
     width: 64,
