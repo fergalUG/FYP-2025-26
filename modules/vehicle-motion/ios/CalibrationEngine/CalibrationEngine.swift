@@ -1,6 +1,29 @@
 import CoreMotion
 import SceneKit
 
+struct SensorDiagnostics {
+    var accelMagnitude: Double = 0.0
+    var accelStability: Double = 0.0
+    var yawVelocity: Double = 0.0
+    var isAccelStable: Bool = false
+    var isAccelInRange: Bool = false
+    var isHeadingSteady: Bool = false
+    var rejectionReason: String = ""
+    
+    
+    func toDictionary() -> [String: Any] {
+        return [
+            "accelMagnitude": accelMagnitude,
+            "accelStability": accelStability,
+            "yawVelocity": yawVelocity,
+            "isAccelStable": isAccelStable,
+            "isAccelInRange": isAccelInRange,
+            "isHeadingSteady": isHeadingSteady,
+            "rejectionReason": rejectionReason
+        ]
+    }
+}
+
 struct sample {
     var acceleration: vector3
     var attitude: CMAttitude
@@ -22,11 +45,12 @@ final class CalibrationEngine {
     private var calibrationStartYaw: Double?
     private var lastValidYaw: Double?
 
+    private let accelerationThreshold: Double = 0.15
+    private let stabilityThreshold: Double = 0.96
+    private let turningThreshold: Double = 0.09 // ~5 degrees in radians
+    private let samplesNeeded: Int = 250
 
-    private var accelerationThreshold: Double = 0.15
-    private var stabilityThreshold: Double = 0.98
-    private var turningThreshold: Double = 0.09 // ~5 degrees in radians
-    private var samplesNeeded: Int = 250
+    private(set) var sensorDiagnostics: SensorDiagnostics = SensorDiagnostics()
 
     // for testing
     private(set) var referenceMatrix: [[Double]]?
@@ -39,6 +63,10 @@ final class CalibrationEngine {
         calibrationStartYaw = nil
         lastValidYaw = nil
         signalProcessor.reset()
+    }
+    
+    func getSensorDiagnostics() -> SensorDiagnostics {
+        return self.sensorDiagnostics
     }
     
     /*
@@ -68,32 +96,45 @@ final class CalibrationEngine {
         let count: Double = Double(sampleBuffer.count)
         let avgVector = vector3(x: sumX / count, y: sumY / count, z: sumZ / count)
         
-        let avgVectorMagnitude: Double = avgVector.length()
+        self.sensorDiagnostics.accelMagnitude = avgVector.length()
+        self.sensorDiagnostics.isAccelInRange = self.sensorDiagnostics.accelMagnitude > accelerationThreshold
         
         var isStable: Bool = true
+        let avgNorm = avgVector.normalized()
+        var minDot: Double = 1.0
         for sample in sampleBuffer {
-            let dotProduct: Double = sample.normalized().dot(avgVector.normalized())
+            let dotProduct: Double = sample.normalized().dot(avgNorm)
+            minDot = min(minDot, dotProduct)
             if dotProduct < stabilityThreshold {
                 isStable = false
                 break
             }
         }
         
-        let isDrivingStraight: Bool = isStable && avgVectorMagnitude > accelerationThreshold
+        self.sensorDiagnostics.accelStability = minDot
+        self.sensorDiagnostics.isAccelStable = isStable
+        
+        let isDrivingStraight: Bool = isStable && avgVector.length() > accelerationThreshold
         let currentYaw: Double = attitude.yaw
         
         if isDrivingStraight {
             if calibrationStartYaw == nil {
                 calibrationStartYaw = currentYaw
                 lastValidYaw = currentYaw
+                self.sensorDiagnostics.rejectionReason = ""
                 return
             }
             
             let yawDelta: Double = currentYaw - (lastValidYaw ?? currentYaw)
             let yawNormalised: Double = abs(atan2(sin(yawDelta), cos(yawDelta)))
             
+            self.sensorDiagnostics.yawVelocity = yawNormalised
+            self.sensorDiagnostics.isHeadingSteady = yawNormalised <= turningThreshold
+            
             if yawNormalised > turningThreshold {
-                calibrationSamples.removeAll()
+                calibrationSamples.removeAll() // user turned, discard samples
+                lastValidYaw = currentYaw
+                self.sensorDiagnostics.rejectionReason = "turning"
                 return
             }
             
@@ -104,6 +145,8 @@ final class CalibrationEngine {
                 gravity: gravity,
             ))
             
+            self.sensorDiagnostics.rejectionReason = ""
+            
             if calibrationSamples.count % 10 == 0 {
                 onStatus("collecting", "Collecting samples... \(calibrationSamples.count)/\(samplesNeeded)", Double(calibrationSamples.count) / Double(samplesNeeded))
             }
@@ -112,8 +155,20 @@ final class CalibrationEngine {
                 performAutoCalibration(onStatus: onStatus, onComplete: onComplete)
             }
         } else {
+            if !calibrationSamples.isEmpty {
+                calibrationSamples.removeAll()
+                onStatus("detecting", "Lost stability. Starting over.", nil)
+            }
             calibrationStartYaw = nil
             lastValidYaw = nil
+            
+            if !isStable {
+                self.sensorDiagnostics.rejectionReason = "accel_unstable"
+            } else if self.sensorDiagnostics.accelMagnitude <= accelerationThreshold {
+                self.sensorDiagnostics.rejectionReason = "accel_low"
+            } else {
+                self.sensorDiagnostics.rejectionReason = ""
+            }
         }
     }
     
@@ -121,7 +176,7 @@ final class CalibrationEngine {
         onStatus: (_ status: String, _ message: String, _ progress: Double?) -> Void,
         onComplete: (_ payload: [String: Any]) -> Void
     ) {
-        onStatus("processing", "Calculating Alignment...", -1.0)
+        onStatus("processing", "Calculating Alignment...", nil)
         
         let count: Double = Double(calibrationSamples.count)
         let avgGravity: vector3 = vector3(
@@ -154,7 +209,7 @@ final class CalibrationEngine {
         self.isCalibrating = false
         
         onComplete([
-            "matrix": matrix,
+            "matrix": self.rotationMatrix!,
             "sampleCount": calibrationSamples.count
         ])
     }

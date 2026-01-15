@@ -1,9 +1,3 @@
-import type { StyleProp, ViewStyle } from 'react-native';
-
-export type OnLoadEventPayload = {
-  url: string;
-};
-
 export type MotionData = {
   x: number;
   y: number;
@@ -16,7 +10,7 @@ export type MotionData = {
   filteredX: number;
   filteredY: number;
   filteredZ: number;
-  
+
   isCalibrated: boolean;
   hasReference: boolean;
 };
@@ -36,18 +30,18 @@ export type CalibrationStatus = {
   progress?: number;
 };
 
+export type SensorDiagnostics = {
+  accelMagnitude: number;        // G
+  accelStability: number;        // [0,1] dot product
+  yawVelocity: number;           // rad/s
+  isAccelStable: boolean;
+  isAccelInRange: boolean;
+  isHeadingSteady: boolean;
+  rejectionReason: "" | "accel_low" | "accel_unstable" | "turning"
+};
+
 export type VehicleMotionModuleEvents = {
   onMotionUpdate: (data: MotionData) => void;
   onCalibrationComplete: (result: CalibrationResult) => void;
   onCalibrationStatus: (status: CalibrationStatus) => void;
-};
-
-export type ChangeEventPayload = {
-  value: string;
-};
-
-export type VehicleMotionViewProps = {
-  url: string;
-  onLoad: (event: { nativeEvent: OnLoadEventPayload }) => void;
-  style?: StyleProp<ViewStyle>;
 };

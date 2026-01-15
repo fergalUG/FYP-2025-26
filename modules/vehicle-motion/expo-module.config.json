@@ -1,9 +1,6 @@
 {
-  "platforms": ["ios", "android"],
+  "platforms": ["ios"],
   "ios": {
     "modules": ["VehicleMotionModule"]
-  },
-  "android": {
-    "modules": ["expo.modules.vehiclemotion.VehicleMotionModule"]
   }
 }
