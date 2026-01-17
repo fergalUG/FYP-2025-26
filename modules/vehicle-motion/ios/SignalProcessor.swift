@@ -21,6 +21,12 @@ struct vector3 {
     func inverted() -> vector3 {
         return vector3(x: -x, y: -y, z: -z)
     }
+    func scaled(by scalar: Double) -> vector3 {
+        return vector3(x: x * scalar, y: y * scalar, z: z * scalar)
+    }
+    func subtract(_ other: vector3) -> vector3 {
+        return vector3(x: x - other.x, y: y - other.y, z: z - other.z)
+    }
 }
 
 class SignalProcessor {
