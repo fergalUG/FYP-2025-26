@@ -29,7 +29,7 @@ export default function HoverButton(props: ButtonProps) {
   if (props.left !== undefined) stylesObj.left = props.left;
   if (props.right !== undefined) stylesObj.right = props.right;
 
-  // Defaults
+  //defaults
   if (props.top === undefined && props.bottom === undefined) stylesObj.bottom = 30;
   if (props.left === undefined && props.right === undefined) stylesObj.right = 30;
   
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     backgroundColor: colours.AccentColor,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: colours.ShadowColor,
     shadowOffset: {
       width: 0,
       height: 4,

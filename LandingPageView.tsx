@@ -50,13 +50,13 @@ const styles = StyleSheet.create({
     backgroundColor: colours.CardBackground,
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: '#E5E5EA',
+    borderColor: colours.BorderColor,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
   },
   placeholderText: {
-    color: '#8E8E93',
+    color: colours.SecondaryText,
     fontWeight: '600',
   },
 });

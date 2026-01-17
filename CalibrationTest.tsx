@@ -17,11 +17,12 @@ import {
 } from './modules/vehicle-motion/src/VehicleMotion.types';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import colours from './colours';
 
 const { width } = Dimensions.get('window');
 
 export default function VehicleMotionTest() {
-  const [activeTab, setActiveTab] = useState<'calibration' | 'raw'>(
+  const [activeTab, setActiveTab] = useState<'calibration' | 'raw' | 'axes'>(
     'calibration'
   );
   const [isActive, setIsActive] = useState(false);
@@ -289,6 +290,42 @@ export default function VehicleMotionTest() {
   const maxFiltRange = Math.max(filtRangeX, filtRangeY, filtRangeZ);
   const isSafe = maxFiltRange < 0.08;
 
+  function AxisMonitor({
+    label,
+    value,
+    color,
+  }: {
+    label: string;
+    value: number;
+    color: string;
+  }) {
+    const barWidth = Math.min(Math.abs(value) * 100, 100);
+    return (
+      <View style={{ flex: 1, alignItems: 'center', padding: 10 }}>
+        <Text style={styles.diagLabel}>{label}</Text>
+        <Text style={[styles.diagValue, { color }]}>{value.toFixed(3)} G</Text>
+        <View
+          style={{
+            height: 4,
+            width: '100%',
+            backgroundColor: colours.BorderColor,
+            borderRadius: 2,
+            marginTop: 4,
+          }}
+        >
+          <View
+            style={{
+              height: 4,
+              width: `${barWidth}%`,
+              backgroundColor: color,
+              alignSelf: value >= 0 ? 'flex-start' : 'flex-end',
+            }}
+          />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
@@ -307,6 +344,19 @@ export default function VehicleMotionTest() {
               ]}
             >
               Calibration
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'axes' && styles.activeTab]}
+            onPress={() => setActiveTab('axes')}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'axes' && styles.activeTabText,
+              ]}
+            >
+              Axes
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -330,7 +380,7 @@ export default function VehicleMotionTest() {
           style={[
             styles.btn,
             {
-              backgroundColor: isActive ? '#FF3B30' : '#34C759',
+              backgroundColor: isActive ? colours.Error : colours.Success,
               marginBottom: 20,
             },
           ]}
@@ -340,7 +390,7 @@ export default function VehicleMotionTest() {
             style={[
               styles.btn,
               {
-                backgroundColor: isLogging ? '#FF9500' : '#5856D6',
+                backgroundColor: isLogging ? colours.Warning : colours.AccentColor,
                 marginBottom: 20,
               },
             ]}
@@ -355,6 +405,97 @@ export default function VehicleMotionTest() {
             {isActive ? 'STOP SENSORS' : 'START SENSORS'}
           </Text>
         </TouchableOpacity>
+
+        {activeTab === 'axes' && (
+          <View>
+            <View style={styles.card}>
+              <Text style={styles.stepTitle}>Coordinate Transformation</Text>
+              <Text style={styles.desc}>
+                Compare the Phone's raw movement against the Vehicle's
+                calibrated frame. Drive straight: you should see the signal move
+                from Raw X/Y into pure Calibrated Y.
+              </Text>
+
+              {/* Comparison Table Header */}
+              <View style={styles.comparisonHeader}>
+                <Text style={styles.columnLabel}>PHONE FRAME (RAW)</Text>
+                <View style={{ width: 20 }} />
+                <Text style={styles.columnLabel}>VEHICLE FRAME (CAL)</Text>
+              </View>
+
+              {/* X-Axis Comparison (Lateral) */}
+              <View style={styles.comparisonRow}>
+                <AxisMonitor
+                  label="Raw X"
+                  value={motion?.rawX ?? 0}
+                  color={colours.SecondaryText}
+                />
+                <View style={styles.transformArrow}>
+                  <Text>→</Text>
+                </View>
+                <AxisMonitor
+                  label="Lateral (X)"
+                  value={motion?.x ?? 0}
+                  color={colours.AxisX}
+                />
+              </View>
+
+              {/* Y-Axis Comparison (Longitudinal) */}
+              <View style={styles.comparisonRow}>
+                <AxisMonitor
+                  label="Raw Y"
+                  value={motion?.rawY ?? 0}
+                  color={colours.SecondaryText}
+                />
+                <View style={styles.transformArrow}>
+                  <Text>→</Text>
+                </View>
+                <AxisMonitor
+                  label="Forward (Y)"
+                  value={motion?.y ?? 0}
+                  color={colours.AxisY}
+                />
+              </View>
+
+              {/* Z-Axis Comparison (Vertical) */}
+              <View style={styles.comparisonRow}>
+                <AxisMonitor
+                  label="Raw Z"
+                  value={motion?.rawZ ?? 0}
+                  color={colours.SecondaryText}
+                />
+                <View style={styles.transformArrow}>
+                  <Text>→</Text>
+                </View>
+                <AxisMonitor
+                  label="Vertical (Z)"
+                  value={motion?.z ?? 0}
+                  color={colours.AxisZ}
+                />
+              </View>
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.stepTitle}>Calibration Integrity</Text>
+              <View style={styles.statRow}>
+                <Text style={styles.label}>Status:</Text>
+                <Text
+                  style={[
+                    styles.value,
+                    { color: motion?.isCalibrated ? colours.Success : colours.Error },
+                  ]}
+                >
+                  {motion?.isCalibrated ? 'ACTIVE' : 'NOT CALIBRATED'}
+                </Text>
+              </View>
+              <Text style={styles.smallDesc}>
+                {motion?.isCalibrated
+                  ? 'The rotation matrix is currently remapping your sensor data.'
+                  : 'Showing raw user acceleration on both sides until calibration completes.'}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {activeTab === 'raw' && (
           <View>
@@ -561,7 +702,7 @@ export default function VehicleMotionTest() {
                   style={[
                     styles.value,
                     {
-                      color: isSafe ? '#34C759' : '#FF9500',
+                      color: isSafe ? colours.Success : colours.Warning,
                       fontWeight: '800',
                     },
                   ]}
@@ -583,7 +724,7 @@ export default function VehicleMotionTest() {
               <TouchableOpacity
                 style={[
                   styles.btn,
-                  { backgroundColor: '#007AFF', paddingVertical: 10 },
+                  { backgroundColor: colours.AccentColor, paddingVertical: 10 },
                 ]}
                 onPress={handleCaptureReference}
                 disabled={!isActive}
@@ -608,7 +749,7 @@ export default function VehicleMotionTest() {
                       ...styles.progressBar,
                       width: `${Math.max((status.progress ?? 0) * 100, 1)}%`,
                       backgroundColor:
-                        (status.progress ?? 0) > 0 ? '#007AFF' : '#C7C7CC',
+                        (status.progress ?? 0) > 0 ? colours.AccentColor : colours.BorderColor,
                     }}
                   />
                 </View>
@@ -631,8 +772,8 @@ export default function VehicleMotionTest() {
                         styles.diagValue,
                         {
                           color: diagnostics.isAccelInRange
-                            ? '#34C759'
-                            : '#FF3B30',
+                            ? colours.Success
+                            : colours.Error,
                         },
                       ]}
                     >
@@ -647,8 +788,8 @@ export default function VehicleMotionTest() {
                         styles.diagValue,
                         {
                           color: diagnostics.isAccelStable
-                            ? '#34C759'
-                            : '#FF3B30',
+                            ? colours.Success
+                            : colours.Error,
                         },
                       ]}
                     >
@@ -685,53 +826,53 @@ export default function VehicleMotionTest() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F2F2F7' },
-  headerContainer: { padding: 20, paddingBottom: 10, backgroundColor: '#FFF' },
+  container: { flex: 1, backgroundColor: colours.MainBackground },
+  headerContainer: { padding: 20, paddingBottom: 10, backgroundColor: colours.CardBackground },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#E5E5EA',
+    backgroundColor: colours.BorderColor,
     borderRadius: 10,
     padding: 2,
   },
   tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
   activeTab: {
-    backgroundColor: '#FFF',
-    shadowColor: '#000',
+    backgroundColor: colours.CardBackground,
+    shadowColor: colours.ShadowColor,
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  tabText: { fontWeight: '600', color: '#8E8E93' },
-  activeTabText: { color: '#000' },
+  tabText: { fontWeight: '600', color: colours.SecondaryText },
+  activeTabText: { color: colours.PrimaryText },
   scroll: { padding: 20 },
   card: {
-    backgroundColor: '#FFF',
+    backgroundColor: colours.CardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
   },
-  resultCard: { borderLeftWidth: 4, borderLeftColor: '#34C759' },
-  stepTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
-  desc: { color: '#666', marginBottom: 12 },
+  resultCard: { borderLeftWidth: 4, borderLeftColor: colours.Success },
+  stepTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8, color: colours.PrimaryText },
+  desc: { color: colours.SecondaryText, marginBottom: 12 },
   btn: { padding: 16, borderRadius: 12, alignItems: 'center' },
-  btnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  btnText: { color: colours.AltText, fontWeight: '700', fontSize: 16 },
   statusText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#007AFF',
+    color: colours.AccentColor,
     marginBottom: 4,
   },
   progressContainer: { marginTop: 10 },
   progressTrack: {
     height: 10,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: colours.BorderColor,
     borderRadius: 5,
     overflow: 'hidden',
   },
-  progressBar: { height: '100%', backgroundColor: '#007AFF' },
+  progressBar: { height: '100%', backgroundColor: colours.AccentColor },
   progressText: {
     textAlign: 'right',
     marginTop: 4,
-    color: '#007AFF',
+    color: colours.AccentColor,
     fontWeight: 'bold',
     fontSize: 12,
   },
@@ -746,10 +887,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     alignItems: 'center',
   },
-  label: { color: '#666', fontSize: 16 },
-  value: { fontWeight: '700', fontSize: 16 },
-  divider: { height: 1, backgroundColor: '#EEE', marginVertical: 12 },
-  link: { color: '#007AFF', fontWeight: '600' },
+  label: { color: colours.SecondaryText, fontSize: 16 },
+  value: { fontWeight: '700', fontSize: 16, color: colours.PrimaryText },
+  divider: { height: 1, backgroundColor: colours.BorderColor, marginVertical: 12 },
+  link: { color: colours.AccentColor, fontWeight: '600' },
   tunerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -760,30 +901,30 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: colours.BorderColor,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tuneBtnText: { fontSize: 30, fontWeight: '600', color: '#007AFF' },
+  tuneBtnText: { fontSize: 30, fontWeight: '600', color: colours.AccentColor },
   alphaDisplay: { alignItems: 'center', marginHorizontal: 20, width: 120 },
-  alphaValue: { fontSize: 36, fontWeight: '800', color: '#000' },
+  alphaValue: { fontSize: 36, fontWeight: '800', color: colours.PrimaryText },
   alphaLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#8E8E93',
+    color: colours.SecondaryText,
     letterSpacing: 1,
   },
   presetRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   presetBtn: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: colours.MainBackground,
     borderRadius: 8,
     alignItems: 'center',
   },
-  presetActive: { backgroundColor: '#007AFF' },
-  presetText: { fontWeight: '600', color: '#333', fontSize: 12 },
-  presetTextActive: { color: '#FFF' },
+  presetActive: { backgroundColor: colours.AccentColor },
+  presetText: { fontWeight: '600', color: colours.SecondaryText, fontSize: 12 },
+  presetTextActive: { color: colours.AltText },
   advancedRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -791,23 +932,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   advancedLabel: { flex: 1 },
-  smallDesc: { fontSize: 12, color: '#8E8E93', marginTop: 2 },
+  smallDesc: { fontSize: 12, color: colours.SecondaryText, marginTop: 2 },
   advancedControl: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   advancedValue: {
     fontWeight: '700',
     fontSize: 18,
     minWidth: 50,
     textAlign: 'center',
+    color: colours.PrimaryText,
   },
   smallBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: colours.BorderColor,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  smallBtnText: { fontSize: 20, fontWeight: '600', color: '#007AFF' },
+  smallBtnText: { fontSize: 20, fontWeight: '600', color: colours.AccentColor },
   diagRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -817,15 +959,46 @@ const styles = StyleSheet.create({
   diagLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8E8E93',
+    color: colours.SecondaryText,
     marginBottom: 4,
   },
-  diagValue: { fontSize: 18, fontWeight: '800', marginBottom: 2 },
+  diagValue: { fontSize: 18, fontWeight: '800', marginBottom: 2, color: colours.PrimaryText },
   diagCaption: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#666',
+    color: colours.SecondaryText,
     textAlign: 'center',
     marginTop: 4,
+  },
+  axisRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 10,
+  },
+  comparisonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
+  columnLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colours.SecondaryText,
+    letterSpacing: 1,
+    flex: 1,
+    textAlign: 'center',
+  },
+  comparisonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+    backgroundColor: colours.MainBackground,
+    borderRadius: 8,
+    padding: 5,
+  },
+  transformArrow: {
+    width: 20,
+    alignItems: 'center',
   },
 });

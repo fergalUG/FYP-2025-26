@@ -15,18 +15,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.VeloMetry"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.VeloMetry"
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     }
   }
 }
