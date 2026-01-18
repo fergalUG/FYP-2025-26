@@ -36,26 +36,13 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
 
     const latestLocation = locations[locations.length - 1];
     const speed = latestLocation.coords.speed; // speed in m/s
-    console.log(
-      `[BackgroundService] Location received. Speed: ${speed} m/s. Current Tracking Mode: ${currentTrackingMode}`
-    );
+    console.log(`[BackgroundService] Location received. Speed: ${speed} m/s. Current Tracking Mode: ${currentTrackingMode}`);
 
-    if (
-      speed != null &&
-      speed >= ACTIVE_SPEED_THRESHOLD &&
-      currentTrackingMode === 'PASSIVE'
-    ) {
-      console.log(
-        '[BackgroundService] speed > 15km/h; Switching to ACTIVE tracking mode.'
-      );
+    if (speed != null && speed >= ACTIVE_SPEED_THRESHOLD && currentTrackingMode === 'PASSIVE') {
+      console.log('[BackgroundService] speed > 15km/h; Switching to ACTIVE tracking mode.');
       // TODO: implement start tracking service
-    } else if (
-      (speed == null || speed < PASSIVE_SPEED_THRESHOLD) &&
-      currentTrackingMode === 'ACTIVE'
-    ) {
-      console.log(
-        '[BackgroundService] speed < 5km/h; Switching to PASSIVE tracking mode.'
-      );
+    } else if ((speed == null || speed < PASSIVE_SPEED_THRESHOLD) && currentTrackingMode === 'ACTIVE') {
+      console.log('[BackgroundService] speed < 5km/h; Switching to PASSIVE tracking mode.');
       // TODO: implement stop tracking service
       // probably need to have a tmeout before switching to passive to ensure user is stationary
     }
@@ -65,13 +52,11 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
 });
 
 export const requestLocationPermissions = async (): Promise<boolean> => {
-  const { granted: foregroundGranted } =
-    await Location.requestForegroundPermissionsAsync();
+  const { granted: foregroundGranted } = await Location.requestForegroundPermissionsAsync();
   if (!foregroundGranted) {
     return false;
   }
-  const { granted: backgroundGranted } =
-    await Location.requestBackgroundPermissionsAsync();
+  const { granted: backgroundGranted } = await Location.requestBackgroundPermissionsAsync();
   return backgroundGranted;
 };
 

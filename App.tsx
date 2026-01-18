@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { Text, StyleSheet, View, StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import colours from './colours';
+import colours from './src/colours';
 import TitleBar from './TitleBar';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<
-    'landing' | 'journey' | 'calibration'
-  >('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'journey' | 'calibration'>('landing');
 
   return (
     <SafeAreaProvider>
