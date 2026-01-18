@@ -1,7 +1,7 @@
-import React from "react";
-import { StyleSheet, View, Text } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import colours from "./colours";
+import React from 'react';
+import { StyleSheet, View, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import colours from './colours';
 
 type TitleBarProps = {
   onPress: () => void;
@@ -9,9 +9,11 @@ type TitleBarProps = {
 
 export default function TitleBar({ onPress }: TitleBarProps) {
   return (
-    <SafeAreaView edges={["top"]} style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <View style={styles.container}>
-        <Text style={styles.mainTitle} onPress={onPress}>VeloMetry</Text>
+        <Text style={styles.mainTitle} onPress={onPress}>
+          VeloMetry
+        </Text>
       </View>
     </SafeAreaView>
   );
@@ -24,14 +26,14 @@ const styles = StyleSheet.create({
   container: {
     height: 44,
     backgroundColor: colours.MainBackground,
-    alignItems: "center",
-    justifyContent: "center",
-    borderBottomColor: "#E5E5EA",
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomColor: '#E5E5EA',
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   mainTitle: {
     fontSize: 20,
-    fontWeight: "800",
+    fontWeight: '800',
     color: colours.PrimaryText,
   },
 });

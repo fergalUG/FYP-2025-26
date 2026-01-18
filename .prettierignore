@@ -1,0 +1,10 @@
+.github/
+.git/
+.expo/
+.assets/
+.ios/
+.logs/
+
+modules/vehicle-motion/ios/
+
+.gitignore

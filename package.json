@@ -4,9 +4,11 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start --ios",
-    "ios": "expo run:ios --device"
-	"lint": "eslint . --ext .ts,.tsx",
-	"test": "jest"
+    "ios": "expo run:ios --device",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "jest --passWithNoTests",
+    "format": "prettier --write .",
+    "checks": "npm run format && npm run lint && npm run test"
   },
   "dependencies": {
     "expo": "~54.0.30",
@@ -22,9 +24,13 @@
     "react-native-safe-area-context": "^5.6.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/react": "~19.1.0",
+    "eslint": "^9.39.2",
+    "jest": "^30.2.0",
     "prettier": "^3.8.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "typescript-eslint": "^8.53.0"
   },
   "private": true
 }

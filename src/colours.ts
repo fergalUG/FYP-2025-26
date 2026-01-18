@@ -4,14 +4,14 @@ const palette = {
   Verdigris: '#339989',
   PaleSlate: '#cac4ce',
   Linen: '#f7ece1',
-  
+
   VerdigrisLight: '#70B8AC',
   VerdigrisDark: '#1F5C52',
-  
+
   Rust: '#BC5D2E',
   Gold: '#D6A445',
   Slate: '#7A7A85',
-  
+
   White: '#FFFFFF',
   Red: '#FF3B30',
   Orange: '#FF9500',
@@ -31,7 +31,7 @@ const colours = {
   AccentColor: palette.Verdigris,
   AccentLight: palette.VerdigrisLight,
   AccentDark: palette.VerdigrisDark,
-  
+
   ShadowColor: palette.Graphite,
   BorderColor: palette.PaleSlate,
 
