@@ -5,6 +5,8 @@
   "scripts": {
     "start": "expo start --ios",
     "ios": "expo run:ios --device"
+	"lint": "eslint . --ext .ts,.tsx",
+	"test": "jest"
   },
   "dependencies": {
     "expo": "~54.0.30",
