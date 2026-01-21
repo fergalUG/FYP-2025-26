@@ -24,23 +24,3 @@ jobs:
 
       - name: Run Tests
         run: npm test
-
-  build_ios:
-    needs: test_and_lint
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Expo
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Trigger EAS iOS Build
-        run: eas build --platform ios --profile preview --non-interactive --no-wait
