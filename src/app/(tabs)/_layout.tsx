@@ -1,13 +1,26 @@
 import { Tabs } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { theme } from '../../theme';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ServiceStatusIndicator } from '../../components/ServiceStatusIndicator';
 
 export default function Layout() {
-  const insets = useSafeAreaInsets();
-
   return (
-    <Tabs>
+    <Tabs
+      screenOptions={{
+        headerShown: true,
+        tabBarStyle: {
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.outline,
+        },
+        headerStyle: {
+          backgroundColor: theme.colors.surface,
+        },
+        headerTitleStyle: {
+          color: theme.colors.onSurface,
+        },
+        headerLeft: () => <ServiceStatusIndicator />,
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{

@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import VehicleMotion from '../../modules/vehicle-motion';
+import type { TrackingMode, TrackingStatus } from '../types/types';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -12,30 +13,40 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const BACKGROUND_LOCATION_TASK = 'BACKGROUND-LOCATION-TASK';
+const BACKGROUND_LOCATION_TASK: string = 'BACKGROUND-LOCATION-TASK';
 
-const ACTIVE_SPEED_THRESHOLD = 4.16667; // 15 km/h in m/s
-const PASSIVE_SPEED_THRESHOLD = 1.38889; // 5 km/h in m/s
-
-type TrackingMode = 'PASSIVE' | 'ACTIVE';
+const ACTIVE_SPEED_THRESHOLD: number = 4.16667; // 15 km/h in m/s
+const PASSIVE_SPEED_THRESHOLD: number = 1.38889; // 5 km/h in m/s
 
 let currentTrackingMode: TrackingMode = 'PASSIVE';
+let isMonitoring: boolean = false;
 
-TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
+export const getTrackingStatus = (): TrackingStatus => ({
+  mode: currentTrackingMode,
+  isMonitoring,
+});
+
+interface LocationTaskData {
+  locations: Array<{
+    coords: {
+      speed: number | null;
+    };
+  }>;
+}
+
+TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
   if (error) {
     console.error('Background location task error:', error);
     return;
   }
   if (data) {
-    const { locations } = data as {
-      locations: Array<{ coords: { speed: number } }>;
-    };
+    const { locations } = data;
     if (!locations || locations.length === 0) {
       return;
     }
 
     const latestLocation = locations[locations.length - 1];
-    const speed = latestLocation.coords.speed; // speed in m/s
+    const speed: number | null = latestLocation.coords.speed; // speed in m/s
     console.log(`[BackgroundService] Location received. Speed: ${speed} m/s. Current Tracking Mode: ${currentTrackingMode}`);
 
     if (speed != null && speed >= ACTIVE_SPEED_THRESHOLD && currentTrackingMode === 'PASSIVE') {
@@ -62,10 +73,12 @@ export const requestLocationPermissions = async (): Promise<boolean> => {
 
 export const startLocationMonitoring = async (): Promise<void> => {
   await startPassiveTracking();
+  isMonitoring = true;
 };
 
 export const stopLocationMonitoring = async (): Promise<void> => {
   await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+  isMonitoring = false;
 };
 
 export const ManualStartActiveTracking = async (): Promise<void> => {

@@ -17,10 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.VeloMetry",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "fetch",
-          "location"
-        ],
+        "UIBackgroundModes": ["fetch", "location"],
         "NSLocationWhenInUseUsageDescription": "Allow VeloMetry to access your location while you are using the app.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow VeloMetry to access your location even when you are not using the app.",
         "NSLocationAlwaysUsageDescription": "Allow VeloMetry to access your location even when you are not using the app."
@@ -39,10 +36,7 @@
       ]
     ],
     "android": {
-      "permissions": [
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
-      ],
+      "permissions": ["android.permission.ACCESS_COARSE_LOCATION", "android.permission.ACCESS_FINE_LOCATION"],
       "package": "com.anonymous.VeloMetry"
     }
   }

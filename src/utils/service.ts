@@ -17,13 +17,13 @@ export const getServiceStatusText = (serviceState: ServiceState): string => {
 export const getServiceStatusColor = (serviceState: ServiceState): string => {
   switch (serviceState) {
     case 'stopped':
-      return theme.colors.error ;
+      return theme.colors.error;
     case 'passive':
       return theme.colors.warning;
     case 'active':
-      return theme.colors.success ;
+      return theme.colors.success;
     default:
-      return theme.colors.onSurface ;
+      return theme.colors.onSurface;
   }
 };
 

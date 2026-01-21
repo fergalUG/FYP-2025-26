@@ -3,10 +3,11 @@ import { Text, View, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import { theme } from '../../../theme';
 import { useJourney } from '../../../hooks/useJourney';
+import type { Journey } from '../../../types/types';
 
 export default function JourneyDetail() {
-  const { journeyId } = useLocalSearchParams();
-  const journey = useJourney(Number(journeyId));
+  const { journeyId } = useLocalSearchParams<{ journeyId: string }>();
+  const journey: Journey | undefined = useJourney(Number(journeyId));
 
   if (!journey) {
     return (
@@ -16,7 +17,7 @@ export default function JourneyDetail() {
     );
   }
 
-  const durationMinutes = Math.floor((journey.endTime - journey.startTime) / 60000);
+  const durationMinutes: number = Math.floor((journey.endTime - journey.startTime) / 60000);
 
   return (
     <>

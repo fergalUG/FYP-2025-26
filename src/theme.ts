@@ -1,3 +1,5 @@
+import { Dimensions } from 'react-native';
+
 export const lightTheme = {
   colors: {
     primary: '#007AFF',
@@ -14,6 +16,7 @@ export const lightTheme = {
     outline: '#C6C6C8',
     onSurface: '#000000',
     onBackground: '#000000',
+    shadow: '#000000',
   },
   spacing: {
     xs: 4,
@@ -27,6 +30,10 @@ export const lightTheme = {
     md: 8,
     lg: 12,
     xl: 16,
+  },
+  dimensions: {
+    deviceWidth: Dimensions.get('window').width,
+    deviceHeight: Dimensions.get('window').height,
   },
 } as const;
 
