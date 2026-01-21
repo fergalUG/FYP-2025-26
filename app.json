@@ -3,6 +3,7 @@
     "name": "VeloMetry",
     "slug": "VeloMetry",
     "version": "1.0.0",
+    "scheme": "velometry",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,7 +15,35 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.VeloMetry"
+      "bundleIdentifier": "com.anonymous.VeloMetry",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "fetch",
+          "location"
+        ],
+        "NSLocationWhenInUseUsageDescription": "Allow VeloMetry to access your location while you are using the app.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow VeloMetry to access your location even when you are not using the app.",
+        "NSLocationAlwaysUsageDescription": "Allow VeloMetry to access your location even when you are not using the app."
+      }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-sqlite",
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow VeloMetry to access your location even when you are not using the app.",
+          "locationWhenInUsePermission": "Allow VeloMetry to access your location while you are using the app."
+        }
+      ]
+    ],
+    "android": {
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.anonymous.VeloMetry"
     }
   }
 }
