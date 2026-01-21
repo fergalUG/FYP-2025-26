@@ -1,4 +1,4 @@
-import { Journey } from "../types/types";
+import { Journey } from '../types/types';
 
 //test
 const journeys: Journey[] = [
@@ -13,11 +13,11 @@ const journeys: Journey[] = [
 ];
 
 export const useJourney = (id: number): Journey | undefined => {
-    // TODO: implement hook to fetch journey by id from database
+  // TODO: implement hook to fetch journey by id from database
 
-    return journeys.find(journey => journey.id === id)
+  return journeys.find((journey) => journey.id === id);
 };
 
 export const useJourneys = (): Journey[] => {
-    return journeys;
+  return journeys;
 };

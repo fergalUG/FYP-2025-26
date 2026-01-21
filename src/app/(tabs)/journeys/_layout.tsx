@@ -15,7 +15,7 @@ export default function JourneyLayout() {
           headerShown: true,
           presentation: 'card',
           headerBackTitle: 'Journeys',
-          headerBackTitleVisible: true,
+          headerBackButtonDisplayMode: 'minimal',
         }}
       />
     </Stack>

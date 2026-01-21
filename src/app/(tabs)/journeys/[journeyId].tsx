@@ -30,7 +30,12 @@ export default function JourneyDetail() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, padding: theme.spacing.lg, backgroundColor: theme.colors.background, gap: theme.spacing.sm },
+  screen: {
+    flex: 1,
+    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.background,
+    gap: theme.spacing.sm,
+  },
   title: { fontSize: 22, fontWeight: '800', color: theme.colors.onBackground },
   line: { fontSize: 16, color: theme.colors.onSurface },
 });

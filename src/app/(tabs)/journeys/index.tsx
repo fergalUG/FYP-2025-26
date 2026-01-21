@@ -28,7 +28,7 @@ export default function Journeys() {
 }
 
 const styles = StyleSheet.create({
-  list: { padding: theme.spacing.lg, gap: theme.spacing.md, backgroundColor: theme.colors.background },
+  list: { padding: theme.spacing.lg, gap: theme.spacing.sm, backgroundColor: theme.colors.background },
   card: {
     padding: theme.spacing.md,
     borderRadius: theme.radius.md,
@@ -38,5 +38,5 @@ const styles = StyleSheet.create({
   },
   title: { fontWeight: '700', fontSize: 16, color: theme.colors.onSurface },
   meta: { marginTop: 4, color: theme.colors.onSurface, opacity: 0.7 },
-  separator: { height: theme.spacing.md },
+  separator: { height: theme.spacing.sm },
 });
