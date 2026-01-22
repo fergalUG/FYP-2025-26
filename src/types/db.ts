@@ -6,7 +6,7 @@ export interface Journey {
   endTime: number;
   score: number;
   distanceKm: number;
-};
+}
 
 export interface Event {
   id: number;
@@ -17,5 +17,4 @@ export interface Event {
   longitude: number;
   speed: number;
   penalty: number;
-};
-
+}

@@ -1,23 +1,102 @@
-import { Journey } from '../types/db';
+import { useState, useEffect, useCallback } from 'react';
+import { Journey, Event } from '../types/db';
+import * as JourneyService from '../services/JourneyService';
+import { executeWithLoading } from '../utils/async';
 
-//test
-const journeys: Journey[] = [
-  { id: 1, title: 'Drive to work', distanceKm: 12.4, date: '2026-01-05', startTime: 123, endTime: 456, score: 0 },
-  { id: 2, title: 'Drive to the gym', distanceKm: 12.4, date: '2026-01-05', startTime: 0, endTime: 0, score: 0 },
-  { id: 3, title: 'Drive to the store', distanceKm: 12.4, date: '2026-01-05', startTime: 0, endTime: 0, score: 0 },
-  { id: 4, title: 'Drive to the park', distanceKm: 12.4, date: '2026-01-05', startTime: 0, endTime: 0, score: 0 },
-  { id: 5, title: 'Drive to the library', distanceKm: 12.4, date: '2026-01-05', startTime: 0, endTime: 0, score: 0 },
-  { id: 6, title: 'Drive to the museum', distanceKm: 12.4, date: '2026-01-05', startTime: 0, endTime: 0, score: 0 },
-  { id: 7, title: 'Drive to the zoo', distanceKm: 12.4, date: '2026-01-05', startTime: 0, endTime: 0, score: 0 },
-  { id: 8, title: 'Drive to the beach', distanceKm: 12.4, date: '2026-01-05', startTime: 0, endTime: 0, score: 0 },
-];
+export const useJourney = (id: number) => {
+  const [journey, setJourney] = useState<Journey | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-export const useJourney = (id: number): Journey | undefined => {
-  // TODO: implement hook to fetch journey by id from database
+  const fetchJourney = useCallback(async () => {
+    if (!id) {
+      setJourney(null);
+      setLoading(false);
+      return;
+    }
 
-  return journeys.find((journey) => journey.id === id);
+    const result = await executeWithLoading(() => JourneyService.getJourneyById(id), setLoading, setError);
+
+    setJourney(result || null);
+  }, [id]);
+
+  useEffect(() => {
+    fetchJourney();
+  }, [fetchJourney]);
+
+  return {
+    journey,
+    loading,
+    error,
+    refetch: fetchJourney,
+  };
 };
 
-export const useJourneys = (): Journey[] => {
-  return journeys;
+export const useJourneyWithEvents = (id: number) => {
+  const [journey, setJourney] = useState<Journey | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchJourneyWithEvents = useCallback(async () => {
+    if (!id) {
+      setJourney(null);
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [journeyResult, eventsResult] = await Promise.all([JourneyService.getJourneyById(id), JourneyService.getEventsByJourneyId(id)]);
+
+      setJourney(journeyResult || null);
+      setEvents(eventsResult || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchJourneyWithEvents();
+  }, [fetchJourneyWithEvents]);
+
+  return {
+    journey,
+    events,
+    loading,
+    error,
+    refetch: fetchJourneyWithEvents,
+  };
+};
+
+export const useJourneys = () => {
+  const [journeys, setJourneys] = useState<Journey[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchJourneys = useCallback(async () => {
+    const result = await executeWithLoading(() => JourneyService.getAllJourneys(), setLoading, setError);
+
+    setJourneys(result || []);
+  }, []);
+
+  const refetch = useCallback(() => {
+    fetchJourneys();
+  }, [fetchJourneys]);
+
+  useEffect(() => {
+    fetchJourneys();
+  }, [fetchJourneys]);
+
+  return {
+    journeys,
+    loading,
+    error,
+    refetch,
+  };
 };
