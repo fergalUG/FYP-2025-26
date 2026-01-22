@@ -1,32 +1,38 @@
 import * as SQL from 'expo-sqlite';
-import { Journey } from '../types';
+import { Journey, Event } from '../types';
 
 let db: SQL.SQLiteDatabase | null = null;
+
+export const getDatabase = (): SQL.SQLiteDatabase | null => {
+  return db;
+};
 
 export const initDatabase = async (): Promise<void> => {
   try {
     db = await SQL.openDatabaseAsync('journeys.db');
     await db.execAsync(`
-		CREATE TABLE IF NOT EXISTS journeys (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT,
-      date TEXT,
-			startTime INTEGER,
-			endTime INTEGER,
-			score INTEGER,
-      distanceKm INTEGER
-		);
-    CREATE TABLE IF NOT EXISTS events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      journeyId INTEGER,
-      timestamp INTEGER,
-      type TEXT,
-      latitude REAL,
-      longitude REAL,
-      speed REAL,
-      penalty INTEGER,
-      FOREIGN KEY (journeyId) REFERENCES journeys (id)
-	`);
+      CREATE TABLE IF NOT EXISTS journeys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        date TEXT,
+        startTime INTEGER,
+        endTime INTEGER,
+        score INTEGER,
+        distanceKm REAL
+      );
+      
+      CREATE TABLE IF NOT EXISTS events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        journeyId INTEGER,
+        timestamp INTEGER,
+        type TEXT,
+        latitude REAL,
+        longitude REAL,
+        speed REAL,
+        penalty INTEGER,
+        FOREIGN KEY (journeyId) REFERENCES journeys (id)
+      );
+    `);
     console.log('[JourneyService] Database initialized successfully.');
   } catch (error) {
     console.error('[JourneyService] Error initializing database:', error);
@@ -119,7 +125,7 @@ export const logEvent = async (type: string, latitude: number, longitude: number
   }
 };
 
-export const getJourneyById = async (id: number): Promise<any> => {
+export const getJourneyById = async (id: number): Promise<Journey | null> => {
   if (!db) {
     return null;
   }
@@ -136,7 +142,7 @@ export const getJourneyById = async (id: number): Promise<any> => {
       [id]
     );
 
-    return result;
+    return result as Journey | null;
   } catch (error) {
     console.error('[JourneyService] Error fetching journey by ID:', error);
     return null;
@@ -163,4 +169,21 @@ export const getAllJourneys = async (): Promise<Journey[]> => {
   }
 };
 
+export const getEventsByJourneyId = async (journeyId: number): Promise<Event[]> => {
+  if (!db) {
+    return [];
+  }
 
+  try {
+    const result = await db.getAllAsync(
+      `
+      SELECT * FROM events WHERE journeyId = ? ORDER BY timestamp ASC;
+    `,
+      [journeyId]
+    );
+    return result as Event[];
+  } catch (error) {
+    console.error('[JourneyService] Error fetching events for journey:', error);
+    return [];
+  }
+};

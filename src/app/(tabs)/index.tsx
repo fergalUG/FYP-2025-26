@@ -1,6 +1,6 @@
 import { Text, View, StyleSheet, Pressable } from 'react-native';
 import { theme } from '../../theme';
-import { useBackgroundService } from '../../hooks/useBackgroundService';
+import { useBackgroundService } from '../../hooks';
 import { getServiceStatusText, getServiceStatusColor, getPermissionStatusText, getLoadingText } from '../../utils/service';
 import { showSuccessAlert, showErrorAlert } from '../../utils/alert';
 
@@ -47,7 +47,9 @@ export default function Page() {
 
             <View style={styles.statusContainer}>
               <Text style={styles.statusLabel}>Status:</Text>
-              <Text style={[styles.statusText, { color: getServiceStatusColor(backgroundService.serviceState) }]}>{getServiceStatusText(backgroundService.serviceState)}</Text>
+              <Text style={[styles.statusText, { color: getServiceStatusColor(backgroundService.serviceState) }]}>
+                {getServiceStatusText(backgroundService.serviceState)}
+              </Text>
             </View>
 
             <Text style={styles.permissionText}>Permissions: {getPermissionStatusText(backgroundService.permissionState)}</Text>
@@ -63,12 +65,18 @@ export default function Page() {
 
               {backgroundService.serviceState === 'passive' && (
                 <Pressable style={[styles.button, styles.activeButton]} onPress={handleStartActive} disabled={backgroundService.isLoading}>
-                  <Text style={styles.buttonText}>{getLoadingText(backgroundService.isLoading, 'Test Active Tracking', 'Starting...')}</Text>
+                  <Text style={styles.buttonText}>
+                    {getLoadingText(backgroundService.isLoading, 'Test Active Tracking', 'Starting...')}
+                  </Text>
                 </Pressable>
               )}
 
               {backgroundService.serviceState === 'active' && (
-                <Pressable style={[styles.button, styles.secondaryButton]} onPress={handleStopActive} disabled={backgroundService.isLoading}>
+                <Pressable
+                  style={[styles.button, styles.secondaryButton]}
+                  onPress={handleStopActive}
+                  disabled={backgroundService.isLoading}
+                >
                   <Text style={styles.buttonText}>{getLoadingText(backgroundService.isLoading, 'Stop Test Tracking', 'Stopping...')}</Text>
                 </Pressable>
               )}
