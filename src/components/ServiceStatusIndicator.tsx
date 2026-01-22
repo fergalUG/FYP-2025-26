@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useBackgroundService } from '../hooks/useBackgroundService';
+import { useBackgroundService } from '../hooks';
 import { getServiceStatusColor } from '../utils/service';
 import { theme } from '../theme';
 
@@ -8,7 +8,7 @@ interface ServiceStatusIndicatorProps {
   size?: number;
 }
 
-export function ServiceStatusIndicator({ size = 12 }: ServiceStatusIndicatorProps) {
+export const ServiceStatusIndicator: React.FC<ServiceStatusIndicatorProps> = ({ size = 12 }) => {
   const { serviceState, permissionState } = useBackgroundService();
 
   const getIndicatorColor = (): string => {
@@ -31,7 +31,7 @@ export function ServiceStatusIndicator({ size = 12 }: ServiceStatusIndicatorProp
       <View style={getIndicatorStyle()} />
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {

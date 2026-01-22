@@ -20,6 +20,12 @@ export const lightTheme = {
     onSurface: '#000000',
     onBackground: '#000000',
     shadow: '#000000',
+    score: {
+      excellent: '#34C759',
+      good: '#FFCC00',
+      fair: '#FF9500',
+      poor: '#FF3B30',
+    },
   },
   spacing: {
     xs: 4,
