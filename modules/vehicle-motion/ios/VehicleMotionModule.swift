@@ -48,7 +48,6 @@ public class VehicleMotionModule: Module {
                 
                 let accel = data.userAcceleration
                 let gravity = data.gravity
-                let attitude = data.attitude
                 let gyro = data.rotationRate
                 
                 let rawAccel = vector3(x: accel.x, y: accel.y, z: accel.z)

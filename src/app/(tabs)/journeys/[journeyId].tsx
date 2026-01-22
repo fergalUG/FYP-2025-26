@@ -3,7 +3,7 @@ import { Text, View, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import { theme } from '../../../theme';
 import { useJourney } from '../../../hooks/useJourney';
-import type { Journey } from '../../../types/types';
+import type { Journey } from '../../../types/db';
 
 export default function JourneyDetail() {
   const { journeyId } = useLocalSearchParams<{ journeyId: string }>();

@@ -1,4 +1,4 @@
-import { Journey } from '../types/types';
+import { Journey } from '../types/db';
 
 //test
 const journeys: Journey[] = [

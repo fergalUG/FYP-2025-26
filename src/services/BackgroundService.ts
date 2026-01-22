@@ -2,7 +2,7 @@ import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import VehicleMotion from '../../modules/vehicle-motion';
-import type { TrackingMode, TrackingStatus } from '../types/types';
+import type { TrackingMode, TrackingStatus } from '../types';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -47,7 +47,9 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskMan
 
     const latestLocation = locations[locations.length - 1];
     const speed: number | null = latestLocation.coords.speed; // speed in m/s
-    console.log(`[BackgroundService] Location received. Speed: ${speed} m/s. Current Tracking Mode: ${currentTrackingMode}`);
+    console.log(
+      `[BackgroundService] Location received. Speed: ${speed} m/s (${convertMsToKmh(speed ?? 0)} km/h). Current Tracking Mode: ${currentTrackingMode}`
+    );
 
     if (speed != null && speed >= ACTIVE_SPEED_THRESHOLD && currentTrackingMode === 'PASSIVE') {
       console.log('[BackgroundService] speed > 15km/h; Switching to ACTIVE tracking mode.');
@@ -131,4 +133,8 @@ const startActiveTracking = async (): Promise<void> => {
     },
     trigger: null,
   });
+};
+
+const convertMsToKmh = (speedMs: number): number => {
+  return speedMs * 3.6;
 };

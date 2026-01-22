@@ -1,5 +1,8 @@
 import { Dimensions } from 'react-native';
 
+const MAX_WIDTH = Dimensions.get('window').width >= 1024 ? 960 : Dimensions.get('window').width;
+const MAX_HEIGHT = Dimensions.get('window').height;
+
 export const lightTheme = {
   colors: {
     primary: '#007AFF',
@@ -32,8 +35,8 @@ export const lightTheme = {
     xl: 16,
   },
   dimensions: {
-    deviceWidth: Dimensions.get('window').width,
-    deviceHeight: Dimensions.get('window').height,
+    deviceMaxWidth: MAX_WIDTH,
+    deviceMaxHeight: MAX_HEIGHT,
   },
 } as const;
 

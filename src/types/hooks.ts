@@ -1,13 +1,3 @@
-export type Journey = {
-  id: number;
-  title: string;
-  date: string;
-  startTime: number;
-  endTime: number;
-  score: number;
-  distanceKm: number;
-};
-
 export type ServiceState = 'stopped' | 'passive' | 'active';
 export type PermissionState = 'unknown' | 'granted' | 'denied';
 export type TrackingMode = 'PASSIVE' | 'ACTIVE';

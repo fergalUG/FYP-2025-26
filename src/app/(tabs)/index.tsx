@@ -5,10 +5,10 @@ import { getServiceStatusText, getServiceStatusColor, getPermissionStatusText, g
 import { showSuccessAlert, showErrorAlert } from '../../utils/alert';
 
 export default function Page() {
-  const { serviceState, permissionState, isLoading, startActiveTracking, stopActiveTracking, setupService } = useBackgroundService();
+  const backgroundService = useBackgroundService();
 
   const handleSetupService = async (): Promise<void> => {
-    const success = await setupService();
+    const success = await backgroundService.setupService();
     if (success) {
       showSuccessAlert('Success', 'VeloMetry is now set up and monitoring your location in the background.');
     } else {
@@ -16,17 +16,17 @@ export default function Page() {
     }
   };
 
-  const isServiceSetup = permissionState === 'granted' && serviceState !== 'stopped';
+  const isServiceSetup = backgroundService.permissionState === 'granted' && backgroundService.serviceState !== 'stopped';
 
   const handleStartActive = async (): Promise<void> => {
-    const success = await startActiveTracking();
+    const success = await backgroundService.startActiveTracking();
     if (success) {
       showSuccessAlert('Success', 'Active tracking started');
     }
   };
 
   const handleStopActive = async (): Promise<void> => {
-    const success = await stopActiveTracking();
+    const success = await backgroundService.stopActiveTracking();
     if (success) {
       showSuccessAlert('Success', 'Active tracking stopped');
     }
@@ -47,13 +47,13 @@ export default function Page() {
 
             <View style={styles.statusContainer}>
               <Text style={styles.statusLabel}>Status:</Text>
-              <Text style={[styles.statusText, { color: getServiceStatusColor(serviceState) }]}>{getServiceStatusText(serviceState)}</Text>
+              <Text style={[styles.statusText, { color: getServiceStatusColor(backgroundService.serviceState) }]}>{getServiceStatusText(backgroundService.serviceState)}</Text>
             </View>
 
-            <Text style={styles.permissionText}>Permissions: {getPermissionStatusText(permissionState)}</Text>
+            <Text style={styles.permissionText}>Permissions: {getPermissionStatusText(backgroundService.permissionState)}</Text>
 
-            <Pressable style={[styles.button, styles.primaryButton]} onPress={handleSetupService} disabled={isLoading}>
-              <Text style={styles.buttonText}>{getLoadingText(isLoading, 'Set Up VeloMetry', 'Setting up...')}</Text>
+            <Pressable style={[styles.button, styles.primaryButton]} onPress={handleSetupService} disabled={backgroundService.isLoading}>
+              <Text style={styles.buttonText}>{getLoadingText(backgroundService.isLoading, 'Set Up VeloMetry', 'Setting up...')}</Text>
             </Pressable>
           </View>
         ) : (
@@ -61,15 +61,15 @@ export default function Page() {
             <View style={styles.testingSection}>
               <Text style={styles.testingTitle}>Testing Controls</Text>
 
-              {serviceState === 'passive' && (
-                <Pressable style={[styles.button, styles.activeButton]} onPress={handleStartActive} disabled={isLoading}>
-                  <Text style={styles.buttonText}>{getLoadingText(isLoading, 'Test Active Tracking', 'Starting...')}</Text>
+              {backgroundService.serviceState === 'passive' && (
+                <Pressable style={[styles.button, styles.activeButton]} onPress={handleStartActive} disabled={backgroundService.isLoading}>
+                  <Text style={styles.buttonText}>{getLoadingText(backgroundService.isLoading, 'Test Active Tracking', 'Starting...')}</Text>
                 </Pressable>
               )}
 
-              {serviceState === 'active' && (
-                <Pressable style={[styles.button, styles.secondaryButton]} onPress={handleStopActive} disabled={isLoading}>
-                  <Text style={styles.buttonText}>{getLoadingText(isLoading, 'Stop Test Tracking', 'Stopping...')}</Text>
+              {backgroundService.serviceState === 'active' && (
+                <Pressable style={[styles.button, styles.secondaryButton]} onPress={handleStopActive} disabled={backgroundService.isLoading}>
+                  <Text style={styles.buttonText}>{getLoadingText(backgroundService.isLoading, 'Stop Test Tracking', 'Stopping...')}</Text>
                 </Pressable>
               )}
             </View>
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
-    maxWidth: 960,
+    maxWidth: theme.dimensions.deviceMaxWidth,
     gap: theme.spacing.lg,
   },
   title: {

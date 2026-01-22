@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as BackgroundService from '../services/BackgroundService';
-import type { ServiceState, PermissionState, BackgroundServiceHook } from '../types/types';
+import type { ServiceState, PermissionState, BackgroundServiceHook } from '../types';
 import { executeWithLoading } from '../utils/async';
 
 export function useBackgroundService(): BackgroundServiceHook {

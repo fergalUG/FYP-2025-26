@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import { FlatList, Pressable, Text, View, StyleSheet } from 'react-native';
 import { theme } from '../../../theme';
-import { Journey } from '../../../types/types';
+import { Journey } from '../../../types/db';
 import { useJourneys } from '../../../hooks/useJourney';
 
 export default function Journeys() {
