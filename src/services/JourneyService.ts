@@ -41,6 +41,8 @@ export const initDatabase = async (): Promise<void> => {
 
 let currentJourneyId: number | null = null;
 
+export const getCurrentJourneyId = (): number | null => currentJourneyId;
+
 export const startJourney = async (): Promise<void> => {
   if (!db) {
     await initDatabase();
@@ -64,14 +66,14 @@ export const startJourney = async (): Promise<void> => {
       [title, journeyDate, startTime]
     );
 
-    const currentJourneyId = res.lastInsertRowId;
+    currentJourneyId = res.lastInsertRowId;
     console.log(`[JourneyService] Journey started successfully (${currentJourneyId}).`);
   } catch (error) {
     console.error('[JourneyService] Error starting journey:', error);
   }
 };
 
-export const endJourney = async (finalScore: number): Promise<void> => {
+export const endJourney = async (finalScore: number, distanceKm: number = 0): Promise<void> => {
   if (!db || !currentJourneyId) {
     return;
   }
@@ -89,9 +91,10 @@ export const endJourney = async (finalScore: number): Promise<void> => {
       UPDATE journeys
       SET endTime = ?, 
       score = ?,
+      distanceKm = ?
       WHERE id = ?;
     `,
-      [endTime, finalScore, currentJourneyId]
+      [endTime, finalScore, distanceKm, currentJourneyId]
     );
 
     console.log(`[JourneyService] Journey ended successfully (${currentJourneyId}).`);

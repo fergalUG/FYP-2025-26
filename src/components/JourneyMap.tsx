@@ -54,23 +54,15 @@ export const JourneyMap: React.FC<JourneyMapProps> = ({ events, height = 300 }) 
   const deltaLng = Math.abs(maxLng - minLng) * 1.2;
 
   const region = {
-    latitude: midLat || 53.3498,
-    longitude: midLng || -6.2603,
+    latitude: midLat,
+    longitude: midLng,
     latitudeDelta: Math.max(deltaLat, 0.01),
     longitudeDelta: Math.max(deltaLng, 0.01),
   };
 
   return (
     <View style={[styles.container, { height }]}>
-      <MapView
-        style={styles.map}
-        initialRegion={region}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        toolbarEnabled={false}
-        onMapReady={() => console.log('Map is ready')}
-        onRegionChange={() => console.log('Region changed')}
-      >
+      <MapView style={styles.map} initialRegion={region} showsUserLocation={false} showsMyLocationButton={false} toolbarEnabled={false}>
         {routeCoordinates.length > 1 && (
           <Polyline coordinates={routeCoordinates} strokeColor={theme.colors.primary} strokeWidth={4} lineCap="round" lineJoin="round" />
         )}

@@ -3,6 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import VehicleMotion from '../../modules/vehicle-motion';
 import type { TrackingMode, TrackingStatus } from '../types';
+import * as JourneyService from './JourneyService';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -17,9 +18,14 @@ const BACKGROUND_LOCATION_TASK: string = 'BACKGROUND-LOCATION-TASK';
 
 const ACTIVE_SPEED_THRESHOLD: number = 4.16667; // 15 km/h in m/s
 const PASSIVE_SPEED_THRESHOLD: number = 1.38889; // 5 km/h in m/s
+const PASSIVE_TIMEOUT_MS: number = 120000; // 2 minutes before switching to passive
 
 let currentTrackingMode: TrackingMode = 'PASSIVE';
 let isMonitoring: boolean = false;
+let currentJourneyId: number | null = null;
+let lowSpeedStartTime: number | null = null;
+let totalDistance: number = 0;
+let lastLocation: Location.LocationObject | null = null;
 
 export const getTrackingStatus = (): TrackingStatus => ({
   mode: currentTrackingMode,
@@ -27,16 +33,12 @@ export const getTrackingStatus = (): TrackingStatus => ({
 });
 
 interface LocationTaskData {
-  locations: Array<{
-    coords: {
-      speed: number | null;
-    };
-  }>;
+  locations: Array<Location.LocationObject>;
 }
 
 TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
   if (error) {
-    console.error('Background location task error:', error);
+    console.error('[BackgroundService] Background location task error:', error);
     return;
   }
   if (data) {
@@ -47,20 +49,33 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskMan
 
     const latestLocation = locations[locations.length - 1];
     const speed: number | null = latestLocation.coords.speed; // speed in m/s
-    console.log(
-      `[BackgroundService] Location received. Speed: ${speed} m/s (${convertMsToKmh(speed ?? 0)} km/h). Current Tracking Mode: ${currentTrackingMode}`
-    );
+    const speedKmh = convertMsToKmh(speed ?? 0);
 
-    if (speed != null && speed >= ACTIVE_SPEED_THRESHOLD && currentTrackingMode === 'PASSIVE') {
-      console.log('[BackgroundService] speed > 15km/h; Switching to ACTIVE tracking mode.');
-      // TODO: implement start tracking service
-    } else if ((speed == null || speed < PASSIVE_SPEED_THRESHOLD) && currentTrackingMode === 'ACTIVE') {
-      console.log('[BackgroundService] speed < 5km/h; Switching to PASSIVE tracking mode.');
-      // TODO: implement stop tracking service
-      // probably need to have a tmeout before switching to passive to ensure user is stationary
+    console.log(`[BackgroundService] Location received. Speed: ${speed} m/s (${speedKmh} km/h). Current Mode: ${currentTrackingMode}`);
+
+    if (currentTrackingMode === 'ACTIVE' && currentJourneyId !== null) {
+      await processActiveLocation(latestLocation);
     }
 
-    // TODO: implement position processing for scores and storage
+    if (speed != null && speed >= ACTIVE_SPEED_THRESHOLD && currentTrackingMode === 'PASSIVE') {
+      console.log('[BackgroundService] Speed > 15km/h; Switching to ACTIVE tracking mode.');
+      await startActiveTracking();
+    } else if ((speed == null || speed < PASSIVE_SPEED_THRESHOLD) && currentTrackingMode === 'ACTIVE') {
+      if (lowSpeedStartTime === null) {
+        lowSpeedStartTime = Date.now();
+        console.log('[BackgroundService] Low speed detected, starting timeout...');
+      } else {
+        const elapsedTime = Date.now() - lowSpeedStartTime;
+        if (elapsedTime >= PASSIVE_TIMEOUT_MS) {
+          console.log('[BackgroundService] Speed < 5km/h for 2 minutes; Switching to PASSIVE tracking mode.');
+          await endActiveTracking();
+          lowSpeedStartTime = null;
+        }
+      }
+    } else if (speed != null && speed >= PASSIVE_SPEED_THRESHOLD && lowSpeedStartTime !== null) {
+      lowSpeedStartTime = null;
+      console.log('[BackgroundService] Speed increased, timeout cancelled.');
+    }
   }
 });
 
@@ -74,6 +89,9 @@ export const requestLocationPermissions = async (): Promise<boolean> => {
 };
 
 export const startLocationMonitoring = async (): Promise<void> => {
+  if (isMonitoring) {
+    return;
+  }
   await startPassiveTracking();
   isMonitoring = true;
 };
@@ -90,7 +108,7 @@ export const ManualStartActiveTracking = async (): Promise<void> => {
 
 export const ManualStopActiveTracking = async (): Promise<void> => {
   console.log('[BackgroundService] Manual stop of ACTIVE tracking requested.');
-  await startPassiveTracking();
+  await endActiveTracking();
 };
 
 const startPassiveTracking = async (): Promise<void> => {
@@ -105,34 +123,103 @@ const startPassiveTracking = async (): Promise<void> => {
     pausesUpdatesAutomatically: false,
   });
 
-  // TODO: after active tracking will need to end the journey here for a score
-
   VehicleMotion.stopTracking();
+  console.log('[BackgroundService] Passive tracking started.');
 };
 
 const startActiveTracking = async (): Promise<void> => {
+  if (currentTrackingMode === 'ACTIVE') {
+    console.log('[BackgroundService] Already in active tracking mode.');
+    return;
+  }
+
   currentTrackingMode = 'ACTIVE';
+  totalDistance = 0;
+  lastLocation = null;
+  lowSpeedStartTime = null;
 
-  // TODO: send notification that active tracking has started
-  // start the journey for scoring here
+  // Start journey in database
+  await JourneyService.startJourney();
+  currentJourneyId = JourneyService.getCurrentJourneyId();
 
-  VehicleMotion.startTracking();
+  console.log(`[BackgroundService] Journey started with ID: ${currentJourneyId}`);
 
-  await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
-    accuracy: Location.Accuracy.BestForNavigation,
-    distanceInterval: 0,
-    showsBackgroundLocationIndicator: true,
-    activityType: Location.ActivityType.AutomotiveNavigation,
-    pausesUpdatesAutomatically: false,
-  });
+  try {
+    const location = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.BestForNavigation,
+    });
+    await JourneyService.logEvent('journey_start', location.coords.latitude, location.coords.longitude, 0, 0);
+    lastLocation = location;
+  } catch (error) {
+    console.error('[BackgroundService] Could not get initial location:', error);
+  }
+
+  console.log('[BackgroundService] Active tracking started.');
+};
+
+const endActiveTracking = async (): Promise<void> => {
+  if (currentTrackingMode !== 'ACTIVE' || currentJourneyId === null) {
+    console.log('[BackgroundService] No active journey to end.');
+    return;
+  }
+
+  if (lastLocation) {
+    await JourneyService.logEvent('journey_end', lastLocation.coords.latitude, lastLocation.coords.longitude, 0, 0);
+  }
+
+  // TODO: Calculate final score using efficiency service
+  const finalScore = 0;
+
+  await JourneyService.endJourney(finalScore, totalDistance);
+
+  console.log(`[BackgroundService] Journey ended (ID: ${currentJourneyId}), distance: ${totalDistance.toFixed(2)}km, score: ${finalScore}`);
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: 'Driving Detected',
-      body: 'Active tracking has started. Tap to view your journey.',
+      title: 'Journey Complete',
+      body: `Your journey has ended. Distance: ${totalDistance.toFixed(1)}km`,
     },
     trigger: null,
   });
+
+  currentJourneyId = null;
+  totalDistance = 0;
+  lastLocation = null;
+
+  await startPassiveTracking();
+};
+
+const processActiveLocation = async (location: Location.LocationObject): Promise<void> => {
+  const { latitude, longitude, speed, accuracy } = location.coords;
+
+  if (accuracy && accuracy > 50) {
+    console.log(`[BackgroundService] Poor accuracy (${accuracy}m), skipping location.`);
+    return;
+  }
+
+  if (lastLocation) {
+    const distance = calculateDistance(lastLocation.coords.latitude, lastLocation.coords.longitude, latitude, longitude);
+    totalDistance += distance;
+  }
+
+  const speedKmh = convertMsToKmh(speed ?? 0);
+  await JourneyService.logEvent('location_update', latitude, longitude, speedKmh, 0);
+
+  lastLocation = location;
+};
+
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const toRad = (degrees: number): number => {
+  return degrees * (Math.PI / 180);
 };
 
 const convertMsToKmh = (speedMs: number): number => {

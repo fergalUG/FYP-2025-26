@@ -34,10 +34,6 @@
           "locationWhenInUsePermission": "Allow VeloMetry to access your location while you are using the app."
         }
       ]
-    ],
-    "android": {
-      "permissions": ["android.permission.ACCESS_COARSE_LOCATION", "android.permission.ACCESS_FINE_LOCATION"],
-      "package": "com.anonymous.VeloMetry"
-    }
+    ]
   }
 }

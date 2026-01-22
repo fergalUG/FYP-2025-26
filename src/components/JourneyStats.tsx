@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '../theme';
-import { Journey, Event, EventType } from '../types';
+import { Journey, Event } from '../types';
 
 interface JourneyStatsProps {
   journey: Journey;
@@ -40,8 +40,6 @@ export const JourneyStats: React.FC<JourneyStatsProps> = ({ journey, events }) =
     },
     {} as Record<string, number>
   );
-
-  const totalPenalties = events.reduce((sum, event) => sum + (event.penalty || 0), 0);
 
   const getScoreColor = (score: number): string => {
     if (score >= 80) return theme.colors.score.excellent;
