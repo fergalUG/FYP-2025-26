@@ -1,4 +1,4 @@
-export type ScoringStats = {
+export interface ScoringStats {
   totalEvents: number;
   totalPenalty: number;
   hardBrakeCount: number;

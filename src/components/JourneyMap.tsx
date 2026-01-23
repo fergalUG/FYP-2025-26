@@ -9,7 +9,9 @@ interface JourneyMapProps {
   height?: number;
 }
 
-export const JourneyMap: React.FC<JourneyMapProps> = ({ events, height = 300 }) => {
+export const JourneyMap = (props: JourneyMapProps) => {
+  const { events, height = 300 } = props;
+
   if (events.length === 0) {
     return (
       <View style={[styles.container, { height }]}>

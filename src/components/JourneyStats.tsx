@@ -14,14 +14,18 @@ interface StatItemProps {
   color?: string;
 }
 
-const StatItem: React.FC<StatItemProps> = ({ label, value, color }) => (
-  <View style={styles.statItem}>
-    <Text style={styles.statLabel}>{label}</Text>
-    <Text style={[styles.statValue, color && { color }]}>{value}</Text>
-  </View>
-);
+const StatItem = (props: StatItemProps) => {
+  const { label, value, color } = props;
+  return (
+    <View style={styles.statItem}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statValue, color && { color }]}>{value}</Text>
+    </View>
+  );
+};
 
-export const JourneyStats: React.FC<JourneyStatsProps> = ({ journey, events }) => {
+export const JourneyStats = (props: JourneyStatsProps) => {
+  const { journey, events } = props;
   const durationMs = journey.endTime - journey.startTime;
   const durationMinutes = Math.floor(durationMs / 60000);
   const durationHours = Math.floor(durationMinutes / 60);

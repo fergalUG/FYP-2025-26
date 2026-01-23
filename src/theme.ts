@@ -20,6 +20,11 @@ export const lightTheme = {
     onSurface: '#000000',
     onBackground: '#000000',
     shadow: '#000000',
+    status: {
+      active: '#34C759',
+      passive: '#FFCC00',
+      stopped: '#FF3B30',
+    },
     score: {
       excellent: '#34C759',
       good: '#FFCC00',

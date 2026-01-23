@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useBackgroundService } from '../hooks';
 import { getServiceStatusColor } from '../utils/service';
 import { theme } from '../theme';
@@ -8,7 +9,8 @@ interface ServiceStatusIndicatorProps {
   size?: number;
 }
 
-export const ServiceStatusIndicator: React.FC<ServiceStatusIndicatorProps> = ({ size = 12 }) => {
+export const ServiceStatusIndicator = (props: ServiceStatusIndicatorProps) => {
+  const { size = 12 } = props;
   const { serviceState, permissionState } = useBackgroundService();
 
   const getIndicatorColor = (): string => {
