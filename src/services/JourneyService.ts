@@ -1,5 +1,6 @@
 import * as SQL from 'expo-sqlite';
-import { Journey, Event } from '../types';
+import { Journey, Event, EventType } from '../types';
+import { getPenaltyForEvent } from '../constants/penalties';
 import { createLogger, LogModule } from '../utils/logger';
 
 const logger = createLogger(LogModule.JourneyService);
@@ -107,7 +108,7 @@ export const endJourney = async (finalScore: number, distanceKm: number = 0): Pr
   }
 };
 
-export const logEvent = async (type: string, latitude: number, longitude: number, speed: number, penalty: number): Promise<void> => {
+export const logEvent = async (type: EventType, latitude: number, longitude: number, speed: number): Promise<void> => {
   if (!db || !currentJourneyId) {
     return;
   }
@@ -118,6 +119,7 @@ export const logEvent = async (type: string, latitude: number, longitude: number
 
   try {
     const timestamp = new Date().getTime();
+    const penalty = getPenaltyForEvent(type);
 
     await db.runAsync(
       `

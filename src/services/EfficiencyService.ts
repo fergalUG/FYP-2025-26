@@ -3,6 +3,7 @@ import VehicleMotion from '../../modules/vehicle-motion';
 import type { MotionData } from '../../modules/vehicle-motion/src/VehicleMotion.types';
 import * as JourneyService from './JourneyService';
 import { EventType, ScoringStats } from '../types';
+import { getPenaltyForEvent } from '../constants/penalties';
 import { createLogger, LogModule } from '../utils/logger';
 
 const logger = createLogger(LogModule.EfficiencyService);
@@ -26,7 +27,6 @@ let isTracking = false;
 let lastLocation: Location.LocationObject | null = null;
 let lastSpeedKmh = 0;
 let lastSpeedUpdateTime = 0;
-let lastHeading: number | null = null;
 let headingHistory: Array<{ heading: number; timestamp: number }> = [];
 let motionDataBuffer: MotionData[] = [];
 const MOTION_BUFFER_SIZE = 10;
@@ -41,7 +41,6 @@ export const startTracking = (): void => {
   lastLocation = null;
   lastSpeedKmh = 0;
   lastSpeedUpdateTime = 0;
-  lastHeading = null;
   headingHistory = [];
   motionDataBuffer = [];
 
@@ -60,7 +59,6 @@ export const stopTracking = (): void => {
   lastLocation = null;
   lastSpeedKmh = 0;
   lastSpeedUpdateTime = 0;
-  lastHeading = null;
   headingHistory = [];
   motionDataBuffer = [];
 
@@ -81,7 +79,9 @@ export const processLocation = async (location: Location.LocationObject): Promis
 
   await checkSpeeding(latitude, longitude, speedKmh);
 
-  lastSpeedKmh = speedKmh;
+  if (lastLocation) {
+    lastSpeedKmh = convertMsToKmh(lastLocation.coords.speed ?? 0);
+  }
   lastSpeedUpdateTime = currentTime;
 
   if (heading !== null && heading !== -1 && speedKmh >= MIN_SPEED_FOR_HEADING) {
@@ -92,8 +92,6 @@ export const processLocation = async (location: Location.LocationObject): Promis
     if (headingHistory.length > HEADING_HISTORY_SIZE) {
       headingHistory.shift();
     }
-
-    lastHeading = heading;
   }
 
   lastLocation = location;
@@ -118,19 +116,17 @@ const handleMotionUpdate = async (data: MotionData): Promise<void> => {
 };
 
 const checkSpeeding = async (latitude: number, longitude: number, speedKmh: number): Promise<void> => {
-  let penalty = 0;
-  let eventType = '';
+  let eventType: EventType | null = null;
 
   if (speedKmh > SPEEDING_THRESHOLD_HIGH) {
     eventType = EventType.HarshSpeeding;
-    penalty = 1;
   } else if (speedKmh > SPEEDING_THRESHOLD_MEDIUM) {
     eventType = EventType.ModerateSpeeding;
-    penalty = 1;
   }
 
-  if (penalty > 0) {
-    await JourneyService.logEvent(eventType, latitude, longitude, speedKmh, penalty);
+  if (eventType) {
+    await JourneyService.logEvent(eventType, latitude, longitude, speedKmh);
+    const penalty = getPenaltyForEvent(eventType);
     logger.info(`${eventType} detected: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`);
   }
 };
@@ -148,19 +144,17 @@ const checkBrakingAndAcceleration = async (data: MotionData, location: Location.
   const speedChange = speedKmh - lastSpeedKmh;
   const speedChangeRate = speedChange / timeDeltaSeconds;
 
-  let eventType = '';
-  let penalty = 0;
+  let eventType: EventType | null = null;
 
   if (speedChangeRate < HARD_BRAKE_SPEED_CHANGE && horizontalForce >= HARD_BRAKE_FORCE_THRESHOLD) {
     eventType = EventType.HarshBraking;
-    penalty = 1;
   } else if (speedChangeRate > HARD_ACCELERATION_SPEED_CHANGE && horizontalForce >= HARD_ACCELERATION_FORCE_THRESHOLD) {
     eventType = EventType.HarshAcceleration;
-    penalty = 1;
   }
 
-  if (penalty > 0) {
-    await JourneyService.logEvent(eventType, location.coords.latitude, location.coords.longitude, speedKmh, penalty);
+  if (eventType) {
+    await JourneyService.logEvent(eventType, location.coords.latitude, location.coords.longitude, speedKmh);
+    const penalty = getPenaltyForEvent(eventType);
     logger.info(
       `${eventType} detected: ${horizontalForce.toFixed(2)}g horizontal force, speed change: ${speedChangeRate.toFixed(1)} km/h/s, penalty: ${penalty}`
     );
@@ -194,15 +188,17 @@ const checkHarshCornering = async (data: MotionData, location: Location.Location
       return;
     }
 
-    await JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh, 1);
+    await JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
+    const penalty = getPenaltyForEvent(EventType.SharpTurn);
     logger.info(
-      `harsh_cornering detected: ${horizontalForce.toFixed(2)}g force, ${headingChange.toFixed(1)}° turn, speed: ${speedKmh.toFixed(1)} km/h, penalty: 1`
+      `harsh_cornering detected: ${horizontalForce.toFixed(2)}g force, ${headingChange.toFixed(1)}° turn, speed: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`
     );
   } else {
     if (horizontalForce > HARSH_CORNERING_THRESHOLD * 1.2) {
-      await JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh, 1);
+      await JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
+      const penalty = getPenaltyForEvent(EventType.SharpTurn);
       logger.info(
-        `harsh_cornering detected (no GPS validation): ${horizontalForce.toFixed(2)}g force, speed: ${speedKmh.toFixed(1)} km/h, penalty: 1`
+        `harsh_cornering detected (no GPS validation): ${horizontalForce.toFixed(2)}g force, speed: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`
       );
     }
   }

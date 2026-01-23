@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
-import type { TrackingMode, TrackingStatus } from '../types';
+import { EventType, type TrackingMode, type TrackingStatus } from '../types';
 import * as JourneyService from './JourneyService';
 import * as EfficiencyService from './EfficiencyService';
 import { createLogger, LogModule } from '../utils/logger';
@@ -150,7 +150,7 @@ const startActiveTracking = async (): Promise<void> => {
     const location = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.BestForNavigation,
     });
-    await JourneyService.logEvent('journey_start', location.coords.latitude, location.coords.longitude, 0, 0);
+    await JourneyService.logEvent(EventType.JourneyStart, location.coords.latitude, location.coords.longitude, 0);
     lastLocation = location;
   } catch (error) {
     logger.error('Could not get initial location:', error);
@@ -184,7 +184,7 @@ const endActiveTracking = async (): Promise<void> => {
   }
 
   if (lastLocation) {
-    await JourneyService.logEvent('journey_end', lastLocation.coords.latitude, lastLocation.coords.longitude, 0, 0);
+    await JourneyService.logEvent(EventType.JourneyEnd, lastLocation.coords.latitude, lastLocation.coords.longitude, 0);
   }
 
   const finalScore = await EfficiencyService.calculateJourneyScore(currentJourneyId);
@@ -222,7 +222,7 @@ const processActiveLocation = async (location: Location.LocationObject): Promise
   }
 
   const speedKmh = convertMsToKmh(speed ?? 0);
-  await JourneyService.logEvent('location_update', latitude, longitude, speedKmh, 0);
+  await JourneyService.logEvent(EventType.LocationUpdate, latitude, longitude, speedKmh);
 
   if (currentJourneyId) {
     await EfficiencyService.processLocation(location);

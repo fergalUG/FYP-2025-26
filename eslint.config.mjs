@@ -20,9 +20,13 @@ export default defineConfig([
       '.git',
       '.github/**',
       '.vscode/**',
+      '__tests__/**',
 
       // files
       'src/utils/logger.ts',
+      'jest.config.js',
+      'jest.setup.js',
+      'eslint.config.mjs',
     ],
   },
 ]);
