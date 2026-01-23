@@ -6,4 +6,4 @@ export interface ScoringStats {
   harshCorneringCount: number;
   moderateSpeedingCount: number;
   harshSpeedingCount: number;
-};
+}

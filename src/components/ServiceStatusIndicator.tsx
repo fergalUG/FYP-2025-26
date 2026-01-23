@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useBackgroundService } from '../hooks';
 import { getServiceStatusColor } from '../utils/service';
 import { theme } from '../theme';

@@ -1,10 +1,18 @@
 import { Link } from 'expo-router';
-import { FlatList, Pressable, Text, View, StyleSheet, ActivityIndicator } from 'react-native';
+import { FlatList, Pressable, Text, View, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { theme } from '../../../theme';
 import { useJourneys } from '../../../hooks';
+import { useState } from 'react';
 
 export default function Journeys() {
   const { journeys, loading, error, refetch } = useJourneys();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    refetch();
+    setRefreshing(false);
+  };
 
   if (loading) {
     return (
@@ -51,6 +59,14 @@ export default function Journeys() {
         </Link>
       )}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={theme.colors.primary}
+          titleColor={theme.colors.onSurface}
+        />
+      }
     />
   );
 }
@@ -95,7 +111,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
   },
   retryButtonText: {
-    color: '#ffffff',
+    color: theme.colors.background,
     fontWeight: '600',
   },
   emptyText: {
