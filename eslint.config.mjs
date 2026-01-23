@@ -20,6 +20,9 @@ export default defineConfig([
       '.git',
       '.github/**',
       '.vscode/**',
+
+      // files
+      'src/utils/logger.ts',
     ],
   },
 ]);

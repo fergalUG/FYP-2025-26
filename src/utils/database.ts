@@ -1,19 +1,22 @@
 import * as JourneyService from '../services/JourneyService';
 import { Journey } from '../types';
+import { createLogger, LogModule } from './logger';
+
+const logger = createLogger(LogModule.DB);
 
 // TESTING FUNCTIONS
 
 export const initDatabaseWithMockData = async (): Promise<void> => {
   try {
-    console.log('[DatabaseUtils] Resetting and initializing database...');
+    logger.info('Resetting and initializing database...');
     await resetDatabase();
 
-    console.log('[DatabaseUtils] Seeding mock data...');
+    logger.info('Seeding mock data...');
     await seedMockData();
 
-    console.log('[DatabaseUtils] Database setup complete!');
+    logger.info('Database setup complete!');
   } catch (error) {
-    console.error('[DatabaseUtils] Failed to initialize database with mock data:', error);
+    logger.error('Failed to initialize database with mock data:', error);
   }
 };
 
@@ -25,17 +28,17 @@ export const resetDatabase = async (): Promise<void> => {
     }
     db = JourneyService.getDatabase();
     if (!db) {
-      console.error('[JourneyService] Database not initialized. Cannot reset database.');
+      logger.error('Database not initialized. Cannot reset database.');
       return;
     }
 
-    console.log('[JourneyService] Dropping existing tables...');
+    logger.info('Dropping existing tables...');
     await db.execAsync(`
       DROP TABLE IF EXISTS events;
       DROP TABLE IF EXISTS journeys;
     `);
 
-    console.log('[JourneyService] Recreating tables...');
+    logger.info('Recreating tables...');
     await db.execAsync(`
       CREATE TABLE journeys (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,9 +63,9 @@ export const resetDatabase = async (): Promise<void> => {
       );
     `);
 
-    console.log('[JourneyService] Database reset successfully.');
+    logger.info('Database reset successfully.');
   } catch (error) {
-    console.error('[JourneyService] Error resetting database:', error);
+    logger.error('Error resetting database:', error);
   }
 };
 
@@ -73,18 +76,18 @@ export const seedMockData = async (): Promise<void> => {
   }
   db = JourneyService.getDatabase();
   if (!db) {
-    console.error('[JourneyService] Database not initialized. Cannot seed data.');
+    logger.error('Database not initialized. Cannot seed data.');
     return;
   }
 
   try {
     const existingData = (await db.getFirstAsync('SELECT COUNT(*) as count FROM journeys')) as Journey[];
     if (existingData && existingData.length > 0) {
-      console.log('[JourneyService] Database already contains data. Skipping seed.');
+      logger.info('Database already contains data. Skipping seed.');
       return;
     }
 
-    console.log('[JourneyService] Seeding database with mock data...');
+    logger.info('Seeding database with mock data...');
 
     const mockJourneys = [
       {
@@ -262,10 +265,10 @@ export const seedMockData = async (): Promise<void> => {
       }
     }
 
-    console.log(
+    logger.info(
       `[JourneyService] Successfully seeded ${mockJourneys.length} mock journeys with ${mockEvents.reduce((sum, events) => sum + events.length, 0)} events.`
     );
   } catch (error) {
-    console.error('[JourneyService] Error seeding mock data:', error);
+    logger.error('Error seeding mock data:', error);
   }
 };

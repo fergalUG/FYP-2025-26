@@ -1,9 +1,12 @@
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
-import VehicleMotion from '../../modules/vehicle-motion';
 import type { TrackingMode, TrackingStatus } from '../types';
 import * as JourneyService from './JourneyService';
+import * as EfficiencyService from './EfficiencyService';
+import { createLogger, LogModule } from '../utils/logger';
+
+const logger = createLogger(LogModule.BackgroundService);
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -38,7 +41,7 @@ interface LocationTaskData {
 
 TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
   if (error) {
-    console.error('[BackgroundService] Background location task error:', error);
+    logger.error('Background location task error:', error);
     return;
   }
   if (data) {
@@ -51,30 +54,30 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskMan
     const speed: number | null = latestLocation.coords.speed; // speed in m/s
     const speedKmh = convertMsToKmh(speed ?? 0);
 
-    console.log(`[BackgroundService] Location received. Speed: ${speed} m/s (${speedKmh} km/h). Current Mode: ${currentTrackingMode}`);
+    logger.info(`Location received. Speed: ${speed} m/s (${speedKmh} km/h). Current Mode: ${currentTrackingMode}`);
 
     if (currentTrackingMode === 'ACTIVE' && currentJourneyId !== null) {
       await processActiveLocation(latestLocation);
     }
 
     if (speed != null && speed >= ACTIVE_SPEED_THRESHOLD && currentTrackingMode === 'PASSIVE') {
-      console.log('[BackgroundService] Speed > 15km/h; Switching to ACTIVE tracking mode.');
+      logger.info('Speed > 15km/h; Switching to ACTIVE tracking mode.');
       await startActiveTracking();
     } else if ((speed == null || speed < PASSIVE_SPEED_THRESHOLD) && currentTrackingMode === 'ACTIVE') {
       if (lowSpeedStartTime === null) {
         lowSpeedStartTime = Date.now();
-        console.log('[BackgroundService] Low speed detected, starting timeout...');
+        logger.info('Low speed detected, starting timeout...');
       } else {
         const elapsedTime = Date.now() - lowSpeedStartTime;
         if (elapsedTime >= PASSIVE_TIMEOUT_MS) {
-          console.log('[BackgroundService] Speed < 5km/h for 2 minutes; Switching to PASSIVE tracking mode.');
+          logger.info('Speed < 5km/h for 2 minutes; Switching to PASSIVE tracking mode.');
           await endActiveTracking();
           lowSpeedStartTime = null;
         }
       }
     } else if (speed != null && speed >= PASSIVE_SPEED_THRESHOLD && lowSpeedStartTime !== null) {
       lowSpeedStartTime = null;
-      console.log('[BackgroundService] Speed increased, timeout cancelled.');
+      logger.info('Speed increased, timeout cancelled.');
     }
   }
 });
@@ -102,12 +105,12 @@ export const stopLocationMonitoring = async (): Promise<void> => {
 };
 
 export const ManualStartActiveTracking = async (): Promise<void> => {
-  console.log('[BackgroundService] Manual start of ACTIVE tracking requested.');
+  logger.info('Manual start of ACTIVE tracking requested.');
   await startActiveTracking();
 };
 
 export const ManualStopActiveTracking = async (): Promise<void> => {
-  console.log('[BackgroundService] Manual stop of ACTIVE tracking requested.');
+  logger.info('Manual stop of ACTIVE tracking requested.');
   await endActiveTracking();
 };
 
@@ -123,13 +126,13 @@ const startPassiveTracking = async (): Promise<void> => {
     pausesUpdatesAutomatically: false,
   });
 
-  VehicleMotion.stopTracking();
-  console.log('[BackgroundService] Passive tracking started.');
+  EfficiencyService.stopTracking();
+  logger.info('Passive tracking started.');
 };
 
 const startActiveTracking = async (): Promise<void> => {
   if (currentTrackingMode === 'ACTIVE') {
-    console.log('[BackgroundService] Already in active tracking mode.');
+    logger.info('Already in active tracking mode.');
     return;
   }
 
@@ -138,11 +141,10 @@ const startActiveTracking = async (): Promise<void> => {
   lastLocation = null;
   lowSpeedStartTime = null;
 
-  // Start journey in database
   await JourneyService.startJourney();
   currentJourneyId = JourneyService.getCurrentJourneyId();
 
-  console.log(`[BackgroundService] Journey started with ID: ${currentJourneyId}`);
+  logger.info(`Journey started with ID: ${currentJourneyId}`);
 
   try {
     const location = await Location.getCurrentPositionAsync({
@@ -151,15 +153,33 @@ const startActiveTracking = async (): Promise<void> => {
     await JourneyService.logEvent('journey_start', location.coords.latitude, location.coords.longitude, 0, 0);
     lastLocation = location;
   } catch (error) {
-    console.error('[BackgroundService] Could not get initial location:', error);
+    logger.error('Could not get initial location:', error);
   }
 
-  console.log('[BackgroundService] Active tracking started.');
+  EfficiencyService.startTracking();
+
+  await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
+    accuracy: Location.Accuracy.BestForNavigation,
+    distanceInterval: 0,
+    showsBackgroundLocationIndicator: true,
+    activityType: Location.ActivityType.AutomotiveNavigation,
+    pausesUpdatesAutomatically: false,
+  });
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'Driving Detected',
+      body: 'Active tracking has started. Drive safely!',
+    },
+    trigger: null,
+  });
+
+  logger.info('Active tracking started.');
 };
 
 const endActiveTracking = async (): Promise<void> => {
   if (currentTrackingMode !== 'ACTIVE' || currentJourneyId === null) {
-    console.log('[BackgroundService] No active journey to end.');
+    logger.info('No active journey to end.');
     return;
   }
 
@@ -167,17 +187,16 @@ const endActiveTracking = async (): Promise<void> => {
     await JourneyService.logEvent('journey_end', lastLocation.coords.latitude, lastLocation.coords.longitude, 0, 0);
   }
 
-  // TODO: Calculate final score using efficiency service
-  const finalScore = 0;
+  const finalScore = await EfficiencyService.calculateJourneyScore(currentJourneyId);
 
   await JourneyService.endJourney(finalScore, totalDistance);
 
-  console.log(`[BackgroundService] Journey ended (ID: ${currentJourneyId}), distance: ${totalDistance.toFixed(2)}km, score: ${finalScore}`);
+  logger.info(`Journey ended (ID: ${currentJourneyId}), distance: ${totalDistance.toFixed(2)}km, score: ${finalScore}`);
 
   await Notifications.scheduleNotificationAsync({
     content: {
       title: 'Journey Complete',
-      body: `Your journey has ended. Distance: ${totalDistance.toFixed(1)}km`,
+      body: `Score: ${finalScore}/100 • Distance: ${totalDistance.toFixed(1)}km`,
     },
     trigger: null,
   });
@@ -193,7 +212,7 @@ const processActiveLocation = async (location: Location.LocationObject): Promise
   const { latitude, longitude, speed, accuracy } = location.coords;
 
   if (accuracy && accuracy > 50) {
-    console.log(`[BackgroundService] Poor accuracy (${accuracy}m), skipping location.`);
+    logger.info(`Poor accuracy (${accuracy}m), skipping location.`);
     return;
   }
 
@@ -204,6 +223,10 @@ const processActiveLocation = async (location: Location.LocationObject): Promise
 
   const speedKmh = convertMsToKmh(speed ?? 0);
   await JourneyService.logEvent('location_update', latitude, longitude, speedKmh, 0);
+
+  if (currentJourneyId) {
+    await EfficiencyService.processLocation(location);
+  }
 
   lastLocation = location;
 };

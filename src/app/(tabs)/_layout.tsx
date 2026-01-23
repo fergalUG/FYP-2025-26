@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { View } from 'react-native';
 import { theme } from '../../theme';
 import { ServiceStatusIndicator } from '../../components/ServiceStatusIndicator';
 
@@ -18,7 +19,11 @@ export default function Layout() {
         headerTitleStyle: {
           color: theme.colors.onSurface,
         },
-        headerLeft: () => <ServiceStatusIndicator />,
+        headerLeft: () => (
+          <View style={{ marginLeft: 10 }}>
+            <ServiceStatusIndicator />
+          </View>
+        ),
       }}
     >
       <Tabs.Screen

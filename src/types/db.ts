@@ -19,4 +19,13 @@ export interface Event {
   penalty: number;
 }
 
-export type EventType = 'journey_start' | 'journey_end' | 'location_update' | 'harsh_acceleration' | 'harsh_braking' | 'sharp_turn';
+export enum EventType {
+  JourneyStart = 'journey_start',
+  JourneyEnd = 'journey_end',
+  LocationUpdate = 'location_update',
+  HarshAcceleration = 'harsh_acceleration',
+  HarshBraking = 'harsh_braking',
+  SharpTurn = 'sharp_turn',
+  ModerateSpeeding = 'moderate_speeding',
+  HarshSpeeding = 'harsh_speeding',
+}

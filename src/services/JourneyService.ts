@@ -1,5 +1,8 @@
 import * as SQL from 'expo-sqlite';
 import { Journey, Event } from '../types';
+import { createLogger, LogModule } from '../utils/logger';
+
+const logger = createLogger(LogModule.JourneyService);
 
 let db: SQL.SQLiteDatabase | null = null;
 
@@ -33,9 +36,9 @@ export const initDatabase = async (): Promise<void> => {
         FOREIGN KEY (journeyId) REFERENCES journeys (id)
       );
     `);
-    console.log('[JourneyService] Database initialized successfully.');
+    logger.info('Database initialized successfully.');
   } catch (error) {
-    console.error('[JourneyService] Error initializing database:', error);
+    logger.error('Error initializing database:', error);
   }
 };
 
@@ -48,7 +51,7 @@ export const startJourney = async (): Promise<void> => {
     await initDatabase();
   }
   if (!db) {
-    console.error('[JourneyService] Database not initialized. Cannot start journey.');
+    logger.error('Database not initialized. Cannot start journey.');
     return;
   }
 
@@ -67,9 +70,9 @@ export const startJourney = async (): Promise<void> => {
     );
 
     currentJourneyId = res.lastInsertRowId;
-    console.log(`[JourneyService] Journey started successfully (${currentJourneyId}).`);
+    logger.info(`Journey started successfully (${currentJourneyId}).`);
   } catch (error) {
-    console.error('[JourneyService] Error starting journey:', error);
+    logger.error('Error starting journey:', error);
   }
 };
 
@@ -78,7 +81,7 @@ export const endJourney = async (finalScore: number, distanceKm: number = 0): Pr
     return;
   }
   if (!db) {
-    console.error('[JourneyService] Database not initialized. Cannot end journey.');
+    logger.error('Database not initialized. Cannot end journey.');
     return;
   }
 
@@ -97,10 +100,10 @@ export const endJourney = async (finalScore: number, distanceKm: number = 0): Pr
       [endTime, finalScore, distanceKm, currentJourneyId]
     );
 
-    console.log(`[JourneyService] Journey ended successfully (${currentJourneyId}).`);
+    logger.info(`Journey ended successfully (${currentJourneyId}).`);
     currentJourneyId = null;
   } catch (error) {
-    console.error('[JourneyService] Error ending journey:', error);
+    logger.error('Error ending journey:', error);
   }
 };
 
@@ -109,7 +112,7 @@ export const logEvent = async (type: string, latitude: number, longitude: number
     return;
   }
   if (!db) {
-    console.error('[JourneyService] Database not initialized. Cannot log event.');
+    logger.error('Database not initialized. Cannot log event.');
     return;
   }
 
@@ -124,7 +127,7 @@ export const logEvent = async (type: string, latitude: number, longitude: number
       [currentJourneyId, timestamp, type, latitude, longitude, speed, penalty]
     );
   } catch (error) {
-    console.error('[JourneyService] Error logging event:', error);
+    logger.error('Error logging event:', error);
   }
 };
 
@@ -133,7 +136,7 @@ export const getJourneyById = async (id: number): Promise<Journey | null> => {
     return null;
   }
   if (!db) {
-    console.error('[JourneyService] Database not initialized. Cannot fetch journey.');
+    logger.error('Database not initialized. Cannot fetch journey.');
     return null;
   }
 
@@ -147,7 +150,7 @@ export const getJourneyById = async (id: number): Promise<Journey | null> => {
 
     return result as Journey | null;
   } catch (error) {
-    console.error('[JourneyService] Error fetching journey by ID:', error);
+    logger.error('Error fetching journey by ID:', error);
     return null;
   }
 };
@@ -157,7 +160,7 @@ export const getAllJourneys = async (): Promise<Journey[]> => {
     return [];
   }
   if (!db) {
-    console.error('[JourneyService] Database not initialized. Cannot fetch journeys.');
+    logger.error('Database not initialized. Cannot fetch journeys.');
     return [];
   }
 
@@ -167,7 +170,7 @@ export const getAllJourneys = async (): Promise<Journey[]> => {
     `);
     return result as Journey[];
   } catch (error) {
-    console.error('[JourneyService] Error fetching all journeys:', error);
+    logger.error('Error fetching all journeys:', error);
     return [];
   }
 };
@@ -186,7 +189,7 @@ export const getEventsByJourneyId = async (journeyId: number): Promise<Event[]> 
     );
     return result as Event[];
   } catch (error) {
-    console.error('[JourneyService] Error fetching events for journey:', error);
+    logger.error('Error fetching events for journey:', error);
     return [];
   }
 };
