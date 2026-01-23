@@ -1,4 +1,6 @@
 import * as SQL from 'expo-sqlite';
+import { File, Directory, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { Journey, Event, EventType } from '../types';
 import { getPenaltyForEvent } from '../constants/penalties';
 import { createLogger, LogModule } from '../utils/logger';
@@ -193,5 +195,48 @@ export const getEventsByJourneyId = async (journeyId: number): Promise<Event[]> 
   } catch (error) {
     logger.error('Error fetching events for journey:', error);
     return [];
+  }
+};
+
+export const exportDatabase = async (): Promise<void> => {
+  try {
+    if (!db) {
+      logger.error('Database not initialized. Cannot export.');
+      return;
+    }
+
+    const dbDirectory = new Directory(Paths.document, 'SQLite');
+    const dbFile = new File(dbDirectory, 'journeys.db');
+
+    logger.info(`Exporting database from: ${dbFile.uri}`);
+
+    if (!dbFile.exists) {
+      logger.error('Database file not found at:', dbFile.uri);
+      return;
+    }
+
+    const cacheDir = new Directory(Paths.cache);
+    const exportFileName = `VeloMetry_DB_${new Date().toISOString().split('T')[0]}.db`;
+    const exportFile = new File(cacheDir, exportFileName);
+
+    if (exportFile.exists) {
+      exportFile.delete();
+    }
+
+    dbFile.copy(exportFile);
+
+    logger.info(`Database copied to: ${exportFile.uri}`);
+
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(exportFile.uri, {
+        mimeType: 'application/octet-stream',
+        dialogTitle: 'Export VeloMetry Database',
+      });
+      logger.info('Database exported successfully');
+    } else {
+      logger.error('Sharing is not available on this device');
+    }
+  } catch (error) {
+    logger.error('Error exporting database:', error);
   }
 };

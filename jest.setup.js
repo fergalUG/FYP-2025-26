@@ -35,6 +35,26 @@ jest.mock('expo-sqlite', () => ({
   openDatabaseAsync: jest.fn(),
 }));
 
+jest.mock('expo-file-system', () => ({
+  File: jest.fn(function () {
+    this.uri = 'mock://file';
+    this.exists = true;
+    this.copy = jest.fn();
+  }),
+  Directory: jest.fn(function () {
+    this.uri = 'mock://directory';
+  }),
+  Paths: {
+    document: 'mock://documents',
+    cache: 'mock://cache',
+  },
+}));
+
+jest.mock('expo-sharing', () => ({
+  isAvailableAsync: jest.fn().mockResolvedValue(true),
+  shareAsync: jest.fn(),
+}));
+
 jest.mock('./modules/vehicle-motion', () => ({
   __esModule: true,
   default: {

@@ -101,6 +101,7 @@ const handleMotionUpdate = async (data: MotionData): Promise<void> => {
   if (!isTracking || !lastLocation) {
     return;
   }
+  // logger.debug('Motion data received:', data);
 
   motionDataBuffer.push(data);
   if (motionDataBuffer.length > MOTION_BUFFER_SIZE) {

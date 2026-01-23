@@ -32,8 +32,14 @@ const warn = (module: LogModule, message: string, ...data: any[]) => {
   console.warn(`${colour}[${module}] ${message}`, ...data, logColours.reset);
 };
 
+const debug = (module: LogModule, message: string, ...data: any[]) => {
+  const colour = logColours[module] || logColours.reset;
+  console.debug(`${colour}[${module}] ${message}`, ...data, logColours.reset);
+};
+
 export const createLogger = (module: LogModule) => ({
   info: (message: string, ...data: any[]) => info(module, message, ...data),
   error: (message: string, ...data: any[]) => error(module, message, ...data),
   warn: (message: string, ...data: any[]) => warn(module, message, ...data),
+  debug: (message: string, ...data: any[]) => debug(module, message, ...data),
 });

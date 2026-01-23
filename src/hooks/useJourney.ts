@@ -85,8 +85,8 @@ export const useJourneys = () => {
     setJourneys(result || []);
   }, []);
 
-  const refetch = useCallback(() => {
-    fetchJourneys();
+  const refetch = useCallback(async () => {
+    await fetchJourneys();
   }, [fetchJourneys]);
 
   useEffect(() => {
