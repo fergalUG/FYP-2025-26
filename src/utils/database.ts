@@ -66,6 +66,11 @@ export const resetDatabase = async (): Promise<void> => {
   }
 };
 
+/*
+ * This function seeds the database with mock journey and event data for testing.
+ * It guaruntees that the mock data will be dropped and re-inserted each time it is run.
+ * This is so any changes to the mock data will be reflected in the database.
+ */
 export const seedMockData = async (): Promise<void> => {
   let db = JourneyService.getDatabase();
   if (!db) {

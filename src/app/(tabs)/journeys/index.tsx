@@ -97,7 +97,7 @@ export default function Journeys() {
                       </View>
                       <View style={styles.metaChip}>
                         <MaterialIcons name="route" size={14} color={theme.colors.onSurface} />
-                        <Text style={styles.metaChipText}>{parseFloat(item.distanceKm.toFixed(4))} km</Text>
+                        <Text style={styles.metaChipText}>{item.distanceKm.toFixed(2)} km</Text>
                       </View>
                     </View>
                   </View>

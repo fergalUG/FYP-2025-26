@@ -211,14 +211,14 @@ const endActiveTracking = async (): Promise<void> => {
 
   const finalScore = await EfficiencyService.calculateJourneyScore(currentJourneyId);
 
-  await JourneyService.endJourney(finalScore, totalDistance);
-
   if (currentJourneyId && lastLocation) {
     const endLocationLabel = await getLocationLabel(lastLocation.coords.latitude, lastLocation.coords.longitude);
     const startLabel = startLocationLabel || 'Start';
     const endLabel = endLocationLabel || 'End';
     await JourneyService.updateJourneyTitle(currentJourneyId, `From ${startLabel} → ${endLabel}`);
   }
+
+  await JourneyService.endJourney(finalScore, totalDistance);
 
   logger.info(`Journey ended (ID: ${currentJourneyId}), distance: ${totalDistance.toFixed(2)}km, score: ${finalScore}`);
 

@@ -217,7 +217,11 @@ export const deleteJourney = async (journeyId: number): Promise<boolean> => {
   } catch (error) {
     logger.error('Error deleting journey:', error);
     try {
-      await db.execAsync('ROLLBACK;');
+      if (!db) {
+        logger.error('Database not available. Cannot rollback delete transaction.');
+      } else {
+        await db.execAsync('ROLLBACK;');
+      }
     } catch (rollbackError) {
       logger.error('Error rolling back delete transaction:', rollbackError);
     }
