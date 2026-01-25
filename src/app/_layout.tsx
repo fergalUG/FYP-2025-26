@@ -1,16 +1,12 @@
 import { useEffect } from 'react';
-import { Stack, useRouter } from 'expo-router';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Pressable, StyleSheet } from 'react-native';
+import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDatabaseWithMockData } from '@utils/database';
-import { theme } from '@theme';
+import { appHeaderOptions } from '@constants/navigation';
 
 export default function RootLayout() {
-  const router = useRouter();
-
   useEffect(() => {
     initDatabaseWithMockData();
   }, []);
@@ -24,20 +20,9 @@ export default function RootLayout() {
           <Stack.Screen
             name="settings"
             options={{
-              headerTitle: 'Settings',
+              title: 'Settings',
               headerBackButtonDisplayMode: 'minimal',
-              headerLeft: () => (
-                <Pressable style={styles.headerBack} onPress={() => router.back()}>
-                  <MaterialIcons name="arrow-back" size={24} color={theme.colors.onSurface} />
-                </Pressable>
-              ),
-              headerStyle: {
-                backgroundColor: theme.colors.surface,
-              },
-              headerTitleStyle: {
-                color: theme.colors.onSurface,
-              },
-              headerTintColor: theme.colors.onSurface,
+              ...appHeaderOptions,
             }}
           />
         </Stack>
@@ -45,9 +30,3 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  headerBack: {
-    marginLeft: 8,
-  },
-});

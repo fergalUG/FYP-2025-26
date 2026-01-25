@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { appHeaderOptions } from '@constants/navigation';
 
 export default function JourneyLayout() {
   return (
@@ -14,8 +15,8 @@ export default function JourneyLayout() {
         options={{
           headerShown: true,
           presentation: 'card',
-          headerBackTitle: 'Journeys',
-          headerBackButtonDisplayMode: 'minimal',
+          headerBackTitle: 'Back',
+          ...appHeaderOptions,
         }}
       />
     </Stack>

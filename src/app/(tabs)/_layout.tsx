@@ -4,6 +4,7 @@ import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { theme } from '@theme';
 import { ServiceStatusIndicator } from '@components/ServiceStatusIndicator';
+import { appHeaderOptions } from '@constants/navigation';
 
 export default function Layout() {
   const router = useRouter();
@@ -16,12 +17,7 @@ export default function Layout() {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outline,
         },
-        headerStyle: {
-          backgroundColor: theme.colors.surface,
-        },
-        headerTitleStyle: {
-          color: theme.colors.onSurface,
-        },
+        ...appHeaderOptions,
         headerLeft: () => (
           <View style={styles.headerLeft}>
             <ServiceStatusIndicator />
