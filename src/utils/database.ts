@@ -1,5 +1,4 @@
 import * as JourneyService from '@services/JourneyService';
-import type { Journey } from '@types';
 import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.DB);
@@ -8,10 +7,8 @@ const logger = createLogger(LogModule.DB);
 
 export const initDatabaseWithMockData = async (): Promise<void> => {
   try {
-    logger.info('Resetting and initializing database...');
-    await resetDatabase();
-
-    logger.info('Seeding mock data...');
+    logger.info('Initializing database...');
+    await JourneyService.initDatabase();
     await seedMockData();
 
     logger.info('Database setup complete!');
@@ -69,6 +66,11 @@ export const resetDatabase = async (): Promise<void> => {
   }
 };
 
+/*
+ * This function seeds the database with mock journey and event data for testing.
+ * It guaruntees that the mock data will be dropped and re-inserted each time it is run.
+ * This is so any changes to the mock data will be reflected in the database.
+ */
 export const seedMockData = async (): Promise<void> => {
   let db = JourneyService.getDatabase();
   if (!db) {
@@ -81,12 +83,6 @@ export const seedMockData = async (): Promise<void> => {
   }
 
   try {
-    const existingData = (await db.getFirstAsync('SELECT COUNT(*) as count FROM journeys')) as Journey[];
-    if (existingData && existingData.length > 0) {
-      logger.info('Database already contains data. Skipping seed.');
-      return;
-    }
-
     logger.info('Seeding database with mock data...');
 
     const mockJourneys = [
@@ -120,7 +116,7 @@ export const seedMockData = async (): Promise<void> => {
         date: '2026-01-17',
         startTime: Date.now() - 86400000 * 5,
         endTime: Date.now() - 86400000 * 5 + 2100000,
-        score: 88,
+        score: 61,
       },
       {
         title: 'Drive to the library',
@@ -144,7 +140,7 @@ export const seedMockData = async (): Promise<void> => {
         date: '2026-01-14',
         startTime: Date.now() - 86400000 * 8,
         endTime: Date.now() - 86400000 * 8 + 2400000,
-        score: 90,
+        score: 44,
       },
       {
         title: 'Drive to the beach',
@@ -152,18 +148,27 @@ export const seedMockData = async (): Promise<void> => {
         date: '2026-01-13',
         startTime: Date.now() - 86400000 * 9,
         endTime: Date.now() - 86400000 * 9 + 3600000,
-        score: 75,
+        score: 24,
       },
     ];
 
-    const journeyIds: number[] = [];
+    const mockTitles = mockJourneys.map((journey) => journey.title);
+    const titlePlaceholders = mockTitles.map(() => '?').join(', ');
+    await db.runAsync(`DELETE FROM events WHERE journeyId IN (SELECT id FROM journeys WHERE title IN (${titlePlaceholders}))`, mockTitles);
+    await db.runAsync(`DELETE FROM journeys WHERE title IN (${titlePlaceholders})`, mockTitles);
+
+    const insertedJourneyIds: number[] = [];
     for (const journey of mockJourneys) {
-      const result = await db.runAsync(
-        `INSERT INTO journeys (title, date, startTime, endTime, score, distanceKm) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [journey.title, journey.date, journey.startTime, journey.endTime, journey.score, journey.distanceKm]
-      );
-      journeyIds.push(result.lastInsertRowId);
+      const res = await db.runAsync(`INSERT INTO journeys (title, date, startTime, endTime, score, distanceKm) VALUES (?, ?, ?, ?, ?, ?)`, [
+        journey.title,
+        journey.date,
+        journey.startTime,
+        journey.endTime,
+        journey.score,
+        journey.distanceKm,
+      ]);
+
+      insertedJourneyIds.push(res.lastInsertRowId);
     }
 
     const mockEvents = [
@@ -247,8 +252,8 @@ export const seedMockData = async (): Promise<void> => {
       ],
     ];
 
-    for (let i = 0; i < journeyIds.length; i++) {
-      const journeyId = journeyIds[i];
+    for (let i = 0; i < insertedJourneyIds.length; i++) {
+      const journeyId = insertedJourneyIds[i];
       const events = mockEvents[i] || [];
       const journey = mockJourneys[i];
 
@@ -265,9 +270,8 @@ export const seedMockData = async (): Promise<void> => {
       }
     }
 
-    logger.info(
-      `[JourneyService] Successfully seeded ${mockJourneys.length} mock journeys with ${mockEvents.reduce((sum, events) => sum + events.length, 0)} events.`
-    );
+    const totalEventsAdded = insertedJourneyIds.reduce((sum, _id, index) => sum + (mockEvents[index]?.length ?? 0), 0);
+    logger.info(`[JourneyService] Seeded ${insertedJourneyIds.length} mock journeys with ${totalEventsAdded} events.`);
   } catch (error) {
     logger.error('Error seeding mock data:', error);
   }

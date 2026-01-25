@@ -1,0 +1,24 @@
+name: Expo Doctor
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Expo Doctor
+        run: npx expo-doctor

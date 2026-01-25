@@ -29,6 +29,7 @@ let currentJourneyId: number | null = null;
 let lowSpeedStartTime: number | null = null;
 let totalDistance: number = 0;
 let lastLocation: Location.LocationObject | null = null;
+let startLocationLabel: string | null = null;
 
 export const getTrackingStatus = (): TrackingStatus => ({
   mode: currentTrackingMode,
@@ -38,6 +39,24 @@ export const getTrackingStatus = (): TrackingStatus => ({
 interface LocationTaskData {
   locations: Array<Location.LocationObject>;
 }
+
+const formatPlaceLabel = (place: Location.LocationGeocodedAddress | null): string => {
+  if (!place) {
+    return 'Unknown location';
+  }
+  const label = place.name || place.street || place.city || place.region || place.country;
+  return label || 'Unknown location';
+};
+
+const getLocationLabel = async (latitude: number, longitude: number): Promise<string | null> => {
+  try {
+    const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+    return formatPlaceLabel(place ?? null);
+  } catch (error) {
+    logger.warn('Could not reverse geocode location label:', error);
+    return null;
+  }
+};
 
 TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
   if (error) {
@@ -69,6 +88,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskMan
         logger.info('Low speed detected, starting timeout...');
       } else {
         const elapsedTime = Date.now() - lowSpeedStartTime;
+        logger.info(`${Math.floor((PASSIVE_TIMEOUT_MS - elapsedTime) / 1000)} seconds until switching to passive mode...`);
         if (elapsedTime >= PASSIVE_TIMEOUT_MS) {
           logger.info('Speed < 5km/h for 2 minutes; Switching to PASSIVE tracking mode.');
           await endActiveTracking();
@@ -140,6 +160,7 @@ const startActiveTracking = async (): Promise<void> => {
   totalDistance = 0;
   lastLocation = null;
   lowSpeedStartTime = null;
+  startLocationLabel = null;
 
   await JourneyService.startJourney();
   currentJourneyId = JourneyService.getCurrentJourneyId();
@@ -152,6 +173,7 @@ const startActiveTracking = async (): Promise<void> => {
     });
     await JourneyService.logEvent(EventType.JourneyStart, location.coords.latitude, location.coords.longitude, 0);
     lastLocation = location;
+    startLocationLabel = await getLocationLabel(location.coords.latitude, location.coords.longitude);
   } catch (error) {
     logger.error('Could not get initial location:', error);
   }
@@ -189,6 +211,13 @@ const endActiveTracking = async (): Promise<void> => {
 
   const finalScore = await EfficiencyService.calculateJourneyScore(currentJourneyId);
 
+  if (currentJourneyId && lastLocation) {
+    const endLocationLabel = await getLocationLabel(lastLocation.coords.latitude, lastLocation.coords.longitude);
+    const startLabel = startLocationLabel || 'Start';
+    const endLabel = endLocationLabel || 'End';
+    await JourneyService.updateJourneyTitle(currentJourneyId, `From ${startLabel} → ${endLabel}`);
+  }
+
   await JourneyService.endJourney(finalScore, totalDistance);
 
   logger.info(`Journey ended (ID: ${currentJourneyId}), distance: ${totalDistance.toFixed(2)}km, score: ${finalScore}`);
@@ -204,6 +233,7 @@ const endActiveTracking = async (): Promise<void> => {
   currentJourneyId = null;
   totalDistance = 0;
   lastLocation = null;
+  startLocationLabel = null;
 
   await startPassiveTracking();
 };
