@@ -2,8 +2,11 @@ import { Tabs } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+
 import { useTheme } from '@hooks';
-import { ServiceStatusIndicator } from '@components/ServiceStatusIndicator';
+
+import { ServiceStatusIndicator } from '@components';
+
 import { appHeaderOptions } from '@constants/navigation';
 
 export default function Layout() {
@@ -18,6 +21,7 @@ export default function Layout() {
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outline,
+          height: 80,
         },
         ...headerOptions,
         headerLeft: () => (
@@ -36,14 +40,16 @@ export default function Layout() {
         name="index"
         options={{
           title: 'Home',
+          tabBarActiveTintColor: theme.colors.primary,
           headerTitle: 'VeloMetry',
-          tabBarIcon: ({ color, size }) => <MaterialIcons name="home" size={size} color={color} />,
+          tabBarIcon: ({ size }) => <MaterialIcons name="home" size={size} color={theme.colors.primary} />,
         }}
       />
       <Tabs.Screen
         name="journeys"
         options={{
           title: 'Journeys',
+          tabBarActiveTintColor: theme.colors.primary,
           headerTitle: 'My Journeys',
           headerShown: true,
           tabBarIcon: ({ color, size }) => <MaterialIcons name="directions-car" size={size} color={color} />,

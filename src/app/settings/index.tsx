@@ -1,18 +1,38 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useTheme } from '@hooks';
+import { useDriverProfile, useTheme } from '@hooks';
 import * as JourneyService from '@services/JourneyService';
 
 export default function Settings() {
   const { theme, mode, toggleMode } = useTheme();
+  const { driverName, loading: profileLoading, setDriverName } = useDriverProfile();
   const [exporting, setExporting] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [draftName, setDraftName] = useState('');
   const styles = createStyles(theme);
 
   const handleExportDatabase = async () => {
     setExporting(true);
     await JourneyService.exportDatabase();
     setExporting(false);
+  };
+
+  const handleStartEditName = () => {
+    setDraftName(driverName);
+    setIsEditingName(true);
+  };
+
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+    setDraftName(driverName);
+  };
+
+  const handleSaveName = async () => {
+    const success = await setDriverName(draftName);
+    if (success) {
+      setIsEditingName(false);
+    }
   };
 
   return (
@@ -22,7 +42,35 @@ export default function Settings() {
           <MaterialIcons name="account-circle" size={64} color={theme.colors.primary} />
         </View>
         <View style={styles.profileText}>
-          <Text style={styles.profileName}>Driver Profile</Text>
+          {!isEditingName ? (
+            <Pressable onPress={handleStartEditName} disabled={profileLoading}>
+              <Text style={styles.profileName}>{profileLoading ? 'Loading…' : driverName}</Text>
+              <Text style={styles.profileSubtitle}>Tap to edit</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Text style={styles.profileSubtitle}>Driver name</Text>
+              <TextInput
+                value={draftName}
+                onChangeText={setDraftName}
+                placeholder="Driver"
+                placeholderTextColor={theme.colors.textSecondary}
+                style={styles.nameInput}
+                autoCapitalize="words"
+                autoCorrect={false}
+                returnKeyType="done"
+                maxLength={40}
+              />
+              <View style={styles.nameActionsRow}>
+                <Pressable style={[styles.actionButton, styles.actionButtonSecondary]} onPress={handleCancelEditName}>
+                  <Text style={styles.actionButtonSecondaryText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={[styles.actionButton, styles.actionButtonPrimary]} onPress={handleSaveName}>
+                  <Text style={styles.actionButtonPrimaryText}>Save</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
         </View>
       </View>
       <View style={styles.section}>
@@ -108,6 +156,48 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontSize: 14,
       color: theme.colors.onSurface,
       opacity: 0.7,
+    },
+    nameInput: {
+      marginTop: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 10,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      color: theme.colors.onBackground,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    nameActionsRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.sm,
+    },
+    actionButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    actionButtonPrimary: {
+      backgroundColor: theme.colors.primary,
+      flex: 1,
+    },
+    actionButtonPrimaryText: {
+      color: theme.colors.background,
+      fontWeight: '700',
+    },
+    actionButtonSecondary: {
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      flex: 1,
+    },
+    actionButtonSecondaryText: {
+      color: theme.colors.onBackground,
+      fontWeight: '700',
     },
     section: {
       gap: theme.spacing.sm,

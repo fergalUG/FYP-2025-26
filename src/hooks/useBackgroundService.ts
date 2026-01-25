@@ -16,7 +16,7 @@ export function useBackgroundService(): BackgroundServiceHook {
     const nextState = result ?? 'unknown';
     setPermissionState(nextState);
     return nextState;
-  }, []);
+  }, [logger]);
 
   const checkPermissions = useCallback(async (): Promise<boolean> => {
     const result = await executeWithLoading(async () => {
@@ -31,7 +31,7 @@ export function useBackgroundService(): BackgroundServiceHook {
     }
 
     return result;
-  }, []);
+  }, [logger]);
 
   const startMonitoring = useCallback(async (): Promise<boolean> => {
     if (permissionState !== 'granted') {
@@ -56,9 +56,14 @@ export function useBackgroundService(): BackgroundServiceHook {
     }, setIsLoading);
 
     return result !== null;
-  }, []);
+  }, [logger]);
 
   const startActiveTracking = useCallback(async (): Promise<boolean> => {
+    if (!__DEV__) {
+      logger.warn('startActiveTracking is a dev-only API.');
+      return false;
+    }
+
     const result = await executeWithLoading(async () => {
       await BackgroundService.ManualStartActiveTracking();
       setServiceState('active');
@@ -66,9 +71,14 @@ export function useBackgroundService(): BackgroundServiceHook {
     }, setIsLoading);
 
     return result !== null;
-  }, []);
+  }, [logger]);
 
   const stopActiveTracking = useCallback(async (): Promise<boolean> => {
+    if (!__DEV__) {
+      logger.warn('stopActiveTracking is a dev-only API.');
+      return false;
+    }
+
     const result = await executeWithLoading(async () => {
       await BackgroundService.ManualStopActiveTracking();
       setServiceState('passive');
@@ -76,7 +86,7 @@ export function useBackgroundService(): BackgroundServiceHook {
     }, setIsLoading);
 
     return result !== null;
-  }, []);
+  }, [logger]);
 
   const setupService = useCallback(async (): Promise<boolean> => {
     const hasPermissions = await checkPermissions();

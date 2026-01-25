@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+
 import { useTheme } from '@hooks';
-import type { Journey, Event } from '@types';
-import { EventType } from '@types';
+import { Journey, Event, EventType } from '@types';
+import { getScoreColor } from '@utils/score';
 
 interface JourneyStatsProps {
   journey: Journey;
@@ -61,13 +62,6 @@ export const JourneyStats = (props: JourneyStatsProps) => {
     {} as Record<string, number>
   );
 
-  const getScoreColor = (score: number): string => {
-    if (score >= 80) return theme.colors.score.excellent;
-    if (score >= 60) return theme.colors.score.good;
-    if (score >= 40) return theme.colors.score.fair;
-    return theme.colors.score.poor;
-  };
-
   const styles = createStyles(theme);
 
   return (
@@ -75,7 +69,12 @@ export const JourneyStats = (props: JourneyStatsProps) => {
       <Text style={styles.title}>Journey Statistics</Text>
 
       <View style={styles.statsGrid}>
-        <StatItem styles={styles} label="Score" value={`${Math.round(journey.score ?? 0)}/100`} color={getScoreColor(journey.score ?? 0)} />
+        <StatItem
+          styles={styles}
+          label="Score"
+          value={`${Math.round(journey.score ?? 0)}/100`}
+          color={getScoreColor(journey.score ?? 0, theme)}
+        />
         <StatItem styles={styles} label="Distance" value={`${Math.round((journey.distanceKm ?? 0) * 100) / 100} km`} />
         <StatItem styles={styles} label="Duration" value={durationText} />
         <StatItem styles={styles} label="Avg Speed" value={`${avgSpeed} km/h`} />

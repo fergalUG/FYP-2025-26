@@ -1,5 +1,7 @@
 import { Stack } from 'expo-router';
+
 import { useTheme } from '@hooks';
+
 import { appHeaderOptions } from '@constants/navigation';
 
 export default function JourneyLayout() {
