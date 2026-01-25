@@ -1,9 +1,9 @@
 import * as SQL from 'expo-sqlite';
 import { File, Directory, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { Journey, Event, EventType } from '../types';
-import { getPenaltyForEvent } from '../constants/penalties';
-import { createLogger, LogModule } from '../utils/logger';
+import type { Journey, Event, EventType } from '@types';
+import { getPenaltyForEvent } from '@constants/penalties';
+import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.JourneyService);
 

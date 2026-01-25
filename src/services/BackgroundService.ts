@@ -1,10 +1,10 @@
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
-import { EventType, type TrackingMode, type TrackingStatus } from '../types';
-import * as JourneyService from './JourneyService';
-import * as EfficiencyService from './EfficiencyService';
-import { createLogger, LogModule } from '../utils/logger';
+import { EventType, type TrackingMode, type TrackingStatus } from '@types';
+import * as JourneyService from '@services/JourneyService';
+import * as EfficiencyService from '@services/EfficiencyService';
+import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.BackgroundService);
 

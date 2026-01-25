@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useBackgroundService } from '../hooks';
-import { getServiceStatusColor } from '../utils/service';
-import { theme } from '../theme';
+import { useBackgroundService } from '@hooks';
+import { getServiceStatusColor } from '@utils/service';
+import { theme } from '@theme';
 
 interface ServiceStatusIndicatorProps {
   size?: number;

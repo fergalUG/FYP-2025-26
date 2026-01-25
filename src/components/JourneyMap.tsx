@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
-import { theme } from '../theme';
-import { Event } from '../types';
+import { theme } from '@theme';
+import type { Event } from '@types';
 
 interface JourneyMapProps {
   events: Event[];

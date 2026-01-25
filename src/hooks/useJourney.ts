@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Journey, Event } from '../types/db';
-import * as JourneyService from '../services/JourneyService';
-import { executeWithLoading } from '../utils/async';
+import type { Journey, Event } from '@types';
+import * as JourneyService from '@services/JourneyService';
+import { executeWithLoading } from '@utils/async';
 
 export const useJourney = (id: number) => {
   const [journey, setJourney] = useState<Journey | null>(null);

@@ -1,6 +1,6 @@
-import * as JourneyService from '../services/JourneyService';
-import { Journey } from '../types';
-import { createLogger, LogModule } from './logger';
+import * as JourneyService from '@services/JourneyService';
+import type { Journey } from '@types';
+import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.DB);
 

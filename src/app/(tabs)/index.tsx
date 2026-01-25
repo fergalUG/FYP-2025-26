@@ -1,8 +1,8 @@
 import { Text, View, StyleSheet, Pressable } from 'react-native';
-import { theme } from '../../theme';
-import { useBackgroundService } from '../../hooks';
-import { getServiceStatusText, getServiceStatusColor, getPermissionStatusText, getLoadingText } from '../../utils/service';
-import { showSuccessAlert, showErrorAlert } from '../../utils/alert';
+import { theme } from '@theme';
+import { useBackgroundService } from '@hooks';
+import { getServiceStatusText, getServiceStatusColor, getPermissionStatusText, getLoadingText } from '@utils/service';
+import { showSuccessAlert, showErrorAlert } from '@utils/alert';
 
 export default function Page() {
   const backgroundService = useBackgroundService();

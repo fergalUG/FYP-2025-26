@@ -1,4 +1,4 @@
-import { EventType } from '../types';
+import { EventType } from '@types';
 
 export const EVENT_PENALTIES: Record<EventType, number> = {
   [EventType.JourneyStart]: 0,

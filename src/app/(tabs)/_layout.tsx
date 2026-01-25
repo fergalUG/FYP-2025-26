@@ -1,8 +1,8 @@
 import { Tabs } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { View } from 'react-native';
-import { theme } from '../../theme';
-import { ServiceStatusIndicator } from '../../components/ServiceStatusIndicator';
+import { theme } from '@theme';
+import { ServiceStatusIndicator } from '@components/ServiceStatusIndicator';
 
 export default function Layout() {
   return (

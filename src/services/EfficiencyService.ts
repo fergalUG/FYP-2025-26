@@ -1,10 +1,10 @@
 import * as Location from 'expo-location';
-import VehicleMotion from '../../modules/vehicle-motion';
-import type { MotionData } from '../../modules/vehicle-motion/src/VehicleMotion.types';
-import * as JourneyService from './JourneyService';
-import { EventType, ScoringStats } from '../types';
-import { getPenaltyForEvent } from '../constants/penalties';
-import { createLogger, LogModule } from '../utils/logger';
+import VehicleMotion from '@modules/vehicle-motion';
+import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
+import * as JourneyService from '@services/JourneyService';
+import { EventType, type ScoringStats } from '@types';
+import { getPenaltyForEvent } from '@constants/penalties';
+import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.EfficiencyService);
 

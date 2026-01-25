@@ -1,9 +1,9 @@
 import { useLocalSearchParams } from 'expo-router';
 import { View, StyleSheet, ActivityIndicator, ScrollView, Text } from 'react-native';
 import { Stack } from 'expo-router';
-import { theme } from '../../../theme';
-import { useJourneyWithEvents } from '../../../hooks';
-import { DrivingScoreWheel, JourneyMap, JourneyStats } from '../../../components';
+import { theme } from '@theme';
+import { useJourneyWithEvents } from '@hooks';
+import { DrivingScoreWheel, JourneyMap, JourneyStats } from '@components';
 
 export default function JourneyDetail() {
   const { journeyId } = useLocalSearchParams<{ journeyId: string }>();

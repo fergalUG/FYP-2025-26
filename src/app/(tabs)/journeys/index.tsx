@@ -1,9 +1,9 @@
 import { Link } from 'expo-router';
 import { FlatList, Pressable, Text, View, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
-import { theme } from '../../../theme';
-import { useJourneys } from '../../../hooks';
+import { theme } from '@theme';
+import { useJourneys } from '@hooks';
 import { useState } from 'react';
-import * as JourneyService from '../../../services/JourneyService';
+import * as JourneyService from '@services/JourneyService';
 
 export default function Journeys() {
   const { journeys, loading, error, refetch } = useJourneys();

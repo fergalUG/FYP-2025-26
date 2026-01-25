@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { theme } from '../theme';
-import { Journey, Event } from '../types';
+import { theme } from '@theme';
+import type { Journey, Event } from '@types';
 
 interface JourneyStatsProps {
   journey: Journey;

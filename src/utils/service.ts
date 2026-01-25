@@ -1,5 +1,5 @@
-import type { ServiceState, PermissionState } from '../types';
-import { theme } from '../theme';
+import type { ServiceState, PermissionState } from '@types';
+import { theme } from '@theme';
 
 export const getServiceStatusText = (serviceState: ServiceState): string => {
   switch (serviceState) {
