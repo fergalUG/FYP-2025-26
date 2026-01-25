@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useBackgroundService, useTheme } from '@hooks';
+import { useBackgroundServiceContext, useTheme } from '@hooks';
 import { getServiceStatusColor } from '@utils/service';
 
 interface ServiceStatusIndicatorProps {
@@ -10,7 +10,7 @@ interface ServiceStatusIndicatorProps {
 export const ServiceStatusIndicator = (props: ServiceStatusIndicatorProps) => {
   const { size = 12 } = props;
   const { theme } = useTheme();
-  const { serviceState, permissionState } = useBackgroundService();
+  const { serviceState, permissionState } = useBackgroundServiceContext();
 
   const getIndicatorColor = (): string => {
     if (permissionState !== 'granted') {

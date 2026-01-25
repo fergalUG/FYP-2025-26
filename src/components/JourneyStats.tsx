@@ -32,7 +32,7 @@ const StatItem = (props: StatItemInnerProps) => {
 export const JourneyStats = (props: JourneyStatsProps) => {
   const { theme } = useTheme();
   const { journey, events } = props;
-  const durationMs = journey.endTime - journey.startTime;
+  const durationMs = (journey.endTime ?? journey.startTime) - journey.startTime;
   const durationMinutes = Math.floor(durationMs / 60000);
   const durationHours = Math.floor(durationMinutes / 60);
   const remainingMinutes = durationMinutes % 60;
@@ -75,8 +75,8 @@ export const JourneyStats = (props: JourneyStatsProps) => {
       <Text style={styles.title}>Journey Statistics</Text>
 
       <View style={styles.statsGrid}>
-        <StatItem styles={styles} label="Score" value={`${Math.round(journey.score)}/100`} color={getScoreColor(journey.score)} />
-        <StatItem styles={styles} label="Distance" value={`${Math.round(journey.distanceKm * 100) / 100} km`} />
+        <StatItem styles={styles} label="Score" value={`${Math.round(journey.score ?? 0)}/100`} color={getScoreColor(journey.score ?? 0)} />
+        <StatItem styles={styles} label="Distance" value={`${Math.round((journey.distanceKm ?? 0) * 100) / 100} km`} />
         <StatItem styles={styles} label="Duration" value={durationText} />
         <StatItem styles={styles} label="Avg Speed" value={`${avgSpeed} km/h`} />
         <StatItem styles={styles} label="Max Speed" value={`${maxSpeed} km/h`} />

@@ -2,11 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import * as BackgroundService from '@services/BackgroundService';
 import type { ServiceState, PermissionState, BackgroundServiceHook } from '@types';
 import { executeWithLoading } from '@utils/async';
+import { createLogger, LogModule } from '@utils/logger';
+
+const logger = createLogger(LogModule.Hooks);
 
 export function useBackgroundService(): BackgroundServiceHook {
   const [serviceState, setServiceState] = useState<ServiceState>('stopped');
   const [permissionState, setPermissionState] = useState<PermissionState>('unknown');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const refreshPermissionState = useCallback(async (): Promise<PermissionState> => {
+    const result = await executeWithLoading(() => BackgroundService.getLocationPermissionState(), setIsLoading);
+    const nextState = result ?? 'unknown';
+    setPermissionState(nextState);
+    return nextState;
+  }, []);
 
   const checkPermissions = useCallback(async (): Promise<boolean> => {
     const result = await executeWithLoading(async () => {
@@ -79,14 +89,17 @@ export function useBackgroundService(): BackgroundServiceHook {
 
   useEffect(() => {
     const initializeService = async () => {
-      const hasPermissions = await checkPermissions();
-      if (hasPermissions && serviceState === 'stopped') {
-        await startMonitoring();
+      const state = await refreshPermissionState();
+      if (state === 'granted' && serviceState === 'stopped') {
+        const started = await startMonitoring();
+        if (!started) {
+          logger.warn('Location monitoring could not be started during initialization.');
+        }
       }
     };
 
     initializeService();
-  }, [checkPermissions, startMonitoring, serviceState]);
+  }, [refreshPermissionState, startMonitoring, serviceState]);
 
   return {
     serviceState,
