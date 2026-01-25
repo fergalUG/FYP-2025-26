@@ -2,14 +2,15 @@ import { Link } from 'expo-router';
 import { FlatList, Pressable, Text, View, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { theme } from '@theme';
-import { useJourneys } from '@hooks';
+import { useJourneys, useTheme } from '@hooks';
 import { useMemo, useState } from 'react';
 
 export default function Journeys() {
+  const { theme } = useTheme();
   const { journeys, loading, error, refetch, deleteJourney } = useJourneys();
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const styles = createStyles(theme);
 
   const completedJourneys = useMemo(() => journeys.filter((journey) => journey.endTime && journey.distanceKm != null), [journeys]);
 
@@ -24,14 +25,6 @@ export default function Journeys() {
     if (score >= 60) return theme.colors.score.good;
     if (score >= 40) return theme.colors.score.fair;
     return theme.colors.score.poor;
-  };
-
-  const formatDate = (dateText: string): string => {
-    const parsed = new Date(dateText);
-    if (Number.isNaN(parsed.getTime())) {
-      return dateText;
-    }
-    return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
   const handleDeleteJourney = async (journeyId: number) => {
@@ -133,130 +126,131 @@ export default function Journeys() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  list: {
-    padding: theme.spacing.lg,
-    gap: theme.spacing.sm,
-    backgroundColor: theme.colors.background,
-    flexGrow: 1,
-  },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  card: {
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.outline,
-    gap: theme.spacing.md,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    alignItems: 'center',
-  },
-  scoreBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: theme.colors.background,
-  },
-  scoreLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: theme.colors.background,
-    opacity: 0.9,
-  },
-  cardBody: {
-    flex: 1,
-    gap: 6,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 6,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.outline,
-  },
-  metaChipText: {
-    fontSize: 12,
-    color: theme.colors.onSurface,
-  },
-  deleteAction: {
-    backgroundColor: theme.colors.error,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: theme.spacing.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-  },
-  deleteActionPressed: {
-    opacity: 0.85,
-  },
-  deleteActionText: {
-    color: theme.colors.background,
-    fontWeight: '600',
-  },
-  title: { fontWeight: '700', fontSize: 16, color: theme.colors.onSurface },
-  meta: { color: theme.colors.onSurface, opacity: 0.7 },
-  separator: { height: theme.spacing.md },
-  loadingText: {
-    marginTop: theme.spacing.md,
-    fontSize: 16,
-    color: theme.colors.onSurface,
-    opacity: 0.7,
-  },
-  errorText: {
-    fontSize: 16,
-    color: theme.colors.error,
-    textAlign: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  retryButton: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.radius.md,
-  },
-  retryButtonText: {
-    color: theme.colors.background,
-    fontWeight: '600',
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.onSurface,
-    textAlign: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: theme.colors.onSurface,
-    opacity: 0.7,
-    textAlign: 'center',
-  },
-});
+const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    list: {
+      padding: theme.spacing.lg,
+      gap: theme.spacing.sm,
+      backgroundColor: theme.colors.background,
+      flexGrow: 1,
+    },
+    centerContent: {
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    card: {
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      gap: theme.spacing.md,
+    },
+    cardTopRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.md,
+      alignItems: 'center',
+    },
+    scoreBadge: {
+      width: 72,
+      height: 72,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scoreValue: {
+      fontSize: 24,
+      fontWeight: '800',
+      color: theme.colors.background,
+    },
+    scoreLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.colors.background,
+      opacity: 0.9,
+    },
+    cardBody: {
+      flex: 1,
+      gap: 6,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+    },
+    metaChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 6,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+    },
+    metaChipText: {
+      fontSize: 12,
+      color: theme.colors.onSurface,
+    },
+    deleteAction: {
+      backgroundColor: theme.colors.error,
+      borderRadius: theme.radius.md,
+      paddingHorizontal: theme.spacing.md,
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+    },
+    deleteActionPressed: {
+      opacity: 0.85,
+    },
+    deleteActionText: {
+      color: theme.colors.background,
+      fontWeight: '600',
+    },
+    title: { fontWeight: '700', fontSize: 16, color: theme.colors.onSurface },
+    meta: { color: theme.colors.onSurface, opacity: 0.7 },
+    separator: { height: theme.spacing.md },
+    loadingText: {
+      marginTop: theme.spacing.md,
+      fontSize: 16,
+      color: theme.colors.onSurface,
+      opacity: 0.7,
+    },
+    errorText: {
+      fontSize: 16,
+      color: theme.colors.error,
+      textAlign: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    retryButton: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm,
+      backgroundColor: theme.colors.primary,
+      borderRadius: theme.radius.md,
+    },
+    retryButtonText: {
+      color: theme.colors.background,
+      fontWeight: '600',
+    },
+    emptyText: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.colors.onSurface,
+      textAlign: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    emptySubtext: {
+      fontSize: 14,
+      color: theme.colors.onSurface,
+      opacity: 0.7,
+      textAlign: 'center',
+    },
+  });

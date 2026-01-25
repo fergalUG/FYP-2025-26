@@ -1,7 +1,11 @@
 import { Stack } from 'expo-router';
+import { useTheme } from '@hooks';
 import { appHeaderOptions } from '@constants/navigation';
 
 export default function JourneyLayout() {
+  const { theme } = useTheme();
+  const headerOptions = appHeaderOptions(theme);
+
   return (
     <Stack>
       <Stack.Screen
@@ -16,7 +20,7 @@ export default function JourneyLayout() {
           headerShown: true,
           presentation: 'card',
           headerBackTitle: 'Back',
-          ...appHeaderOptions,
+          ...headerOptions,
         }}
       />
     </Stack>

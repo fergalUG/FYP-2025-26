@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
-import { theme } from '@theme';
+import { useTheme } from '@hooks';
 import type { Event } from '@types';
 
 interface JourneyMapProps {
@@ -10,7 +10,9 @@ interface JourneyMapProps {
 }
 
 export const JourneyMap = (props: JourneyMapProps) => {
+  const { theme } = useTheme();
   const { events, height = 300 } = props;
+  const styles = createStyles(theme);
 
   if (events.length === 0) {
     return (
@@ -95,24 +97,25 @@ export const JourneyMap = (props: JourneyMapProps) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: theme.radius.lg,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.surface,
-  },
-  map: {
-    flex: 1,
-  },
-  placeholderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-  },
-});
+const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
+  StyleSheet.create({
+    container: {
+      borderRadius: theme.radius.lg,
+      overflow: 'hidden',
+      backgroundColor: theme.colors.surface,
+    },
+    map: {
+      flex: 1,
+    },
+    placeholderContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.colors.surface,
+    },
+    placeholderText: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+    },
+  });

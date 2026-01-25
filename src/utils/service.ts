@@ -1,5 +1,5 @@
 import type { ServiceState, PermissionState } from '@types';
-import { theme } from '@theme';
+import type { Theme } from '@theme';
 
 export const getServiceStatusText = (serviceState: ServiceState): string => {
   switch (serviceState) {
@@ -14,7 +14,7 @@ export const getServiceStatusText = (serviceState: ServiceState): string => {
   }
 };
 
-export const getServiceStatusColor = (serviceState: ServiceState): string => {
+export const getServiceStatusColor = (serviceState: ServiceState, theme: Theme): string => {
   switch (serviceState) {
     case 'stopped':
       return theme.colors.status.stopped;

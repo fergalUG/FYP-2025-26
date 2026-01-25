@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { theme } from '@theme';
+import { useTheme } from '@hooks';
 
 interface DrivingScoreWheelProps {
   score: number;
@@ -36,7 +36,7 @@ const interpolateColor = (color1: string, color2: string, t: number): string => 
   return rgbToHex(r, g, b);
 };
 
-const getAnimatedColor = (score: number): string => {
+const getAnimatedColor = (score: number, theme: ReturnType<typeof useTheme>['theme']): string => {
   if (score <= 40) {
     return interpolateColor(theme.colors.score.poor, theme.colors.score.fair, score / 40);
   } else if (score <= 60) {
@@ -49,16 +49,17 @@ const getAnimatedColor = (score: number): string => {
 };
 
 export const DrivingScoreWheel = (props: DrivingScoreWheelProps) => {
+  const { theme } = useTheme();
   const { score, size = 200 } = props;
   const animatedValue = useRef(new Animated.Value(0)).current;
   const [displayScore, setDisplayScore] = React.useState(0);
-  const [animatedColor, setAnimatedColor] = React.useState(getAnimatedColor(0));
+  const [animatedColor, setAnimatedColor] = React.useState(getAnimatedColor(0, theme));
 
   useEffect(() => {
     const listener = animatedValue.addListener(({ value }) => {
       const currentScore = value * score;
       setDisplayScore(Math.round(currentScore));
-      setAnimatedColor(getAnimatedColor(currentScore));
+      setAnimatedColor(getAnimatedColor(currentScore, theme));
     });
 
     Animated.timing(animatedValue, {
@@ -68,7 +69,7 @@ export const DrivingScoreWheel = (props: DrivingScoreWheelProps) => {
     }).start();
 
     return () => animatedValue.removeListener(listener);
-  }, [animatedValue, score]);
+  }, [animatedValue, score, theme]);
 
   const radius = (size - 20) / 2;
   const strokeWidth = 12;
@@ -84,6 +85,8 @@ export const DrivingScoreWheel = (props: DrivingScoreWheelProps) => {
 
   const centerX = size / 2;
   const centerY = size / 2;
+
+  const styles = createStyles(theme);
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
@@ -113,31 +116,32 @@ export const DrivingScoreWheel = (props: DrivingScoreWheelProps) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  scoreContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreText: {
-    fontSize: 42,
-    fontWeight: '800',
-    lineHeight: 42,
-  },
-  maxScoreText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginTop: -4,
-  },
-  labelText: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-});
+const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
+  StyleSheet.create({
+    container: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      position: 'relative',
+    },
+    scoreContainer: {
+      position: 'absolute',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scoreText: {
+      fontSize: 42,
+      fontWeight: '800',
+      lineHeight: 42,
+    },
+    maxScoreText: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      marginTop: -4,
+    },
+    labelText: {
+      fontSize: 14,
+      fontWeight: '600',
+      marginTop: 4,
+      textAlign: 'center',
+    },
+  });

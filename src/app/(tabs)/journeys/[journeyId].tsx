@@ -1,13 +1,14 @@
 import { useLocalSearchParams } from 'expo-router';
 import { View, StyleSheet, ActivityIndicator, ScrollView, Text } from 'react-native';
 import { Stack } from 'expo-router';
-import { theme } from '@theme';
-import { useJourneyWithEvents } from '@hooks';
+import { useJourneyWithEvents, useTheme } from '@hooks';
 import { DrivingScoreWheel, JourneyMap, JourneyStats } from '@components';
 
 export default function JourneyDetail() {
+  const { theme } = useTheme();
   const { journeyId } = useLocalSearchParams<{ journeyId: string }>();
   const { journey, events, loading, error } = useJourneyWithEvents(Number(journeyId));
+  const styles = createStyles(theme);
 
   if (loading) {
     return (
@@ -91,123 +92,124 @@ export default function JourneyDetail() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  content: {
-    padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl,
-    gap: theme.spacing.lg,
-  },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: theme.spacing.lg,
-  },
-  headerCard: {
-    padding: theme.spacing.md,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.outline,
-    gap: theme.spacing.md,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    alignItems: 'center',
-  },
-  scoreBadge: {
-    width: 70,
-    height: 70,
-    borderRadius: 18,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: theme.colors.background,
-  },
-  scoreLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: theme.colors.background,
-    opacity: 0.9,
-  },
-  headerText: {
-    flex: 1,
-    gap: 4,
-  },
-  journeyTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: theme.colors.onBackground,
-  },
-  journeyDate: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-  },
-  headerMetaRow: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  metaChip: {
-    flex: 1,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.outline,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    gap: 4,
-  },
-  metaLabel: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    color: theme.colors.textSecondary,
-  },
-  metaValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.onBackground,
-  },
-  sectionCard: {
-    padding: theme.spacing.lg,
-    borderRadius: theme.radius.lg,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.outline,
-    gap: theme.spacing.md,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.onBackground,
-  },
-  scoreWheelContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: theme.colors.onBackground,
-    textAlign: 'center',
-  },
-  loadingText: {
-    marginTop: theme.spacing.md,
-    fontSize: 16,
-    color: theme.colors.onSurface,
-    opacity: 0.7,
-  },
-  errorText: {
-    fontSize: 16,
-    color: theme.colors.error,
-    textAlign: 'center',
-  },
-});
+const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    content: {
+      padding: theme.spacing.lg,
+      paddingBottom: theme.spacing.xl,
+      gap: theme.spacing.lg,
+    },
+    centerContent: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: theme.spacing.lg,
+    },
+    headerCard: {
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      gap: theme.spacing.md,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      gap: theme.spacing.md,
+      alignItems: 'center',
+    },
+    scoreBadge: {
+      width: 70,
+      height: 70,
+      borderRadius: 18,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scoreValue: {
+      fontSize: 24,
+      fontWeight: '800',
+      color: theme.colors.background,
+    },
+    scoreLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.colors.background,
+      opacity: 0.9,
+    },
+    headerText: {
+      flex: 1,
+      gap: 4,
+    },
+    journeyTitle: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: theme.colors.onBackground,
+    },
+    journeyDate: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+    },
+    headerMetaRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+    },
+    metaChip: {
+      flex: 1,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      gap: 4,
+    },
+    metaLabel: {
+      fontSize: 12,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      color: theme.colors.textSecondary,
+    },
+    metaValue: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: theme.colors.onBackground,
+    },
+    sectionCard: {
+      padding: theme.spacing.lg,
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      gap: theme.spacing.md,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: theme.colors.onBackground,
+    },
+    scoreWheelContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: theme.colors.onBackground,
+      textAlign: 'center',
+    },
+    loadingText: {
+      marginTop: theme.spacing.md,
+      fontSize: 16,
+      color: theme.colors.onSurface,
+      opacity: 0.7,
+    },
+    errorText: {
+      fontSize: 16,
+      color: theme.colors.error,
+      textAlign: 'center',
+    },
+  });

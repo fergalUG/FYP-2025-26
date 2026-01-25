@@ -2,12 +2,14 @@ import { Tabs } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { theme } from '@theme';
+import { useTheme } from '@hooks';
 import { ServiceStatusIndicator } from '@components/ServiceStatusIndicator';
 import { appHeaderOptions } from '@constants/navigation';
 
 export default function Layout() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const headerOptions = appHeaderOptions(theme);
 
   return (
     <Tabs
@@ -17,7 +19,7 @@ export default function Layout() {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outline,
         },
-        ...appHeaderOptions,
+        ...headerOptions,
         headerLeft: () => (
           <View style={styles.headerLeft}>
             <ServiceStatusIndicator />

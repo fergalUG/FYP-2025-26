@@ -1,6 +1,6 @@
-import { theme } from '@theme';
+import type { Theme } from '@theme';
 
-export const appHeaderOptions = {
+export const appHeaderOptions = (theme: Theme) => ({
   headerStyle: {
     backgroundColor: theme.colors.surface,
   },
@@ -8,4 +8,4 @@ export const appHeaderOptions = {
     color: theme.colors.onSurface,
   },
   headerTintColor: theme.colors.onSurface,
-};
+});
