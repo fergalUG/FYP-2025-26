@@ -20,8 +20,9 @@ export default function JourneyLayout() {
         name="[journeyId]"
         options={{
           headerShown: true,
-          presentation: 'card',
+          presentation: 'modal',
           headerBackTitle: 'Back',
+          headerBackVisible: true,
           ...headerOptions,
         }}
       />
