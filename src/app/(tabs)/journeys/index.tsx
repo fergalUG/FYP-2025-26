@@ -4,17 +4,34 @@ import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { theme } from '@theme';
 import { useJourneys } from '@hooks';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 export default function Journeys() {
   const { journeys, loading, error, refetch, deleteJourney } = useJourneys();
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
+  const completedJourneys = useMemo(() => journeys.filter((journey) => journey.endTime && journey.distanceKm != null), [journeys]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
+  };
+
+  const getScoreColor = (score: number): string => {
+    if (score >= 80) return theme.colors.score.excellent;
+    if (score >= 60) return theme.colors.score.good;
+    if (score >= 40) return theme.colors.score.fair;
+    return theme.colors.score.poor;
+  };
+
+  const formatDate = (dateText: string): string => {
+    const parsed = new Date(dateText);
+    if (Number.isNaN(parsed.getTime())) {
+      return dateText;
+    }
+    return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
   const handleDeleteJourney = async (journeyId: number) => {
@@ -65,16 +82,33 @@ export default function Journeys() {
     <View style={styles.container}>
       <FlatList
         contentContainerStyle={styles.list}
-        data={journeys}
+        data={completedJourneys}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <Swipeable renderRightActions={() => renderRightActions(item.id)} overshootRight={false}>
             <Link href={{ pathname: `/journeys/${item.id}` }} asChild>
               <Pressable style={styles.card}>
-                <Text style={styles.title}>{item.title}</Text>
-                <Text style={styles.meta}>
-                  {item.distanceKm} km · {item.date}
-                </Text>
+                <View style={styles.cardTopRow}>
+                  <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(item.score || 0) }]}>
+                    <Text style={styles.scoreValue}>{Math.round(item.score || 0)}</Text>
+                    <Text style={styles.scoreLabel}>Score</Text>
+                  </View>
+                  <View style={styles.cardBody}>
+                    <Text style={styles.title} numberOfLines={2}>
+                      {item.title}
+                    </Text>
+                    <View style={styles.metaRow}>
+                      <View style={styles.metaChip}>
+                        <MaterialIcons name="schedule" size={14} color={theme.colors.onSurface} />
+                        <Text style={styles.metaChipText}>{item.startTime ? new Date(item.startTime).toLocaleTimeString() : 'Time'}</Text>
+                      </View>
+                      <View style={styles.metaChip}>
+                        <MaterialIcons name="route" size={14} color={theme.colors.onSurface} />
+                        <Text style={styles.metaChipText}>{parseFloat(item.distanceKm.toFixed(4))} km</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
               </Pressable>
             </Link>
           </Swipeable>
@@ -120,10 +154,57 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: theme.spacing.md,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.lg,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.outline,
+    gap: theme.spacing.md,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    alignItems: 'center',
+  },
+  scoreBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: theme.colors.background,
+  },
+  scoreLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.background,
+    opacity: 0.9,
+  },
+  cardBody: {
+    flex: 1,
+    gap: 6,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+  },
+  metaChipText: {
+    fontSize: 12,
+    color: theme.colors.onSurface,
   },
   deleteAction: {
     backgroundColor: theme.colors.error,
@@ -141,7 +222,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   title: { fontWeight: '700', fontSize: 16, color: theme.colors.onSurface },
-  meta: { marginTop: 4, color: theme.colors.onSurface, opacity: 0.7 },
+  meta: { color: theme.colors.onSurface, opacity: 0.7 },
   separator: { height: theme.spacing.md },
   loadingText: {
     marginTop: theme.spacing.md,

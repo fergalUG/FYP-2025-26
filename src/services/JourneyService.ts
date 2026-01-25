@@ -110,6 +110,25 @@ export const endJourney = async (finalScore: number, distanceKm: number = 0): Pr
   }
 };
 
+export const updateJourneyTitle = async (journeyId: number, title: string): Promise<boolean> => {
+  if (!db) {
+    await initDatabase();
+  }
+  if (!db) {
+    logger.error('Database not initialized. Cannot update journey title.');
+    return false;
+  }
+
+  try {
+    await db.runAsync('UPDATE journeys SET title = ? WHERE id = ?;', [title, journeyId]);
+    logger.info(`Journey title updated (${journeyId}).`);
+    return true;
+  } catch (error) {
+    logger.error('Error updating journey title:', error);
+    return false;
+  }
+};
+
 export const logEvent = async (type: EventType, latitude: number, longitude: number, speed: number): Promise<void> => {
   if (!db || !currentJourneyId) {
     return;

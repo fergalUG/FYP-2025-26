@@ -45,26 +45,45 @@ export default function JourneyDetail() {
 
   return (
     <>
-      <Stack.Screen options={{ title: journey.title || 'Journey Detail' }} />
-      <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.journeyTitle}>{journey.title}</Text>
-          <Text style={styles.journeyDate}>{new Date(journey.date).toLocaleDateString()}</Text>
-        </View>
-
-        <View style={styles.scoreSection}>
-          <Text style={styles.sectionTitle}>Driving Efficiency Score</Text>
-          <View style={styles.scoreWheelContainer}>
-            <DrivingScoreWheel score={journey.score} size={220} />
+      <Stack.Screen options={{ title: journey.title || 'Journey Detail', contentStyle: styles.screen }} />
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
+      >
+        <View style={styles.headerCard}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerText}>
+              <Text style={styles.journeyTitle}>{journey.title}</Text>
+              <Text style={styles.journeyDate}>{new Date(journey.date).toLocaleDateString()}</Text>
+            </View>
+          </View>
+          <View style={styles.headerMetaRow}>
+            <View style={styles.metaChip}>
+              <Text style={styles.metaLabel}>Distance</Text>
+              <Text style={styles.metaValue}>{journey.distanceKm.toFixed(1)} km</Text>
+            </View>
+            <View style={styles.metaChip}>
+              <Text style={styles.metaLabel}>Duration</Text>
+              <Text style={styles.metaValue}>{Math.max(0, Math.round((journey.endTime - journey.startTime) / 60000))} min</Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.mapSection}>
-          <Text style={styles.sectionTitle}>Route Map</Text>
-          <JourneyMap events={events} height={280} />
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Driving Efficiency</Text>
+          <View style={styles.scoreWheelContainer}>
+            <DrivingScoreWheel score={journey.score} size={200} />
+          </View>
         </View>
 
-        <View style={styles.statsSection}>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Route Map</Text>
+          <JourneyMap events={events} height={260} />
+        </View>
+
+        <View style={styles.sectionCard}>
           <JourneyStats journey={journey} events={events} />
         </View>
       </ScrollView>
@@ -77,51 +96,102 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  content: {
+    padding: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl,
+    gap: theme.spacing.lg,
+  },
   centerContent: {
     justifyContent: 'center',
     alignItems: 'center',
     padding: theme.spacing.lg,
   },
-  header: {
-    padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
+  headerCard: {
+    padding: theme.spacing.md,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    gap: theme.spacing.md,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
     alignItems: 'center',
   },
-  journeyTitle: {
+  scoreBadge: {
+    width: 70,
+    height: 70,
+    borderRadius: 18,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreValue: {
     fontSize: 24,
     fontWeight: '800',
+    color: theme.colors.background,
+  },
+  scoreLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.background,
+    opacity: 0.9,
+  },
+  headerText: {
+    flex: 1,
+    gap: 4,
+  },
+  journeyTitle: {
+    fontSize: 22,
+    fontWeight: '800',
     color: theme.colors.onBackground,
-    textAlign: 'center',
-    marginBottom: theme.spacing.xs,
   },
   journeyDate: {
-    fontSize: 16,
+    fontSize: 14,
     color: theme.colors.textSecondary,
-    textAlign: 'center',
   },
-  scoreSection: {
-    padding: theme.spacing.lg,
-    paddingTop: 0,
-    alignItems: 'center',
+  headerMetaRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
   },
-  sectionTitle: {
-    fontSize: 20,
+  metaChip: {
+    flex: 1,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    gap: 4,
+  },
+  metaLabel: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    color: theme.colors.textSecondary,
+  },
+  metaValue: {
+    fontSize: 16,
     fontWeight: '700',
     color: theme.colors.onBackground,
-    marginBottom: theme.spacing.lg,
-    textAlign: 'center',
+  },
+  sectionCard: {
+    padding: theme.spacing.lg,
+    borderRadius: theme.radius.lg,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    gap: theme.spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.onBackground,
   },
   scoreWheelContainer: {
-    padding: theme.spacing.lg,
-  },
-  mapSection: {
-    padding: theme.spacing.lg,
-    paddingTop: 0,
-  },
-  statsSection: {
-    padding: theme.spacing.lg,
-    paddingTop: 0,
-    paddingBottom: theme.spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 22,

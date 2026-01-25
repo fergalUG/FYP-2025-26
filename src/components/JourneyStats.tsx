@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '@theme';
 import type { Journey, Event } from '@types';
+import { EventType } from '@types';
 
 interface JourneyStatsProps {
   journey: Journey;
@@ -37,7 +38,17 @@ export const JourneyStats = (props: JourneyStatsProps) => {
   const avgSpeed = speeds.length > 0 ? (speeds.reduce((sum, speed) => sum + speed, 0) / speeds.length).toFixed(1) : '0.0';
   const maxSpeed = speeds.length > 0 ? Math.max(...speeds).toFixed(1) : '0.0';
 
-  const eventCounts = events.reduce(
+  const negativeEvents = events.filter((event) =>
+    [
+      EventType.HarshAcceleration,
+      EventType.HarshBraking,
+      EventType.SharpTurn,
+      EventType.ModerateSpeeding,
+      EventType.HarshSpeeding,
+    ].includes(event.type)
+  );
+
+  const eventCounts = negativeEvents.reduce(
     (acc, event) => {
       acc[event.type] = (acc[event.type] || 0) + 1;
       return acc;
@@ -58,7 +69,7 @@ export const JourneyStats = (props: JourneyStatsProps) => {
 
       <View style={styles.statsGrid}>
         <StatItem label="Score" value={`${Math.round(journey.score)}/100`} color={getScoreColor(journey.score)} />
-        <StatItem label="Distance" value={`${journey.distanceKm} km`} />
+        <StatItem label="Distance" value={`${Math.round(journey.distanceKm * 100) / 100} km`} />
         <StatItem label="Duration" value={durationText} />
         <StatItem label="Avg Speed" value={`${avgSpeed} km/h`} />
         <StatItem label="Max Speed" value={`${maxSpeed} km/h`} />
