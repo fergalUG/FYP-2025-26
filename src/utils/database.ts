@@ -1,5 +1,4 @@
 import * as JourneyService from '@services/JourneyService';
-import type { Journey } from '@types';
 import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.DB);
@@ -8,10 +7,10 @@ const logger = createLogger(LogModule.DB);
 
 export const initDatabaseWithMockData = async (): Promise<void> => {
   try {
-    logger.info('Resetting and initializing database...');
-    await resetDatabase();
+    logger.info('Initializing database...');
+    await JourneyService.initDatabase();
 
-    logger.info('Seeding mock data...');
+    logger.info('Seeding mock data if needed...');
     await seedMockData();
 
     logger.info('Database setup complete!');
@@ -81,8 +80,8 @@ export const seedMockData = async (): Promise<void> => {
   }
 
   try {
-    const existingData = (await db.getFirstAsync('SELECT COUNT(*) as count FROM journeys')) as Journey[];
-    if (existingData && existingData.length > 0) {
+    const existingData = (await db.getFirstAsync('SELECT COUNT(*) as count FROM journeys')) as { count: number } | null;
+    if (existingData && existingData.count > 0) {
       logger.info('Database already contains data. Skipping seed.');
       return;
     }

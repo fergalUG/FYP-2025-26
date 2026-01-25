@@ -179,6 +179,33 @@ export const getAllJourneys = async (): Promise<Journey[]> => {
   }
 };
 
+export const deleteJourney = async (journeyId: number): Promise<boolean> => {
+  if (!db) {
+    await initDatabase();
+  }
+  if (!db) {
+    logger.error('Database not initialized. Cannot delete journey.');
+    return false;
+  }
+
+  try {
+    await db.execAsync('BEGIN TRANSACTION;');
+    await db.runAsync('DELETE FROM events WHERE journeyId = ?;', [journeyId]);
+    await db.runAsync('DELETE FROM journeys WHERE id = ?;', [journeyId]);
+    await db.execAsync('COMMIT;');
+    logger.info(`Journey deleted successfully (${journeyId}).`);
+    return true;
+  } catch (error) {
+    logger.error('Error deleting journey:', error);
+    try {
+      await db.execAsync('ROLLBACK;');
+    } catch (rollbackError) {
+      logger.error('Error rolling back delete transaction:', rollbackError);
+    }
+    return false;
+  }
+};
+
 export const getEventsByJourneyId = async (journeyId: number): Promise<Event[]> => {
   if (!db) {
     return [];

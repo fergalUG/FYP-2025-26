@@ -1,10 +1,13 @@
 import { Tabs } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { View } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { theme } from '@theme';
 import { ServiceStatusIndicator } from '@components/ServiceStatusIndicator';
 
 export default function Layout() {
+  const router = useRouter();
+
   return (
     <Tabs
       screenOptions={{
@@ -20,9 +23,14 @@ export default function Layout() {
           color: theme.colors.onSurface,
         },
         headerLeft: () => (
-          <View style={{ marginLeft: 10 }}>
+          <View style={styles.headerLeft}>
             <ServiceStatusIndicator />
           </View>
+        ),
+        headerRight: () => (
+          <Pressable style={styles.headerRight} onPress={() => router.push('/settings')}>
+            <MaterialIcons name="account-circle" size={26} color={theme.colors.onSurface} />
+          </Pressable>
         ),
       }}
     >
@@ -46,3 +54,12 @@ export default function Layout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  headerLeft: {
+    marginLeft: 10,
+  },
+  headerRight: {
+    marginRight: 12,
+  },
+});

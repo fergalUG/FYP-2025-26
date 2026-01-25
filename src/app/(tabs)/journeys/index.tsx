@@ -1,14 +1,15 @@
 import { Link } from 'expo-router';
 import { FlatList, Pressable, Text, View, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { theme } from '@theme';
 import { useJourneys } from '@hooks';
 import { useState } from 'react';
-import * as JourneyService from '@services/JourneyService';
 
 export default function Journeys() {
-  const { journeys, loading, error, refetch } = useJourneys();
+  const { journeys, loading, error, refetch, deleteJourney } = useJourneys();
   const [refreshing, setRefreshing] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -16,11 +17,29 @@ export default function Journeys() {
     setRefreshing(false);
   };
 
-  const handleExportDatabase = async () => {
-    setExporting(true);
-    await JourneyService.exportDatabase();
-    setExporting(false);
+  const handleDeleteJourney = async (journeyId: number) => {
+    setDeletingId(journeyId);
+    try {
+      await deleteJourney(journeyId);
+    } finally {
+      setDeletingId(null);
+    }
   };
+
+  const renderRightActions = (journeyId: number) => (
+    <Pressable
+      style={({ pressed }) => [styles.deleteAction, pressed && styles.deleteActionPressed]}
+      onPress={() => handleDeleteJourney(journeyId)}
+      disabled={deletingId === journeyId}
+    >
+      {deletingId === journeyId ? (
+        <ActivityIndicator size="small" color={theme.colors.background} />
+      ) : (
+        <MaterialIcons name="delete" size={22} color={theme.colors.background} />
+      )}
+      <Text style={styles.deleteActionText}>{deletingId === journeyId ? 'Deleting' : 'Delete'}</Text>
+    </Pressable>
+  );
 
   if (loading && !refreshing) {
     return (
@@ -44,28 +63,21 @@ export default function Journeys() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerButtonsRow}>
-        <Pressable
-          style={[styles.exportButton, exporting && styles.exportButtonDisabled]}
-          onPress={handleExportDatabase}
-          disabled={exporting}
-        >
-          <Text style={styles.exportButtonText}>{exporting ? 'Exporting...' : 'Export DB'}</Text>
-        </Pressable>
-      </View>
       <FlatList
         contentContainerStyle={styles.list}
         data={journeys}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <Link href={{ pathname: `/journeys/${item.id}` }} asChild>
-            <Pressable style={styles.card}>
-              <Text style={styles.title}>{item.title}</Text>
-              <Text style={styles.meta}>
-                {item.distanceKm} km · {item.date}
-              </Text>
-            </Pressable>
-          </Link>
+          <Swipeable renderRightActions={() => renderRightActions(item.id)} overshootRight={false}>
+            <Link href={{ pathname: `/journeys/${item.id}` }} asChild>
+              <Pressable style={styles.card}>
+                <Text style={styles.title}>{item.title}</Text>
+                <Text style={styles.meta}>
+                  {item.distanceKm} km · {item.date}
+                </Text>
+              </Pressable>
+            </Link>
+          </Swipeable>
         )}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
@@ -92,26 +104,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  headerButtonsRow: {
-    padding: theme.spacing.md,
-    gap: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.outline,
-  },
-  exportButton: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.radius.md,
-  },
-  exportButtonDisabled: {
-    opacity: 0.6,
-  },
-  exportButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
   list: {
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
@@ -132,6 +124,21 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.outline,
+  },
+  deleteAction: {
+    backgroundColor: theme.colors.error,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: theme.spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  deleteActionPressed: {
+    opacity: 0.85,
+  },
+  deleteActionText: {
+    color: theme.colors.background,
+    fontWeight: '600',
   },
   title: { fontWeight: '700', fontSize: 16, color: theme.colors.onSurface },
   meta: { marginTop: 4, color: theme.colors.onSurface, opacity: 0.7 },

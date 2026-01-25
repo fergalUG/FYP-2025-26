@@ -93,10 +93,19 @@ export const useJourneys = () => {
     fetchJourneys();
   }, [fetchJourneys]);
 
+  const deleteJourney = useCallback(async (journeyId: number) => {
+    const success = await JourneyService.deleteJourney(journeyId);
+    if (success) {
+      setJourneys((prev) => prev.filter((journey) => journey.id !== journeyId));
+    }
+    return success;
+  }, []);
+
   return {
     journeys,
     loading,
     error,
     refetch,
+    deleteJourney,
   };
 };
