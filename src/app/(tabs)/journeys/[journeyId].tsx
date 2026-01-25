@@ -48,7 +48,7 @@ export default function JourneyDetail() {
 
   return (
     <>
-      <Stack.Screen options={{ title: journey.title || 'Journey Detail', contentStyle: styles.screen }} />
+      <Stack.Screen options={{ title: journey.title || 'Journey Detail', contentStyle: styles.screen, headerBackVisible: true }} />
       <ScrollView
         style={styles.screen}
         contentContainerStyle={styles.content}
@@ -59,7 +59,11 @@ export default function JourneyDetail() {
           <View style={styles.headerTop}>
             <View style={styles.headerText}>
               <Text style={styles.journeyTitle}>{journey.title}</Text>
-              <Text style={styles.journeyDate}>{new Date(journey.date).toLocaleDateString()}</Text>
+              <Text style={styles.journeyDate}>
+                {new Date(journey.date).toLocaleDateString() + ', ' + journey.startTime
+                  ? new Date(journey.startTime).toLocaleTimeString()
+                  : 'Time'}
+              </Text>
             </View>
           </View>
           <View style={styles.headerMetaRow}>

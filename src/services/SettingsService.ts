@@ -3,7 +3,7 @@ import type * as SQL from 'expo-sqlite';
 import * as JourneyService from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
 
-const logger = createLogger(LogModule.DB);
+const logger = createLogger(LogModule.SettingsService);
 
 const DRIVER_NAME_KEY = 'driverName';
 const DEFAULT_DRIVER_NAME = 'Driver';
@@ -45,6 +45,7 @@ export const setDriverName = async (name: string): Promise<boolean> => {
   const next = name.trim().length > 0 ? name.trim() : DEFAULT_DRIVER_NAME;
 
   try {
+    logger.debug('Saving driver name:', next);
     await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value;', [
       DRIVER_NAME_KEY,
       next,

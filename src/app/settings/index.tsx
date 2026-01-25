@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
 import { useDriverProfile, useTheme } from '@hooks';
+
 import * as JourneyService from '@services/JourneyService';
 
 export default function Settings() {

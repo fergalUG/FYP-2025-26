@@ -4,6 +4,8 @@ const logColours = {
   backgroundService: '\x1b[33m', // Yellow (#FFFF00)
   journeyService: '\x1b[94m', // Light Blue (#ADD8E6)
   efficiencyService: '\x1b[32m', // Green (#00FF00)
+  themeService: '\x1b[34m', // Blue (#0000FF)
+  settingsService: '\x1b[91m', // Light Red (#FF6347)
   db: '\x1b[37m', // White (#FFFFFF)
   reset: '\x1b[0m', // Reset
 };
@@ -14,6 +16,8 @@ export const enum LogModule {
   BackgroundService = 'backgroundService',
   JourneyService = 'journeyService',
   EfficiencyService = 'efficiencyService',
+  ThemeService = 'themeService',
+  SettingsService = 'settingsService',
   DB = 'db',
 }
 

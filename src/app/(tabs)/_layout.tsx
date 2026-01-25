@@ -18,6 +18,8 @@ export default function Layout() {
     <Tabs
       screenOptions={{
         headerShown: true,
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.onSurface,
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outline,
@@ -40,16 +42,14 @@ export default function Layout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarActiveTintColor: theme.colors.primary,
           headerTitle: 'VeloMetry',
-          tabBarIcon: ({ size }) => <MaterialIcons name="home" size={size} color={theme.colors.primary} />,
+          tabBarIcon: ({ color, size }) => <MaterialIcons name="home" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="journeys"
         options={{
           title: 'Journeys',
-          tabBarActiveTintColor: theme.colors.primary,
           headerTitle: 'My Journeys',
           headerShown: true,
           tabBarIcon: ({ color, size }) => <MaterialIcons name="directions-car" size={size} color={color} />,
