@@ -2,8 +2,14 @@ import { Link } from 'expo-router';
 import { FlatList, Pressable, Text, View, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
 import { useJourneys, useTheme } from '@hooks';
 import { useMemo, useState } from 'react';
+
+import { IconChip } from '@components';
+import { ScoreBadge } from '@components';
+
+import { getScoreColor } from '@utils/score';
 
 export default function Journeys() {
   const { theme } = useTheme();
@@ -18,13 +24,6 @@ export default function Journeys() {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
-  };
-
-  const getScoreColor = (score: number): string => {
-    if (score >= 80) return theme.colors.score.excellent;
-    if (score >= 60) return theme.colors.score.good;
-    if (score >= 40) return theme.colors.score.fair;
-    return theme.colors.score.poor;
   };
 
   const handleDeleteJourney = async (journeyId: number) => {
@@ -82,23 +81,14 @@ export default function Journeys() {
             <Link href={{ pathname: `/journeys/${item.id}` }} asChild>
               <Pressable style={styles.card}>
                 <View style={styles.cardTopRow}>
-                  <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(item.score || 0) }]}>
-                    <Text style={styles.scoreValue}>{Math.round(item.score || 0)}</Text>
-                    <Text style={styles.scoreLabel}>Score</Text>
-                  </View>
+                  <ScoreBadge score={item.score ?? 0} color={getScoreColor(item.score ?? 0, theme)} />
                   <View style={styles.cardBody}>
                     <Text style={styles.title} numberOfLines={2}>
                       {item.title}
                     </Text>
                     <View style={styles.metaRow}>
-                      <View style={styles.metaChip}>
-                        <MaterialIcons name="schedule" size={14} color={theme.colors.onSurface} />
-                        <Text style={styles.metaChipText}>{item.startTime ? new Date(item.startTime).toLocaleTimeString() : 'Time'}</Text>
-                      </View>
-                      <View style={styles.metaChip}>
-                        <MaterialIcons name="route" size={14} color={theme.colors.onSurface} />
-                        <Text style={styles.metaChipText}>{item.distanceKm.toFixed(2)} km</Text>
-                      </View>
+                      <IconChip icon="schedule" text={item.startTime ? new Date(item.startTime).toLocaleTimeString() : 'Time'} />
+                      <IconChip icon="route" text={`${(item.distanceKm ?? 0).toFixed(2)} km`} />
                     </View>
                   </View>
                 </View>
@@ -159,24 +149,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       gap: theme.spacing.md,
       alignItems: 'center',
     },
-    scoreBadge: {
-      width: 72,
-      height: 72,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    scoreValue: {
-      fontSize: 24,
-      fontWeight: '800',
-      color: theme.colors.background,
-    },
-    scoreLabel: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: theme.colors.background,
-      opacity: 0.9,
-    },
     cardBody: {
       flex: 1,
       gap: 6,
@@ -184,21 +156,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     metaRow: {
       flexDirection: 'row',
       gap: theme.spacing.sm,
-    },
-    metaChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      paddingHorizontal: theme.spacing.sm,
-      paddingVertical: 6,
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.background,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-    },
-    metaChipText: {
-      fontSize: 12,
-      color: theme.colors.onSurface,
     },
     deleteAction: {
       backgroundColor: theme.colors.error,

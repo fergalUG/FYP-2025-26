@@ -1,4 +1,12 @@
-export { DrivingScoreWheel } from './DrivingScoreWheel';
-export { JourneyMap } from './JourneyMap';
-export { JourneyStats } from './JourneyStats';
+export { DrivingScoreWheel } from './journey/DrivingScoreWheel';
+export { JourneyMap } from './journey/JourneyMap';
+export { JourneyStats } from './journey/JourneyStats';
 export { ServiceStatusIndicator } from './ServiceStatusIndicator';
+
+export { IconChip } from './common/IconChip';
+export { ScoreBadge } from './common/ScoreBadge';
+export { StatTile } from './common/StatTile';
+
+export { HomeHeroCard } from './home/HomeHeroCard';
+export { HomeLastDriveCard } from './home/HomeLastDriveCard';
+export { HomeWeekSummary } from './home/HomeWeekSummary';

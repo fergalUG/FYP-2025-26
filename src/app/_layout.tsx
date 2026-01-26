@@ -4,20 +4,28 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDatabaseWithMockData } from '@utils/database';
+import * as JourneyService from '@services/JourneyService';
 import { appHeaderOptions } from '@constants/navigation';
-import { ThemeProvider, useTheme } from '@hooks';
+import { BackgroundServiceProvider, ThemeProvider, useTheme } from '@hooks';
 
 export default function RootLayout() {
   useEffect(() => {
-    initDatabaseWithMockData();
+    if (__DEV__) {
+      initDatabaseWithMockData();
+      return;
+    }
+
+    JourneyService.initDatabase();
   }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <SafeAreaProvider>
-          <ThemedRootStack />
-        </SafeAreaProvider>
+        <BackgroundServiceProvider>
+          <SafeAreaProvider>
+            <ThemedRootStack />
+          </SafeAreaProvider>
+        </BackgroundServiceProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

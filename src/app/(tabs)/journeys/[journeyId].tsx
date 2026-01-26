@@ -1,7 +1,9 @@
 import { useLocalSearchParams } from 'expo-router';
 import { View, StyleSheet, ActivityIndicator, ScrollView, Text } from 'react-native';
 import { Stack } from 'expo-router';
+
 import { useJourneyWithEvents, useTheme } from '@hooks';
+
 import { DrivingScoreWheel, JourneyMap, JourneyStats } from '@components';
 
 export default function JourneyDetail() {
@@ -46,7 +48,7 @@ export default function JourneyDetail() {
 
   return (
     <>
-      <Stack.Screen options={{ title: journey.title || 'Journey Detail', contentStyle: styles.screen }} />
+      <Stack.Screen options={{ title: journey.title || 'Journey Detail', contentStyle: styles.screen, headerBackVisible: true }} />
       <ScrollView
         style={styles.screen}
         contentContainerStyle={styles.content}
@@ -57,17 +59,23 @@ export default function JourneyDetail() {
           <View style={styles.headerTop}>
             <View style={styles.headerText}>
               <Text style={styles.journeyTitle}>{journey.title}</Text>
-              <Text style={styles.journeyDate}>{new Date(journey.date).toLocaleDateString()}</Text>
+              <Text style={styles.journeyDate}>
+                {new Date(journey.date).toLocaleDateString() +
+                  ', ' +
+                  (journey.startTime ? new Date(journey.startTime).toLocaleTimeString() : 'Time')}
+              </Text>
             </View>
           </View>
           <View style={styles.headerMetaRow}>
             <View style={styles.metaChip}>
               <Text style={styles.metaLabel}>Distance</Text>
-              <Text style={styles.metaValue}>{journey.distanceKm.toFixed(1)} km</Text>
+              <Text style={styles.metaValue}>{(journey.distanceKm ?? 0).toFixed(1)} km</Text>
             </View>
             <View style={styles.metaChip}>
               <Text style={styles.metaLabel}>Duration</Text>
-              <Text style={styles.metaValue}>{Math.max(0, Math.round((journey.endTime - journey.startTime) / 60000))} min</Text>
+              <Text style={styles.metaValue}>
+                {journey.endTime ? Math.max(0, Math.round((journey.endTime - journey.startTime) / 60000)) : 0} min
+              </Text>
             </View>
           </View>
         </View>
@@ -75,7 +83,7 @@ export default function JourneyDetail() {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Driving Efficiency</Text>
           <View style={styles.scoreWheelContainer}>
-            <DrivingScoreWheel score={journey.score} size={200} />
+            <DrivingScoreWheel score={journey.score ?? 0} size={200} />
           </View>
         </View>
 

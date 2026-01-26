@@ -1,6 +1,6 @@
 import * as SQL from 'expo-sqlite';
-import * as JourneyService from '../../src/services/JourneyService';
-import { EventType } from '../../src/types';
+import * as JourneyService from '@services/JourneyService';
+import { EventType } from '@types';
 
 const mockDb = {
   execAsync: jest.fn(),

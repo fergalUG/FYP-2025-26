@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+
 import { useTheme } from '@hooks';
-import type { Journey, Event } from '@types';
-import { EventType } from '@types';
+import { Journey, Event, EventType } from '@types';
+import { getScoreColor } from '@utils/score';
 
 interface JourneyStatsProps {
   journey: Journey;
@@ -32,7 +33,7 @@ const StatItem = (props: StatItemInnerProps) => {
 export const JourneyStats = (props: JourneyStatsProps) => {
   const { theme } = useTheme();
   const { journey, events } = props;
-  const durationMs = journey.endTime - journey.startTime;
+  const durationMs = (journey.endTime ?? journey.startTime) - journey.startTime;
   const durationMinutes = Math.floor(durationMs / 60000);
   const durationHours = Math.floor(durationMinutes / 60);
   const remainingMinutes = durationMinutes % 60;
@@ -61,13 +62,6 @@ export const JourneyStats = (props: JourneyStatsProps) => {
     {} as Record<string, number>
   );
 
-  const getScoreColor = (score: number): string => {
-    if (score >= 80) return theme.colors.score.excellent;
-    if (score >= 60) return theme.colors.score.good;
-    if (score >= 40) return theme.colors.score.fair;
-    return theme.colors.score.poor;
-  };
-
   const styles = createStyles(theme);
 
   return (
@@ -75,8 +69,13 @@ export const JourneyStats = (props: JourneyStatsProps) => {
       <Text style={styles.title}>Journey Statistics</Text>
 
       <View style={styles.statsGrid}>
-        <StatItem styles={styles} label="Score" value={`${Math.round(journey.score)}/100`} color={getScoreColor(journey.score)} />
-        <StatItem styles={styles} label="Distance" value={`${Math.round(journey.distanceKm * 100) / 100} km`} />
+        <StatItem
+          styles={styles}
+          label="Score"
+          value={`${Math.round(journey.score ?? 0)}/100`}
+          color={getScoreColor(journey.score ?? 0, theme)}
+        />
+        <StatItem styles={styles} label="Distance" value={`${Math.round((journey.distanceKm ?? 0) * 100) / 100} km`} />
         <StatItem styles={styles} label="Duration" value={durationText} />
         <StatItem styles={styles} label="Avg Speed" value={`${avgSpeed} km/h`} />
         <StatItem styles={styles} label="Max Speed" value={`${maxSpeed} km/h`} />

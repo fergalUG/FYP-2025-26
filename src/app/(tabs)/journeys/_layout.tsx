@@ -1,5 +1,7 @@
 import { Stack } from 'expo-router';
+
 import { useTheme } from '@hooks';
+
 import { appHeaderOptions } from '@constants/navigation';
 
 export default function JourneyLayout() {
@@ -18,8 +20,9 @@ export default function JourneyLayout() {
         name="[journeyId]"
         options={{
           headerShown: true,
-          presentation: 'card',
+          presentation: 'modal',
           headerBackTitle: 'Back',
+          headerBackVisible: true,
           ...headerOptions,
         }}
       />

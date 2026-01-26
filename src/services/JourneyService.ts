@@ -38,6 +38,11 @@ export const initDatabase = async (): Promise<void> => {
         penalty INTEGER,
         FOREIGN KEY (journeyId) REFERENCES journeys (id)
       );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      );
     `);
     logger.info('Database initialized successfully.');
   } catch (error) {
@@ -156,7 +161,7 @@ export const logEvent = async (type: EventType, latitude: number, longitude: num
 
 export const getJourneyById = async (id: number): Promise<Journey | null> => {
   if (!db) {
-    return null;
+    await initDatabase();
   }
   if (!db) {
     logger.error('Database not initialized. Cannot fetch journey.');
@@ -180,7 +185,7 @@ export const getJourneyById = async (id: number): Promise<Journey | null> => {
 
 export const getAllJourneys = async (): Promise<Journey[]> => {
   if (!db) {
-    return [];
+    await initDatabase();
   }
   if (!db) {
     logger.error('Database not initialized. Cannot fetch journeys.');
@@ -231,6 +236,10 @@ export const deleteJourney = async (journeyId: number): Promise<boolean> => {
 
 export const getEventsByJourneyId = async (journeyId: number): Promise<Event[]> => {
   if (!db) {
+    await initDatabase();
+  }
+  if (!db) {
+    logger.error('Database not initialized. Cannot fetch events.');
     return [];
   }
 

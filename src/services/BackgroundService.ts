@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
-import { EventType, type TrackingMode, type TrackingStatus } from '@types';
+import { EventType, type PermissionState, type TrackingMode, type TrackingStatus } from '@types';
 import * as JourneyService from '@services/JourneyService';
 import * as EfficiencyService from '@services/EfficiencyService';
 import { createLogger, LogModule } from '@utils/logger';
@@ -103,12 +103,36 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskMan
 });
 
 export const requestLocationPermissions = async (): Promise<boolean> => {
-  const { granted: foregroundGranted } = await Location.requestForegroundPermissionsAsync();
-  if (!foregroundGranted) {
+  try {
+    const { granted: foregroundGranted } = await Location.requestForegroundPermissionsAsync();
+    if (!foregroundGranted) {
+      return false;
+    }
+    const { granted: backgroundGranted } = await Location.requestBackgroundPermissionsAsync();
+    return backgroundGranted;
+  } catch (error) {
+    logger.warn('Error requesting location permissions:', error);
     return false;
   }
-  const { granted: backgroundGranted } = await Location.requestBackgroundPermissionsAsync();
-  return backgroundGranted;
+};
+
+export const getLocationPermissionState = async (): Promise<PermissionState> => {
+  try {
+    const foreground = await Location.getForegroundPermissionsAsync();
+    if (!foreground.granted) {
+      return foreground.canAskAgain ? 'unknown' : 'denied';
+    }
+
+    const background = await Location.getBackgroundPermissionsAsync();
+    if (!background.granted) {
+      return background.canAskAgain ? 'unknown' : 'denied';
+    }
+
+    return 'granted';
+  } catch (error) {
+    logger.warn('Error checking location permission status:', error);
+    return 'unknown';
+  }
 };
 
 export const startLocationMonitoring = async (): Promise<void> => {

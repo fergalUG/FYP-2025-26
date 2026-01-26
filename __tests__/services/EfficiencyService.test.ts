@@ -1,11 +1,11 @@
-import * as EfficiencyService from '../../src/services/EfficiencyService';
-import * as JourneyService from '../../src/services/JourneyService';
-import VehicleMotion from '../../modules/vehicle-motion';
-import { EventType } from '../../src/types';
-import type { MotionData } from '../../modules/vehicle-motion/src/VehicleMotion.types';
+import * as EfficiencyService from '@services/EfficiencyService';
+import * as JourneyService from '@services/JourneyService';
+import VehicleMotion from '@modules/vehicle-motion';
+import { EventType } from '@types';
+import type { MotionData } from '@modules/vehicle-motion';
 
-jest.mock('../../src/services/JourneyService');
-jest.mock('../../modules/vehicle-motion');
+jest.mock('@services/JourneyService');
+jest.mock('@modules/vehicle-motion');
 
 describe('EfficiencyService', () => {
   const mockLocation = {

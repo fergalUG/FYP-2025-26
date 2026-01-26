@@ -3,9 +3,9 @@ export interface Journey {
   title: string;
   date: string;
   startTime: number;
-  endTime: number;
-  score: number;
-  distanceKm: number;
+  endTime?: number | null;
+  score?: number | null;
+  distanceKm?: number | null;
 }
 
 export interface Event {

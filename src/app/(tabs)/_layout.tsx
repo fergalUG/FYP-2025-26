@@ -2,8 +2,11 @@ import { Tabs } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+
 import { useTheme } from '@hooks';
-import { ServiceStatusIndicator } from '@components/ServiceStatusIndicator';
+
+import { ServiceStatusIndicator } from '@components';
+
 import { appHeaderOptions } from '@constants/navigation';
 
 export default function Layout() {
@@ -15,9 +18,12 @@ export default function Layout() {
     <Tabs
       screenOptions={{
         headerShown: true,
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.onSurface,
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outline,
+          height: 80,
         },
         ...headerOptions,
         headerLeft: () => (
