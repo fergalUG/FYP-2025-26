@@ -3,7 +3,7 @@ import type * as Location from 'expo-location';
 import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 import type { ScoringStats } from '@/types/scoring';
 import type { JourneyServiceController } from '@/types/services/journeyService';
-import { createLogger } from '@utils/logger';
+import type { createLogger } from '@utils/logger';
 
 export interface EfficiencyServiceDeps {
   JourneyService: Pick<JourneyServiceController, 'logEvent' | 'getEventsByJourneyId'>;
