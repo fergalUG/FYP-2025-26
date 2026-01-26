@@ -19,6 +19,7 @@ describe('EfficiencyService', () => {
   const mockLogger: EfficiencyServiceDeps['logger'] = {
     info: jest.fn(),
     warn: jest.fn(),
+    debug: jest.fn(),
     error: jest.fn(),
   };
 

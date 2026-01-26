@@ -3,17 +3,14 @@ import type { Directory, File, Paths } from 'expo-file-system';
 import type * as Sharing from 'expo-sharing';
 
 import type { Event, EventType, Journey } from '@/types/db';
+import type { createLogger } from '@utils/logger';
 
 export interface JourneyServiceDeps {
   SQL: {
     openDatabaseAsync: (databaseName: string) => Promise<SQL.SQLiteDatabase>;
   };
   now: () => number;
-  logger: {
-    info: (message: string, ...data: unknown[]) => void;
-    warn: (message: string, ...data: unknown[]) => void;
-    error: (message: string, ...data: unknown[]) => void;
-  };
+  logger: ReturnType<typeof createLogger>;
   FileSystem?: {
     File: typeof File;
     Directory: typeof Directory;
