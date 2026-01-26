@@ -1,4 +1,4 @@
-import * as JourneyService from '@services/JourneyService';
+import { JourneyService } from '@services/JourneyService';
 import * as SettingsService from '@services/SettingsService';
 import { DEFAULT_DRIVER_NAME } from '@constants/defaults';
 
@@ -105,7 +105,7 @@ describe('SettingsService', () => {
 
     const name = await SettingsService2.getDriverName();
 
-    expect(JourneyService2.getDatabase()).not.toBeNull();
+    expect(JourneyService2.JourneyService.getDatabase()).not.toBeNull();
     expect(name).toBe(DEFAULT_DRIVER_NAME);
   });
 });

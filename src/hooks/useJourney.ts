@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Journey, Event } from '@types';
-import * as JourneyService from '@services/JourneyService';
+import { JourneyService } from '@services/JourneyService';
 import { executeWithLoading } from '@utils/async';
 
 export const useJourney = (id: number) => {
