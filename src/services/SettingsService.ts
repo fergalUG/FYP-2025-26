@@ -2,11 +2,11 @@ import type * as SQL from 'expo-sqlite';
 
 import * as JourneyService from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
+import { DEFAULT_DRIVER_NAME } from '@constants/defaults';
 
 const logger = createLogger(LogModule.SettingsService);
 
 const DRIVER_NAME_KEY = 'driverName';
-const DEFAULT_DRIVER_NAME = 'Driver';
 
 const ensureDb = async (): Promise<SQL.SQLiteDatabase | null> => {
   let db = JourneyService.getDatabase();

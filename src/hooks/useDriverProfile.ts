@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import * as SettingsService from '@services/SettingsService';
 import { executeWithLoading } from '@utils/async';
+import { DEFAULT_DRIVER_NAME } from '@constants/defaults';
 
 interface UseDriverProfileResult {
   driverName: string;
@@ -12,7 +13,7 @@ interface UseDriverProfileResult {
 }
 
 export const useDriverProfile = (): UseDriverProfileResult => {
-  const [driverName, setDriverNameState] = useState<string>('Driver');
+  const [driverName, setDriverNameState] = useState<string>(DEFAULT_DRIVER_NAME);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +31,7 @@ export const useDriverProfile = (): UseDriverProfileResult => {
   const setDriverName = useCallback(async (name: string): Promise<boolean> => {
     const result = await executeWithLoading(() => SettingsService.setDriverName(name), setLoading, setError);
     if (result) {
-      const next = name.trim().length > 0 ? name.trim() : 'Driver';
+      const next = name.trim().length > 0 ? name.trim() : DEFAULT_DRIVER_NAME;
       setDriverNameState(next);
       return true;
     }
