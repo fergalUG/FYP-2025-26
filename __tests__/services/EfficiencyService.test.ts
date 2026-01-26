@@ -1,13 +1,39 @@
-import * as EfficiencyService from '@services/EfficiencyService';
-import * as JourneyService from '@services/JourneyService';
-import VehicleMotion from '@modules/vehicle-motion';
+import { createEfficiencyServiceController } from '@services/EfficiencyService';
+import type { EfficiencyServiceDeps } from '@types';
 import { EventType } from '@types';
-import type { MotionData } from '@modules/vehicle-motion';
-
-jest.mock('@services/JourneyService');
-jest.mock('@modules/vehicle-motion');
+import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 
 describe('EfficiencyService', () => {
+  const mockJourneyService: EfficiencyServiceDeps['JourneyService'] = {
+    logEvent: jest.fn(),
+    getEventsByJourneyId: jest.fn(),
+  };
+
+  const mockVehicleMotion: EfficiencyServiceDeps['VehicleMotion'] = {
+    startTracking: jest.fn(),
+    stopTracking: jest.fn(),
+    addListener: jest.fn(),
+    removeAllListeners: jest.fn(),
+  };
+
+  const mockLogger: EfficiencyServiceDeps['logger'] = {
+    info: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+    error: jest.fn(),
+  };
+
+  let nowMs = 0;
+  const now = () => nowMs;
+
+  const createService = () =>
+    createEfficiencyServiceController({
+      JourneyService: mockJourneyService,
+      VehicleMotion: mockVehicleMotion,
+      now,
+      logger: mockLogger,
+    });
+
   const mockLocation = {
     coords: {
       latitude: 53.3498,
@@ -16,10 +42,10 @@ describe('EfficiencyService', () => {
       accuracy: 5,
       altitudeAccuracy: 5,
       heading: 90,
-      speed: 20, // ~72 km/h
+      speed: 20,
     },
-    timestamp: Date.now(),
-  };
+    timestamp: 0,
+  } as any;
 
   const mockMotionData: MotionData = {
     x: 0,
@@ -33,98 +59,76 @@ describe('EfficiencyService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.useFakeTimers();
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
+    nowMs = 0;
   });
 
   describe('startTracking', () => {
-    beforeEach(() => {
-      EfficiencyService.stopTracking();
-      jest.clearAllMocks();
+    it('starts VehicleMotion tracking and registers listener', () => {
+      const svc = createService();
+
+      svc.startTracking();
+
+      expect(mockVehicleMotion.startTracking).toHaveBeenCalledTimes(1);
+      expect(mockVehicleMotion.addListener).toHaveBeenCalledWith('onMotionUpdate', expect.any(Function));
     });
 
-    it('should start VehicleMotion tracking', () => {
-      EfficiencyService.startTracking();
+    it('is idempotent', () => {
+      const svc = createService();
 
-      expect(VehicleMotion.startTracking).toHaveBeenCalled();
-    });
+      svc.startTracking();
+      svc.startTracking();
 
-    it('should add motion update listener', () => {
-      EfficiencyService.startTracking();
-
-      expect(VehicleMotion.addListener).toHaveBeenCalledWith('onMotionUpdate', expect.any(Function));
-    });
-
-    it('should not start tracking twice', () => {
-      EfficiencyService.startTracking();
-      EfficiencyService.startTracking();
-
-      expect(VehicleMotion.startTracking).toHaveBeenCalledTimes(1);
+      expect(mockVehicleMotion.startTracking).toHaveBeenCalledTimes(1);
+      expect(mockVehicleMotion.addListener).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('stopTracking', () => {
-    beforeEach(() => {
-      EfficiencyService.startTracking();
+    it('stops VehicleMotion and removes listeners', () => {
+      const svc = createService();
+      svc.startTracking();
       jest.clearAllMocks();
+
+      svc.stopTracking();
+
+      expect(mockVehicleMotion.removeAllListeners).toHaveBeenCalledWith('onMotionUpdate');
+      expect(mockVehicleMotion.stopTracking).toHaveBeenCalledTimes(1);
     });
 
-    it('should stop VehicleMotion tracking', () => {
-      EfficiencyService.stopTracking();
+    it('is idempotent when not tracking', () => {
+      const svc = createService();
 
-      expect(VehicleMotion.stopTracking).toHaveBeenCalled();
-    });
+      svc.stopTracking();
+      svc.stopTracking();
 
-    it('should remove all motion listeners', () => {
-      EfficiencyService.stopTracking();
-
-      expect(VehicleMotion.removeAllListeners).toHaveBeenCalledWith('onMotionUpdate');
-    });
-
-    it('should handle stopping when not tracking', () => {
-      EfficiencyService.stopTracking();
-      EfficiencyService.stopTracking();
-
-      expect(VehicleMotion.stopTracking).toHaveBeenCalledTimes(1);
+      expect(mockVehicleMotion.stopTracking).not.toHaveBeenCalled();
     });
   });
 
   describe('processLocation', () => {
-    beforeEach(() => {
-      EfficiencyService.startTracking();
-      jest.clearAllMocks();
+    it('does nothing when not tracking', async () => {
+      const svc = createService();
+
+      await svc.processLocation(mockLocation);
+
+      expect(mockJourneyService.logEvent).not.toHaveBeenCalled();
     });
 
-    it('should process location when tracking', async () => {
-      await EfficiencyService.processLocation(mockLocation);
+    it('detects moderate speeding', async () => {
+      const svc = createService();
+      svc.startTracking();
 
-      expect(true).toBe(true);
-    });
-
-    it('should not process location when not tracking', async () => {
-      EfficiencyService.stopTracking();
-      jest.clearAllMocks();
-
-      await EfficiencyService.processLocation(mockLocation);
-
-      expect(JourneyService.logEvent).not.toHaveBeenCalled();
-    });
-
-    it('should detect moderate speeding', async () => {
       const speedingLocation = {
         ...mockLocation,
         coords: {
           ...mockLocation.coords,
-          speed: 30, // ~108 km/h (between 100-120)
+          speed: 30,
         },
       };
 
-      await EfficiencyService.processLocation(speedingLocation);
+      await svc.processLocation(speedingLocation);
 
-      expect(JourneyService.logEvent).toHaveBeenCalledWith(
+      expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
         EventType.ModerateSpeeding,
         speedingLocation.coords.latitude,
         speedingLocation.coords.longitude,
@@ -132,18 +136,21 @@ describe('EfficiencyService', () => {
       );
     });
 
-    it('should detect harsh speeding', async () => {
+    it('detects harsh speeding', async () => {
+      const svc = createService();
+      svc.startTracking();
+
       const speedingLocation = {
         ...mockLocation,
         coords: {
           ...mockLocation.coords,
-          speed: 35, // ~126 km/h (over 120)
+          speed: 35,
         },
       };
 
-      await EfficiencyService.processLocation(speedingLocation);
+      await svc.processLocation(speedingLocation);
 
-      expect(JourneyService.logEvent).toHaveBeenCalledWith(
+      expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
         EventType.HarshSpeeding,
         speedingLocation.coords.latitude,
         speedingLocation.coords.longitude,
@@ -151,102 +158,66 @@ describe('EfficiencyService', () => {
       );
     });
 
-    it('should not log speeding event for normal speeds', async () => {
-      const normalLocation = {
-        ...mockLocation,
-        coords: {
-          ...mockLocation.coords,
-          speed: 20, // ~72 km/h (under 100)
-        },
-      };
+    it('does not log speeding for normal speeds', async () => {
+      const svc = createService();
+      svc.startTracking();
 
-      await EfficiencyService.processLocation(normalLocation);
+      await svc.processLocation(mockLocation);
 
-      expect(JourneyService.logEvent).not.toHaveBeenCalled();
-    });
-
-    it('should track heading history for cornering detection', async () => {
-      const location1 = {
-        ...mockLocation,
-        coords: { ...mockLocation.coords, heading: 0, speed: 20 },
-      };
-      const location2 = {
-        ...mockLocation,
-        coords: { ...mockLocation.coords, heading: 45, speed: 20 },
-      };
-
-      await EfficiencyService.processLocation(location1);
-      jest.advanceTimersByTime(1000);
-      await EfficiencyService.processLocation(location2);
-
-      expect(true).toBe(true);
-    });
-
-    it('should not track heading when speed is too low', async () => {
-      const lowSpeedLocation = {
-        ...mockLocation,
-        coords: { ...mockLocation.coords, heading: 45, speed: 2 }, // ~7.2 km/h
-      };
-
-      await EfficiencyService.processLocation(lowSpeedLocation);
-
-      expect(true).toBe(true);
+      expect(mockJourneyService.logEvent).not.toHaveBeenCalled();
     });
   });
 
   describe('calculateJourneyScore', () => {
-    it('should return 100 for journey with no events', async () => {
-      (JourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValue([]);
+    it('returns 100 for journey with no events', async () => {
+      const svc = createService();
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce([]);
 
-      const score = await EfficiencyService.calculateJourneyScore(1);
+      const score = await svc.calculateJourneyScore(1);
 
       expect(score).toBe(100);
     });
 
-    it('should calculate score based on penalties', async () => {
-      const mockEvents = [
+    it('calculates score based on total penalty', async () => {
+      const svc = createService();
+      const events = [
         { id: 1, type: EventType.HarshBraking, penalty: 1 },
         { id: 2, type: EventType.SharpTurn, penalty: 1 },
         { id: 3, type: EventType.ModerateSpeeding, penalty: 1 },
       ];
-      (JourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValue(mockEvents);
 
-      const score = await EfficiencyService.calculateJourneyScore(1);
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce(events);
 
-      expect(score).toBe(97); // 100 - 3
+      const score = await svc.calculateJourneyScore(1);
+
+      expect(score).toBe(97);
     });
 
-    it('should not go below 0', async () => {
-      const mockEvents = Array(200).fill({ penalty: 1 });
-      (JourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValue(mockEvents);
+    it('clamps score to [0, 100]', async () => {
+      const svc = createService();
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce(Array(200).fill({ penalty: 1 }));
+      expect(await svc.calculateJourneyScore(1)).toBe(0);
 
-      const score = await EfficiencyService.calculateJourneyScore(1);
-
-      expect(score).toBe(0);
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce([{ id: 1, type: EventType.HarshBraking, penalty: -10 }]);
+      const score2 = await svc.calculateJourneyScore(1);
+      expect(score2).toBeGreaterThanOrEqual(0);
+      expect(score2).toBeLessThanOrEqual(100);
     });
 
-    it('should not go above 100', async () => {
-      const mockEvents = [{ id: 1, type: EventType.HarshBraking, penalty: -10 }];
-      (JourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValue(mockEvents);
+    it('returns 0 on error', async () => {
+      const svc = createService();
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockRejectedValueOnce(new Error('Database error'));
 
-      const score = await EfficiencyService.calculateJourneyScore(1);
-
-      expect(score).toBeLessThanOrEqual(100);
-      expect(score).toBeGreaterThanOrEqual(0);
-    });
-
-    it('should return 0 on error', async () => {
-      (JourneyService.getEventsByJourneyId as jest.Mock).mockRejectedValue(new Error('Database error'));
-
-      const score = await EfficiencyService.calculateJourneyScore(1);
+      const score = await svc.calculateJourneyScore(1);
 
       expect(score).toBe(0);
     });
   });
 
   describe('getJourneyEfficiencyStats', () => {
-    it('should calculate stats from events', async () => {
-      const mockEvents = [
+    it('aggregates counts and penalties', async () => {
+      const svc = createService();
+      const events = [
         { id: 1, type: EventType.HarshBraking, penalty: 1 },
         { id: 2, type: EventType.HarshBraking, penalty: 1 },
         { id: 3, type: EventType.HarshAcceleration, penalty: 1 },
@@ -254,9 +225,9 @@ describe('EfficiencyService', () => {
         { id: 5, type: EventType.ModerateSpeeding, penalty: 1 },
         { id: 6, type: EventType.HarshSpeeding, penalty: 1 },
       ];
-      (JourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValue(mockEvents);
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce(events);
 
-      const stats = await EfficiencyService.getJourneyEfficiencyStats(1);
+      const stats = await svc.getJourneyEfficiencyStats(1);
 
       expect(stats).toEqual({
         totalEvents: 6,
@@ -269,10 +240,11 @@ describe('EfficiencyService', () => {
       });
     });
 
-    it('should return empty stats for no events', async () => {
-      (JourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValue([]);
+    it('returns empty stats for no events', async () => {
+      const svc = createService();
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce([]);
 
-      const stats = await EfficiencyService.getJourneyEfficiencyStats(1);
+      const stats = await svc.getJourneyEfficiencyStats(1);
 
       expect(stats).toEqual({
         totalEvents: 0,
@@ -285,48 +257,32 @@ describe('EfficiencyService', () => {
       });
     });
 
-    it('should return null on error', async () => {
-      (JourneyService.getEventsByJourneyId as jest.Mock).mockRejectedValue(new Error('Database error'));
+    it('returns null on error', async () => {
+      const svc = createService();
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockRejectedValueOnce(new Error('Database error'));
 
-      const stats = await EfficiencyService.getJourneyEfficiencyStats(1);
+      const stats = await svc.getJourneyEfficiencyStats(1);
 
       expect(stats).toBeNull();
     });
   });
 
   describe('Motion-based event detection', () => {
-    let motionListener: (data: MotionData) => Promise<void>;
+    it('detects harsh braking when speed drops and force is high', async () => {
+      const svc = createService();
+      svc.startTracking();
 
-    beforeEach(async () => {
-      EfficiencyService.stopTracking();
-      jest.clearAllMocks();
+      const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
 
-      EfficiencyService.startTracking();
+      nowMs = 0;
+      await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 20 } });
+      nowMs = 200;
+      await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10 } });
+      nowMs = 300;
 
-      motionListener = (VehicleMotion.addListener as jest.Mock).mock.calls[0][1];
+      await motionListener({ ...mockMotionData, horizontalMagnitude: 0.45 });
 
-      await EfficiencyService.processLocation(mockLocation);
-      jest.clearAllMocks();
-      jest.advanceTimersByTime(200);
-    });
-
-    it('should detect hard braking with high force and speed decrease', async () => {
-      const slowLocation = {
-        ...mockLocation,
-        coords: { ...mockLocation.coords, speed: 10 },
-      };
-
-      await EfficiencyService.processLocation(slowLocation);
-      jest.advanceTimersByTime(100);
-
-      const hardBrakeMotion: MotionData = {
-        ...mockMotionData,
-        horizontalMagnitude: 0.45,
-      };
-
-      await motionListener(hardBrakeMotion);
-
-      expect(JourneyService.logEvent).toHaveBeenCalledWith(
+      expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
         EventType.HarshBraking,
         expect.any(Number),
         expect.any(Number),
@@ -334,26 +290,21 @@ describe('EfficiencyService', () => {
       );
     });
 
-    it('should detect harsh acceleration with high force and speed increase', async () => {
-      // Process a faster location - this will save the previous speed (72 km/h) to lastSpeedKmh
-      // and update lastLocation with the new speed (90 km/h)
-      const fastLocation = {
-        ...mockLocation,
-        coords: { ...mockLocation.coords, speed: 25 }, // ~90 km/h
-      };
+    it('detects harsh acceleration when speed rises and force is high', async () => {
+      const svc = createService();
+      svc.startTracking();
 
-      await EfficiencyService.processLocation(fastLocation);
-      jest.advanceTimersByTime(100);
+      const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
 
-      const hardAccelMotion: MotionData = {
-        ...mockMotionData,
-        horizontalMagnitude: 0.35, // Above threshold
-      };
+      nowMs = 0;
+      await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 20 } });
+      nowMs = 200;
+      await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 25 } });
+      nowMs = 300;
 
-      await motionListener(hardAccelMotion);
+      await motionListener({ ...mockMotionData, horizontalMagnitude: 0.35 });
 
-      // Should detect acceleration: 90 km/h (new) - 72 km/h (old) = 18 km/h over 0.1s = 180 km/h/s
-      expect(JourneyService.logEvent).toHaveBeenCalledWith(
+      expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
         EventType.HarshAcceleration,
         expect.any(Number),
         expect.any(Number),
@@ -361,22 +312,19 @@ describe('EfficiencyService', () => {
       );
     });
 
-    it('should not detect events below speed threshold', async () => {
-      const lowSpeedLocation = {
-        ...mockLocation,
-        coords: { ...mockLocation.coords, speed: 1 }, // ~3.6 km/h
-      };
+    it('does not detect events below speed threshold', async () => {
+      const svc = createService();
+      svc.startTracking();
 
-      await EfficiencyService.processLocation(lowSpeedLocation);
+      const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
 
-      const motionData: MotionData = {
-        ...mockMotionData,
-        horizontalMagnitude: 0.5,
-      };
+      nowMs = 0;
+      await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 1 } });
+      nowMs = 300;
 
-      await motionListener(motionData);
+      await motionListener({ ...mockMotionData, horizontalMagnitude: 0.5 });
 
-      expect(JourneyService.logEvent).not.toHaveBeenCalled();
+      expect(mockJourneyService.logEvent).not.toHaveBeenCalled();
     });
   });
 });

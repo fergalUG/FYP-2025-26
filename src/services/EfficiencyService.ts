@@ -1,9 +1,11 @@
-import * as Location from 'expo-location';
+import type * as Location from 'expo-location';
+
 import VehicleMotion from '@modules/vehicle-motion';
 import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
-import * as JourneyService from '@services/JourneyService';
-import { EventType, type ScoringStats } from '@types';
+
+import { EventType, type EfficiencyServiceController, type EfficiencyServiceDeps, type ScoringStats } from '@types';
 import { getPenaltyForEvent } from '@constants/penalties';
+import { JourneyService } from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.EfficiencyService);
@@ -23,270 +25,282 @@ const MIN_HEADING_CHANGE_FOR_CORNER = 15; // degrees - minimum heading change to
 const MIN_SPEED_FOR_HEADING = 15; // km/h - minimum speed for reliable GPS heading
 const HEADING_LOOKBACK_TIME = 2000; // ms - look back this far for heading changes
 
-let isTracking = false;
-let lastLocation: Location.LocationObject | null = null;
-let lastSpeedKmh = 0;
-let lastSpeedUpdateTime = 0;
-let headingHistory: Array<{ heading: number; timestamp: number }> = [];
-let motionDataBuffer: MotionData[] = [];
 const MOTION_BUFFER_SIZE = 10;
 const HEADING_HISTORY_SIZE = 5;
 
-export const startTracking = (): void => {
-  if (isTracking) {
-    return;
-  }
+const convertMsToKmh = (speedMs: number): number => speedMs * 3.6;
 
-  isTracking = true;
-  lastLocation = null;
-  lastSpeedKmh = 0;
-  lastSpeedUpdateTime = 0;
-  headingHistory = [];
-  motionDataBuffer = [];
+export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): EfficiencyServiceController => {
+  let isTracking = false;
+  let lastLocation: Location.LocationObject | null = null;
+  let lastSpeedKmh = 0;
+  let lastSpeedUpdateTime = 0;
+  let headingHistory: Array<{ heading: number; timestamp: number }> = [];
+  let motionDataBuffer: MotionData[] = [];
 
-  VehicleMotion.startTracking();
-  VehicleMotion.addListener('onMotionUpdate', handleMotionUpdate);
+  const checkSpeeding = async (latitude: number, longitude: number, speedKmh: number): Promise<void> => {
+    let eventType: EventType | null = null;
 
-  logger.info('Started tracking.');
-};
-
-export const stopTracking = (): void => {
-  if (!isTracking) {
-    return;
-  }
-
-  isTracking = false;
-  lastLocation = null;
-  lastSpeedKmh = 0;
-  lastSpeedUpdateTime = 0;
-  headingHistory = [];
-  motionDataBuffer = [];
-
-  VehicleMotion.removeAllListeners('onMotionUpdate');
-  VehicleMotion.stopTracking();
-
-  logger.info('Stopped tracking.');
-};
-
-export const processLocation = async (location: Location.LocationObject): Promise<void> => {
-  if (!isTracking) {
-    return;
-  }
-
-  const { latitude, longitude, speed, heading } = location.coords;
-  const speedKmh = convertMsToKmh(speed ?? 0);
-  const currentTime = Date.now();
-
-  await checkSpeeding(latitude, longitude, speedKmh);
-
-  if (lastLocation) {
-    lastSpeedKmh = convertMsToKmh(lastLocation.coords.speed ?? 0);
-  }
-  lastSpeedUpdateTime = currentTime;
-
-  if (heading !== null && heading !== -1 && speedKmh >= MIN_SPEED_FOR_HEADING) {
-    headingHistory.push({ heading, timestamp: currentTime });
-
-    headingHistory = headingHistory.filter((h) => currentTime - h.timestamp < HEADING_LOOKBACK_TIME);
-
-    if (headingHistory.length > HEADING_HISTORY_SIZE) {
-      headingHistory.shift();
+    if (speedKmh > SPEEDING_THRESHOLD_HIGH) {
+      eventType = EventType.HarshSpeeding;
+    } else if (speedKmh > SPEEDING_THRESHOLD_MEDIUM) {
+      eventType = EventType.ModerateSpeeding;
     }
-  }
 
-  lastLocation = location;
-};
+    if (eventType) {
+      await deps.JourneyService.logEvent(eventType, latitude, longitude, speedKmh);
+      const penalty = getPenaltyForEvent(eventType);
+      deps.logger.info(`${eventType} detected: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`);
+    }
+  };
 
-const handleMotionUpdate = async (data: MotionData): Promise<void> => {
-  if (!isTracking || !lastLocation) {
-    return;
-  }
-  // logger.debug('Motion data received:', data);
+  const calculateMaxHeadingChange = (now: number): number => {
+    if (headingHistory.length < 2) {
+      return 0;
+    }
 
-  motionDataBuffer.push(data);
-  if (motionDataBuffer.length > MOTION_BUFFER_SIZE) {
-    motionDataBuffer.shift();
-  }
+    headingHistory = headingHistory.filter((h) => now - h.timestamp < HEADING_LOOKBACK_TIME);
+    if (headingHistory.length < 2) {
+      return 0;
+    }
 
-  const speedKmh = convertMsToKmh(lastLocation.coords.speed ?? 0);
+    const oldestHeading = headingHistory[0].heading;
+    const newestHeading = headingHistory[headingHistory.length - 1].heading;
 
-  if (speedKmh > MIN_SPEED_FOR_EVENTS) {
-    await checkBrakingAndAcceleration(data, lastLocation, speedKmh);
-    await checkHarshCornering(data, lastLocation, speedKmh);
-  }
-};
+    let delta = Math.abs(newestHeading - oldestHeading);
+    if (delta > 180) {
+      delta = 360 - delta;
+    }
 
-const checkSpeeding = async (latitude: number, longitude: number, speedKmh: number): Promise<void> => {
-  let eventType: EventType | null = null;
+    return delta;
+  };
 
-  if (speedKmh > SPEEDING_THRESHOLD_HIGH) {
-    eventType = EventType.HarshSpeeding;
-  } else if (speedKmh > SPEEDING_THRESHOLD_MEDIUM) {
-    eventType = EventType.ModerateSpeeding;
-  }
+  const checkBrakingAndAcceleration = async (data: MotionData, location: Location.LocationObject, speedKmh: number): Promise<void> => {
+    const horizontalForce = data.horizontalMagnitude;
+    const currentTime = deps.now();
+    const timeDeltaSeconds = (currentTime - lastSpeedUpdateTime) / 1000;
 
-  if (eventType) {
-    await JourneyService.logEvent(eventType, latitude, longitude, speedKmh);
+    if (timeDeltaSeconds < 0.1) {
+      return;
+    }
+
+    const speedChange = speedKmh - lastSpeedKmh;
+    const speedChangeRate = speedChange / timeDeltaSeconds;
+
+    let eventType: EventType | null = null;
+
+    if (speedChangeRate < HARD_BRAKE_SPEED_CHANGE && horizontalForce >= HARD_BRAKE_FORCE_THRESHOLD) {
+      eventType = EventType.HarshBraking;
+    } else if (speedChangeRate > HARD_ACCELERATION_SPEED_CHANGE && horizontalForce >= HARD_ACCELERATION_FORCE_THRESHOLD) {
+      eventType = EventType.HarshAcceleration;
+    }
+
+    if (!eventType) {
+      return;
+    }
+
+    await deps.JourneyService.logEvent(eventType, location.coords.latitude, location.coords.longitude, speedKmh);
     const penalty = getPenaltyForEvent(eventType);
-    logger.info(`${eventType} detected: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`);
-  }
-};
-
-const checkBrakingAndAcceleration = async (data: MotionData, location: Location.LocationObject, speedKmh: number): Promise<void> => {
-  const horizontalForce = data.horizontalMagnitude;
-
-  const currentTime = Date.now();
-  const timeDeltaSeconds = (currentTime - lastSpeedUpdateTime) / 1000;
-
-  if (timeDeltaSeconds < 0.1) {
-    return;
-  }
-
-  const speedChange = speedKmh - lastSpeedKmh;
-  const speedChangeRate = speedChange / timeDeltaSeconds;
-
-  let eventType: EventType | null = null;
-
-  if (speedChangeRate < HARD_BRAKE_SPEED_CHANGE && horizontalForce >= HARD_BRAKE_FORCE_THRESHOLD) {
-    eventType = EventType.HarshBraking;
-  } else if (speedChangeRate > HARD_ACCELERATION_SPEED_CHANGE && horizontalForce >= HARD_ACCELERATION_FORCE_THRESHOLD) {
-    eventType = EventType.HarshAcceleration;
-  }
-
-  if (eventType) {
-    await JourneyService.logEvent(eventType, location.coords.latitude, location.coords.longitude, speedKmh);
-    const penalty = getPenaltyForEvent(eventType);
-    logger.info(
+    deps.logger.info(
       `${eventType} detected: ${horizontalForce.toFixed(2)}g horizontal force, speed change: ${speedChangeRate.toFixed(1)} km/h/s, penalty: ${penalty}`
     );
-  }
-};
+  };
 
-const checkHarshCornering = async (data: MotionData, location: Location.LocationObject, speedKmh: number): Promise<void> => {
-  const horizontalForce = data.horizontalMagnitude;
+  const checkHarshCornering = async (data: MotionData, location: Location.LocationObject, speedKmh: number): Promise<void> => {
+    const horizontalForce = data.horizontalMagnitude;
 
-  if (horizontalForce < HARSH_CORNERING_THRESHOLD) {
-    return;
-  }
-
-  const currentTime = Date.now();
-  const timeDeltaSeconds = (currentTime - lastSpeedUpdateTime) / 1000;
-
-  if (timeDeltaSeconds >= 0.1) {
-    const speedChange = speedKmh - lastSpeedKmh;
-    const speedChangeRate = Math.abs(speedChange / timeDeltaSeconds);
-
-    if (speedChangeRate > 10) {
-      return;
-    }
-  }
-
-  if (speedKmh >= MIN_SPEED_FOR_HEADING && headingHistory.length >= 2) {
-    const headingChange = calculateMaxHeadingChange();
-
-    if (headingChange < MIN_HEADING_CHANGE_FOR_CORNER) {
-      logger.info(`Filtered harsh_cornering: ${horizontalForce.toFixed(2)}g force but only ${headingChange.toFixed(1)}° heading change`);
+    if (horizontalForce < HARSH_CORNERING_THRESHOLD) {
       return;
     }
 
-    await JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
-    const penalty = getPenaltyForEvent(EventType.SharpTurn);
-    logger.info(
-      `harsh_cornering detected: ${horizontalForce.toFixed(2)}g force, ${headingChange.toFixed(1)}° turn, speed: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`
-    );
-  } else {
-    if (horizontalForce > HARSH_CORNERING_THRESHOLD * 1.2) {
-      await JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
+    const currentTime = deps.now();
+    const timeDeltaSeconds = (currentTime - lastSpeedUpdateTime) / 1000;
+
+    if (timeDeltaSeconds >= 0.1) {
+      const speedChange = speedKmh - lastSpeedKmh;
+      const speedChangeRate = Math.abs(speedChange / timeDeltaSeconds);
+      if (speedChangeRate > 10) {
+        return;
+      }
+    }
+
+    if (speedKmh >= MIN_SPEED_FOR_HEADING && headingHistory.length >= 2) {
+      const headingChange = calculateMaxHeadingChange(currentTime);
+      if (headingChange < MIN_HEADING_CHANGE_FOR_CORNER) {
+        deps.logger.info(
+          `Filtered harsh_cornering: ${horizontalForce.toFixed(2)}g force but only ${headingChange.toFixed(1)}° heading change`
+        );
+        return;
+      }
+
+      await deps.JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
       const penalty = getPenaltyForEvent(EventType.SharpTurn);
-      logger.info(
+      deps.logger.info(
+        `harsh_cornering detected: ${horizontalForce.toFixed(2)}g force, ${headingChange.toFixed(1)}° turn, speed: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`
+      );
+      return;
+    }
+
+    if (horizontalForce > HARSH_CORNERING_THRESHOLD * 1.2) {
+      await deps.JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
+      const penalty = getPenaltyForEvent(EventType.SharpTurn);
+      deps.logger.info(
         `harsh_cornering detected (no GPS validation): ${horizontalForce.toFixed(2)}g force, speed: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`
       );
     }
-  }
-};
+  };
 
-const calculateMaxHeadingChange = (): number => {
-  if (headingHistory.length < 2) {
-    return 0;
-  }
-
-  let maxChange = 0;
-
-  const oldestHeading = headingHistory[0].heading;
-  const newestHeading = headingHistory[headingHistory.length - 1].heading;
-
-  let delta = Math.abs(newestHeading - oldestHeading);
-  if (delta > 180) {
-    delta = 360 - delta;
-  }
-
-  maxChange = delta;
-
-  return maxChange;
-};
-
-export const calculateJourneyScore = async (journeyId: number): Promise<number> => {
-  try {
-    const events = await JourneyService.getEventsByJourneyId(journeyId);
-
-    if (events.length === 0) {
-      return 100;
+  const handleMotionUpdate = async (data: MotionData): Promise<void> => {
+    if (!isTracking || !lastLocation) {
+      return;
     }
 
-    const totalPenalty = events.reduce((sum, event) => sum + (event.penalty || 0), 0);
+    motionDataBuffer.push(data);
+    if (motionDataBuffer.length > MOTION_BUFFER_SIZE) {
+      motionDataBuffer.shift();
+    }
 
-    const score = Math.max(0, Math.min(100, 100 - totalPenalty));
+    const speedKmh = convertMsToKmh(lastLocation.coords.speed ?? 0);
+    if (speedKmh <= MIN_SPEED_FOR_EVENTS) {
+      return;
+    }
 
-    return Math.round(score);
-  } catch (error) {
-    logger.error('Error calculating journey score:', error);
-    return 0;
-  }
-};
+    await checkBrakingAndAcceleration(data, lastLocation, speedKmh);
+    await checkHarshCornering(data, lastLocation, speedKmh);
+  };
 
-export const getJourneyEfficiencyStats = async (journeyId: number) => {
-  try {
-    const events = await JourneyService.getEventsByJourneyId(journeyId);
+  const startTracking = (): void => {
+    if (isTracking) {
+      return;
+    }
 
-    const stats: ScoringStats = {
-      totalEvents: events.length,
-      totalPenalty: 0,
-      hardBrakeCount: 0,
-      hardAccelerationCount: 0,
-      harshCorneringCount: 0,
-      moderateSpeedingCount: 0,
-      harshSpeedingCount: 0,
-    };
+    isTracking = true;
+    lastLocation = null;
+    lastSpeedKmh = 0;
+    lastSpeedUpdateTime = 0;
+    headingHistory = [];
+    motionDataBuffer = [];
 
-    events.forEach((event) => {
-      stats.totalPenalty += event.penalty || 0;
+    deps.VehicleMotion.startTracking();
+    deps.VehicleMotion.addListener('onMotionUpdate', handleMotionUpdate);
+    deps.logger.info('Started tracking.');
+  };
 
-      switch (event.type) {
-        case EventType.HarshBraking:
-          stats.hardBrakeCount += 1;
-          break;
-        case EventType.HarshAcceleration:
-          stats.hardAccelerationCount += 1;
-          break;
-        case EventType.SharpTurn:
-          stats.harshCorneringCount += 1;
-          break;
-        case EventType.ModerateSpeeding:
-          stats.moderateSpeedingCount += 1;
-          break;
-        case EventType.HarshSpeeding:
-          stats.harshSpeedingCount += 1;
-          break;
+  const stopTracking = (): void => {
+    if (!isTracking) {
+      return;
+    }
+
+    isTracking = false;
+    lastLocation = null;
+    lastSpeedKmh = 0;
+    lastSpeedUpdateTime = 0;
+    headingHistory = [];
+    motionDataBuffer = [];
+
+    deps.VehicleMotion.removeAllListeners('onMotionUpdate');
+    deps.VehicleMotion.stopTracking();
+    deps.logger.info('Stopped tracking.');
+  };
+
+  const processLocation = async (location: Location.LocationObject): Promise<void> => {
+    if (!isTracking) {
+      return;
+    }
+
+    const { latitude, longitude, speed, heading } = location.coords;
+    const speedKmh = convertMsToKmh(speed ?? 0);
+    const currentTime = deps.now();
+
+    await checkSpeeding(latitude, longitude, speedKmh);
+
+    if (lastLocation) {
+      lastSpeedKmh = convertMsToKmh(lastLocation.coords.speed ?? 0);
+    }
+    lastSpeedUpdateTime = currentTime;
+
+    if (heading !== null && heading !== -1 && speedKmh >= MIN_SPEED_FOR_HEADING) {
+      headingHistory.push({ heading, timestamp: currentTime });
+      headingHistory = headingHistory.filter((h) => currentTime - h.timestamp < HEADING_LOOKBACK_TIME);
+      if (headingHistory.length > HEADING_HISTORY_SIZE) {
+        headingHistory.shift();
       }
-    });
+    }
 
-    return stats;
-  } catch (error) {
-    logger.error('Error getting efficiency stats:', error);
-    return null;
-  }
+    lastLocation = location;
+  };
+
+  const calculateJourneyScore = async (journeyId: number): Promise<number> => {
+    try {
+      const events = await deps.JourneyService.getEventsByJourneyId(journeyId);
+      if (events.length === 0) {
+        return 100;
+      }
+
+      const totalPenalty = events.reduce((sum, event) => sum + (event.penalty || 0), 0);
+      const score = Math.max(0, Math.min(100, 100 - totalPenalty));
+      return Math.round(score);
+    } catch (error) {
+      deps.logger.error('Error calculating journey score:', error);
+      return 0;
+    }
+  };
+
+  const getJourneyEfficiencyStats = async (journeyId: number): Promise<ScoringStats | null> => {
+    try {
+      const events = await deps.JourneyService.getEventsByJourneyId(journeyId);
+
+      const stats: ScoringStats = {
+        totalEvents: events.length,
+        totalPenalty: 0,
+        hardBrakeCount: 0,
+        hardAccelerationCount: 0,
+        harshCorneringCount: 0,
+        moderateSpeedingCount: 0,
+        harshSpeedingCount: 0,
+      };
+
+      events.forEach((event) => {
+        stats.totalPenalty += event.penalty || 0;
+
+        switch (event.type) {
+          case EventType.HarshBraking:
+            stats.hardBrakeCount += 1;
+            break;
+          case EventType.HarshAcceleration:
+            stats.hardAccelerationCount += 1;
+            break;
+          case EventType.SharpTurn:
+            stats.harshCorneringCount += 1;
+            break;
+          case EventType.ModerateSpeeding:
+            stats.moderateSpeedingCount += 1;
+            break;
+          case EventType.HarshSpeeding:
+            stats.harshSpeedingCount += 1;
+            break;
+        }
+      });
+
+      return stats;
+    } catch (error) {
+      deps.logger.error('Error getting efficiency stats:', error);
+      return null;
+    }
+  };
+
+  return {
+    startTracking,
+    stopTracking,
+    processLocation,
+    calculateJourneyScore,
+    getJourneyEfficiencyStats,
+  };
 };
 
-const convertMsToKmh = (speedMs: number): number => {
-  return speedMs * 3.6;
-};
+export const EfficiencyService = createEfficiencyServiceController({
+  JourneyService,
+  VehicleMotion,
+  now: () => Date.now(),
+  logger,
+});

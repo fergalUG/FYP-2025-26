@@ -1,4 +1,4 @@
-import type { ServiceState, PermissionState } from './services';
+import type { ServiceState, PermissionState } from '@/types/tracking';
 
 export interface BackgroundServiceHook {
   serviceState: ServiceState;

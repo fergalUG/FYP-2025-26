@@ -1,7 +1,7 @@
 import React, { createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
 
-import { useBackgroundService } from './useBackgroundService';
+import { useBackgroundService } from '@hooks/useBackgroundService';
 import type { BackgroundServiceHook } from '@types';
 
 const BackgroundServiceContext = createContext<BackgroundServiceHook | null>(null);

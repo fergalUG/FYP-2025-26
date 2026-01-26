@@ -4,12 +4,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDatabaseWithMockData } from '@utils/database';
-import * as JourneyService from '@services/JourneyService';
+import { JourneyService } from '@services/JourneyService';
+import { initBackgroundService } from '@services/BackgroundService';
 import { appHeaderOptions } from '@constants/navigation';
 import { BackgroundServiceProvider, ThemeProvider, useTheme } from '@hooks';
 
 export default function RootLayout() {
   useEffect(() => {
+    initBackgroundService();
     if (__DEV__) {
       initDatabaseWithMockData();
       return;

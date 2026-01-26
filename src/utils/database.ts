@@ -1,4 +1,4 @@
-import * as JourneyService from '@services/JourneyService';
+import { JourneyService } from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.DB);

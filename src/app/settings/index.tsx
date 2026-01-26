@@ -4,7 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useDriverProfile, useTheme } from '@hooks';
 
-import * as JourneyService from '@services/JourneyService';
+import { JourneyService } from '@services/JourneyService';
 
 export default function Settings() {
   const { theme, mode, toggleMode } = useTheme();

@@ -1,5 +1,5 @@
-import { EventType } from '../../src/types';
-import { EVENT_PENALTIES, getPenaltyForEvent } from '../../src/constants/penalties';
+import { EventType } from '@types';
+import { EVENT_PENALTIES, getPenaltyForEvent } from '@constants/penalties';
 
 describe('Penalties Configuration', () => {
   describe('EVENT_PENALTIES', () => {

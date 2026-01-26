@@ -1,27 +1,39 @@
 process.removeAllListeners('warning');
 
-jest.mock('expo-location', () => ({
-  requestForegroundPermissionsAsync: jest.fn(),
-  requestBackgroundPermissionsAsync: jest.fn(),
-  getCurrentPositionAsync: jest.fn(),
-  watchPositionAsync: jest.fn(),
-  hasStartedLocationUpdatesAsync: jest.fn(),
-  startLocationUpdatesAsync: jest.fn(),
-  stopLocationUpdatesAsync: jest.fn(),
-  Accuracy: {
-    Highest: 1,
-    High: 2,
-    Balanced: 3,
-    Low: 4,
-    Lowest: 5,
-  },
-  ActivityType: {
-    Other: 0,
-    AutomotiveNavigation: 1,
-    Fitness: 2,
-    OtherNavigation: 3,
-  },
-}));
+jest.mock('expo-location', () => {
+  const api = {
+    requestForegroundPermissionsAsync: jest.fn(),
+    requestBackgroundPermissionsAsync: jest.fn(),
+    getForegroundPermissionsAsync: jest.fn(),
+    getBackgroundPermissionsAsync: jest.fn(),
+    getCurrentPositionAsync: jest.fn(),
+    reverseGeocodeAsync: jest.fn(),
+    watchPositionAsync: jest.fn(),
+    hasStartedLocationUpdatesAsync: jest.fn(),
+    startLocationUpdatesAsync: jest.fn(),
+    stopLocationUpdatesAsync: jest.fn(),
+    Accuracy: {
+      BestForNavigation: 0,
+      Highest: 1,
+      High: 2,
+      Balanced: 3,
+      Low: 4,
+      Lowest: 5,
+    },
+    ActivityType: {
+      Other: 0,
+      AutomotiveNavigation: 1,
+      Fitness: 2,
+      OtherNavigation: 3,
+    },
+  };
+
+  return {
+    __esModule: true,
+    ...api,
+    default: api,
+  };
+});
 
 jest.mock('expo-task-manager', () => ({
   defineTask: jest.fn(),
@@ -29,6 +41,11 @@ jest.mock('expo-task-manager', () => ({
   unregisterTaskAsync: jest.fn(),
   isTaskRegisteredAsync: jest.fn(),
   getTaskOptionsAsync: jest.fn(),
+}));
+
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  scheduleNotificationAsync: jest.fn(),
 }));
 
 jest.mock('expo-sqlite', () => ({
