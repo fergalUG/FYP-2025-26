@@ -26,6 +26,7 @@ module.exports = {
     '^@constants(.*)$': '<rootDir>/src/constants$1',
     '^@theme$': '<rootDir>/src/theme',
     '^@modules(.*)$': '<rootDir>/modules$1',
+    '^@db(.*)$': '<rootDir>/src/db$1',
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/app/**/*', '!src/types/**/*'],

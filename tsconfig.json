@@ -20,6 +20,7 @@
       "@constants/*": ["constants/*"],
       "@theme": ["theme"],
       "@modules/*": ["../modules/*"],
+      "@db": ["db"],
       "@db/*": ["db/*"]
     }
   }

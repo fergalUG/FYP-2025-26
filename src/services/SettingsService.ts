@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
-import { db } from '@db/client';
+
 import { settings } from '@db/schema';
+import { db } from '@db/client';
 
 import { createLogger, LogModule } from '@utils/logger';
 import { DEFAULT_DRIVER_NAME } from '@constants/defaults';

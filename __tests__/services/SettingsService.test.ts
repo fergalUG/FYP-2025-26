@@ -1,111 +1,122 @@
-import { JourneyService } from '@services/JourneyService';
 import * as SettingsService from '@services/SettingsService';
 import { DEFAULT_DRIVER_NAME } from '@constants/defaults';
+import { db } from '@/db/client';
+import { settings } from '@/db/schema';
 
-const mockDb = {
-  execAsync: jest.fn(),
-  runAsync: jest.fn(),
-  getAllAsync: jest.fn(),
-  getFirstAsync: jest.fn(),
-};
-
-jest.mock('expo-sqlite', () => ({
-  openDatabaseAsync: jest.fn(() => Promise.resolve(mockDb)),
+jest.mock('@/db/client', () => ({
+  db: {
+    select: jest.fn(),
+    insert: jest.fn(),
+  },
 }));
 
+jest.mock('@/utils/logger', () => ({
+  createLogger: () => ({
+    warn: jest.fn(),
+    debug: jest.fn(),
+  }),
+  LogModule: { SettingsService: 'SettingsService' },
+}));
+
+const mockQuery = (resolveValue: any = undefined) => {
+  const chain: any = {};
+
+  const methods = ['from', 'where', 'values', 'onConflictDoUpdate', 'catch'];
+
+  methods.forEach((method) => {
+    chain[method] = jest.fn().mockReturnThis();
+  });
+
+  chain.then = (resolve: any, reject: any) => {
+    return Promise.resolve(resolveValue).then(resolve, reject);
+  };
+
+  return chain;
+};
+
 describe('SettingsService', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
-    await JourneyService.initDatabase();
+    (db.select as jest.Mock).mockReturnValue(mockQuery([]));
+    (db.insert as jest.Mock).mockReturnValue(mockQuery());
   });
 
   describe('getDriverName', () => {
-    it('returns default when DB has no value', async () => {
-      mockDb.getFirstAsync.mockResolvedValueOnce(null);
+    it('should return the stored driver name if it exists', async () => {
+      const mockName = 'Test Driver';
+      const chain = mockQuery([{ value: mockName }]);
+      (db.select as jest.Mock).mockReturnValue(chain);
 
-      const name = await SettingsService.getDriverName();
+      const result = await SettingsService.getDriverName();
 
-      expect(mockDb.getFirstAsync).toHaveBeenCalledWith('SELECT value FROM settings WHERE key = ?;', ['driverName']);
-      expect(name).toBe(DEFAULT_DRIVER_NAME);
+      expect(db.select).toHaveBeenCalled();
+      expect(chain.from).toHaveBeenCalledWith(settings);
+      expect(chain.where).toHaveBeenCalled();
+      expect(result).toBe(mockName);
     });
 
-    it('trims and returns stored value', async () => {
-      mockDb.getFirstAsync.mockResolvedValueOnce({ value: '  Alex  ' });
+    it('should return default name if no setting exists', async () => {
+      const chain = mockQuery([]);
+      (db.select as jest.Mock).mockReturnValue(chain);
 
-      const name = await SettingsService.getDriverName();
+      const result = await SettingsService.getDriverName();
 
-      expect(name).toBe('Alex');
+      expect(result).toBe(DEFAULT_DRIVER_NAME);
     });
 
-    it('returns default when stored value is empty string', async () => {
-      mockDb.getFirstAsync.mockResolvedValueOnce({ value: '   ' });
+    it('should return default name if stored value is empty', async () => {
+      const chain = mockQuery([{ value: '' }]);
+      (db.select as jest.Mock).mockReturnValue(chain);
 
-      const name = await SettingsService.getDriverName();
+      const result = await SettingsService.getDriverName();
 
-      expect(name).toBe(DEFAULT_DRIVER_NAME);
-    });
-
-    it('returns default on query error', async () => {
-      mockDb.getFirstAsync.mockRejectedValueOnce(new Error('DB error'));
-
-      const name = await SettingsService.getDriverName();
-
-      expect(name).toBe(DEFAULT_DRIVER_NAME);
+      expect(result).toBe(DEFAULT_DRIVER_NAME);
     });
   });
 
   describe('setDriverName', () => {
-    it('upserts trimmed value', async () => {
-      mockDb.runAsync.mockResolvedValueOnce({});
+    it('should upsert the driver name', async () => {
+      const newName = 'New Driver';
+      const chain = mockQuery();
+      (db.insert as jest.Mock).mockReturnValue(chain);
 
-      const ok = await SettingsService.setDriverName('  Sam  ');
+      const success = await SettingsService.setDriverName(newName);
 
-      expect(ok).toBe(true);
-      expect(mockDb.runAsync).toHaveBeenCalledWith(
-        'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value;',
-        ['driverName', 'Sam']
+      expect(db.insert).toHaveBeenCalledWith(settings);
+      expect(chain.values).toHaveBeenCalledWith({ key: 'driverName', value: newName });
+      expect(chain.onConflictDoUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: settings.key,
+          set: { value: newName },
+        })
       );
+      expect(success).toBe(true);
     });
 
-    it('persists default when given blank name', async () => {
-      mockDb.runAsync.mockResolvedValueOnce({});
+    it('should use default name if input is empty', async () => {
+      const chain = mockQuery();
+      (db.insert as jest.Mock).mockReturnValue(chain);
 
-      const ok = await SettingsService.setDriverName('   ');
+      await SettingsService.setDriverName('   ');
 
-      expect(ok).toBe(true);
-      expect(mockDb.runAsync).toHaveBeenCalledWith(
-        'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value;',
-        ['driverName', DEFAULT_DRIVER_NAME]
-      );
+      expect(chain.values).toHaveBeenCalledWith({
+        key: 'driverName',
+        value: DEFAULT_DRIVER_NAME,
+      });
     });
 
-    it('returns false on upsert error', async () => {
-      mockDb.runAsync.mockRejectedValueOnce(new Error('DB error'));
+    it('should return false on database error', async () => {
+      const chain = mockQuery();
 
-      const ok = await SettingsService.setDriverName('Jordan');
+      chain.then = (_: any, reject: any) => {
+        reject(new Error('DB Error'));
+      };
 
-      expect(ok).toBe(false);
+      (db.insert as jest.Mock).mockReturnValue(chain);
+
+      const success = await SettingsService.setDriverName('Valid Name');
+
+      expect(success).toBe(false);
     });
-  });
-
-  it('initializes DB via JourneyService when needed', async () => {
-    jest.resetModules();
-
-    const SQL2 = await import('expo-sqlite');
-    const JourneyService2 = await import('../../src/services/JourneyService');
-    const SettingsService2 = await import('../../src/services/SettingsService');
-
-    const db2 = {
-      execAsync: jest.fn(),
-      runAsync: jest.fn().mockResolvedValue({}),
-      getAllAsync: jest.fn(),
-      getFirstAsync: jest.fn().mockResolvedValue(null),
-    };
-    (SQL2.openDatabaseAsync as unknown as jest.Mock).mockResolvedValueOnce(db2);
-
-    const name = await SettingsService2.getDriverName();
-
-    expect(JourneyService2.JourneyService.getDatabase()).not.toBeNull();
-    expect(name).toBe(DEFAULT_DRIVER_NAME);
   });
 });

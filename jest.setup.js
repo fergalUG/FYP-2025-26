@@ -48,8 +48,22 @@ jest.mock('expo-notifications', () => ({
   scheduleNotificationAsync: jest.fn(),
 }));
 
+const mockDb = {
+  execAsync: jest.fn(),
+  runAsync: jest.fn(),
+  getAllAsync: jest.fn(),
+  getFirstAsync: jest.fn(),
+  execSync: jest.fn(),
+  runSync: jest.fn(),
+  getAllSync: jest.fn(),
+  getFirstSync: jest.fn(),
+  closeAsync: jest.fn(),
+  withTransactionAsync: jest.fn(),
+};
+
 jest.mock('expo-sqlite', () => ({
   openDatabaseAsync: jest.fn(),
+  openDatabaseSync: jest.fn(() => mockDb),
 }));
 
 jest.mock('expo-file-system', () => ({
