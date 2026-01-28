@@ -1,279 +1,192 @@
-import { JourneyService } from '@services/JourneyService';
+import { eq, and } from 'drizzle-orm';
+import { db, resetDatabase as resetDbSchema } from '../db/client';
+import { journeys, events, settings } from '../db/schema';
+import { EventType } from '@/types/db';
+import type { ScoringStats } from '@/types/scoring';
 import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.DB);
 
-// TESTING FUNCTIONS
-
 export const initDatabaseWithMockData = async (): Promise<void> => {
   try {
-    logger.info('Initializing database...');
-    await JourneyService.initDatabase();
+    logger.info('Ensuring database has mock data...');
     await seedMockData();
-
-    logger.info('Database setup complete!');
+    logger.info('Database check complete!');
   } catch (error) {
     logger.error('Failed to initialize database with mock data:', error);
   }
 };
 
+// TESTING ONLY: Resets the database schema
 export const resetDatabase = async (): Promise<void> => {
   try {
-    let db = JourneyService.getDatabase();
-    if (!db) {
-      await JourneyService.initDatabase();
-    }
-    db = JourneyService.getDatabase();
-    if (!db) {
-      logger.error('Database not initialized. Cannot reset database.');
-      return;
-    }
-
-    logger.info('Dropping existing tables...');
-    await db.execAsync(`
-      DROP TABLE IF EXISTS events;
-      DROP TABLE IF EXISTS journeys;
-    `);
-
-    logger.info('Recreating tables...');
-    await db.execAsync(`
-      CREATE TABLE journeys (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        date TEXT,
-        startTime INTEGER,
-        endTime INTEGER,
-        score INTEGER,
-        distanceKm REAL,
-        stats TEXT
-      );
-      
-      CREATE TABLE events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        journeyId INTEGER,
-        timestamp INTEGER,
-        type TEXT,
-        latitude REAL,
-        longitude REAL,
-        speed REAL,
-        penalty INTEGER,
-        FOREIGN KEY (journeyId) REFERENCES journeys (id)
-      );
-    `);
-
+    logger.info('Resetting database schema...');
+    await resetDbSchema();
     logger.info('Database reset successfully.');
   } catch (error) {
     logger.error('Error resetting database:', error);
   }
 };
 
-/*
- * This function seeds the database with mock journey and event data for testing.
- * It guaruntees that the mock data will be dropped and re-inserted each time it is run.
- * This is so any changes to the mock data will be reflected in the database.
- */
 export const seedMockData = async (): Promise<void> => {
-  let db = JourneyService.getDatabase();
-  if (!db) {
-    await JourneyService.initDatabase();
-  }
-  db = JourneyService.getDatabase();
-  if (!db) {
-    logger.error('Database not initialized. Cannot seed data.');
-    return;
-  }
-
   try {
-    logger.info('Seeding database with mock data...');
+    const driverNameCheck = await db.select().from(settings).where(eq(settings.key, 'driverName'));
+
+    if (driverNameCheck.length === 0) {
+      logger.info('Seeding missing setting: driverName');
+      await db.insert(settings).values({
+        key: 'driverName',
+        value: 'Test Driver',
+      });
+    }
+
+    const now = Date.now();
+    const day = 86400000;
 
     const mockJourneys = [
       {
-        title: 'Drive to work',
-        distanceKm: 12.4,
-        date: '2026-01-20',
-        startTime: Date.now() - 86400000 * 2,
-        endTime: Date.now() - 86400000 * 2 + 1800000,
-        score: 85,
+        title: 'Morning Commute',
+        date: new Date(now - day * 1).toISOString().split('T')[0],
+        startTime: now - day * 1 - 3600000, // Yesterday 1 hour ago
+        endTime: now - day * 1 - 3600000 + 1800000, // 30 mins duration
+        distanceKm: 12.5,
+        score: 94,
+        stats: createMockStats(94, 1800000, 12.5),
+        events: generateRouteEvents(53.3498, -6.2603, 30),
       },
       {
-        title: 'Drive to the gym',
-        distanceKm: 8.7,
-        date: '2026-01-19',
-        startTime: Date.now() - 86400000 * 3,
-        endTime: Date.now() - 86400000 * 3 + 1200000,
-        score: 92,
+        title: 'Grocery Run',
+        date: new Date(now - day * 2).toISOString().split('T')[0],
+        startTime: now - day * 2 - 7200000,
+        endTime: now - day * 2 - 7200000 + 900000, // 15 mins
+        distanceKm: 3.2,
+        score: 88,
+        stats: createMockStats(88, 900000, 3.2),
+        events: generateRouteEvents(53.34, -6.25, 15),
       },
       {
-        title: 'Drive to the store',
-        distanceKm: 5.2,
-        date: '2026-01-18',
-        startTime: Date.now() - 86400000 * 4,
-        endTime: Date.now() - 86400000 * 4 + 900000,
-        score: 78,
+        title: 'Weekend Roadtrip',
+        date: new Date(now - day * 5).toISOString().split('T')[0],
+        startTime: now - day * 5 - 14400000,
+        endTime: now - day * 5 - 14400000 + 7200000, // 2 hours
+        distanceKm: 120.5,
+        score: 72,
+        stats: createMockStats(72, 7200000, 120.5, { harshBraking: 3, speeding: 2 }),
+        events: generateRouteEvents(53.27, -9.05, 120),
       },
       {
-        title: 'Drive to the park',
-        distanceKm: 15.8,
-        date: '2026-01-17',
-        startTime: Date.now() - 86400000 * 5,
-        endTime: Date.now() - 86400000 * 5 + 2100000,
-        score: 61,
-      },
-      {
-        title: 'Drive to the library',
-        distanceKm: 6.3,
-        date: '2026-01-16',
-        startTime: Date.now() - 86400000 * 6,
-        endTime: Date.now() - 86400000 * 6 + 1100000,
-        score: 95,
-      },
-      {
-        title: 'Drive to the museum',
-        distanceKm: 22.1,
-        date: '2026-01-15',
-        startTime: Date.now() - 86400000 * 7,
-        endTime: Date.now() - 86400000 * 7 + 2700000,
-        score: 82,
-      },
-      {
-        title: 'Drive to the zoo',
-        distanceKm: 18.5,
-        date: '2026-01-14',
-        startTime: Date.now() - 86400000 * 8,
-        endTime: Date.now() - 86400000 * 8 + 2400000,
-        score: 44,
-      },
-      {
-        title: 'Drive to the beach',
-        distanceKm: 35.2,
-        date: '2026-01-13',
-        startTime: Date.now() - 86400000 * 9,
-        endTime: Date.now() - 86400000 * 9 + 3600000,
-        score: 24,
+        title: 'Late Night Drive',
+        date: new Date(now - day * 6).toISOString().split('T')[0],
+        startTime: now - day * 6 - 80000000,
+        endTime: now - day * 6 - 80000000 + 1200000, // 20 mins
+        distanceKm: 15.0,
+        score: 45, // Bad score
+        stats: createMockStats(45, 1200000, 15.0, { harshBraking: 5, harshAccel: 4, speeding: 5 }),
+        events: generateRouteEvents(53.36, -6.24, 20),
       },
     ];
 
-    const mockTitles = mockJourneys.map((journey) => journey.title);
-    const titlePlaceholders = mockTitles.map(() => '?').join(', ');
-    await db.runAsync(`DELETE FROM events WHERE journeyId IN (SELECT id FROM journeys WHERE title IN (${titlePlaceholders}))`, mockTitles);
-    await db.runAsync(`DELETE FROM journeys WHERE title IN (${titlePlaceholders})`, mockTitles);
+    for (const j of mockJourneys) {
+      const existing = await db
+        .select()
+        .from(journeys)
+        .where(and(eq(journeys.title, j.title), eq(journeys.date, j.date)));
 
-    const insertedJourneyIds: number[] = [];
-    for (const journey of mockJourneys) {
-      const res = await db.runAsync(`INSERT INTO journeys (title, date, startTime, endTime, score, distanceKm) VALUES (?, ?, ?, ?, ?, ?)`, [
-        journey.title,
-        journey.date,
-        journey.startTime,
-        journey.endTime,
-        journey.score,
-        journey.distanceKm,
-      ]);
-
-      insertedJourneyIds.push(res.lastInsertRowId);
-    }
-
-    const mockEvents = [
-      [
-        { lat: 53.3498, lng: -6.2603, speed: 0, type: 'journey_start', penalty: 0 },
-        { lat: 53.3505, lng: -6.259, speed: 15, type: 'location_update', penalty: 0 },
-        { lat: 53.3512, lng: -6.2575, speed: 25, type: 'location_update', penalty: 0 },
-        { lat: 53.352, lng: -6.256, speed: 30, type: 'location_update', penalty: 0 },
-        { lat: 53.3525, lng: -6.2545, speed: 35, type: 'speed_change', penalty: 0 },
-        { lat: 53.353, lng: -6.253, speed: 20, type: 'hard_brake', penalty: 5 },
-        { lat: 53.3535, lng: -6.2515, speed: 25, type: 'location_update', penalty: 0 },
-        { lat: 53.354, lng: -6.25, speed: 30, type: 'location_update', penalty: 0 },
-        { lat: 53.3545, lng: -6.2485, speed: 0, type: 'journey_end', penalty: 0 },
-      ],
-      [
-        { lat: 53.3498, lng: -6.2603, speed: 0, type: 'journey_start', penalty: 0 },
-        { lat: 53.349, lng: -6.261, speed: 20, type: 'location_update', penalty: 0 },
-        { lat: 53.3482, lng: -6.2618, speed: 25, type: 'location_update', penalty: 0 },
-        { lat: 53.3474, lng: -6.2625, speed: 30, type: 'location_update', penalty: 0 },
-        { lat: 53.3466, lng: -6.2632, speed: 25, type: 'location_update', penalty: 0 },
-        { lat: 53.3458, lng: -6.264, speed: 0, type: 'journey_end', penalty: 0 },
-      ],
-      [
-        { lat: 53.3498, lng: -6.2603, speed: 0, type: 'journey_start', penalty: 0 },
-        { lat: 53.3505, lng: -6.2615, speed: 18, type: 'location_update', penalty: 0 },
-        { lat: 53.3512, lng: -6.2628, speed: 22, type: 'location_update', penalty: 0 },
-        { lat: 53.352, lng: -6.264, speed: 28, type: 'location_update', penalty: 0 },
-        { lat: 53.3525, lng: -6.265, speed: 0, type: 'journey_end', penalty: 0 },
-      ],
-      [
-        { lat: 53.3498, lng: -6.2603, speed: 0, type: 'journey_start', penalty: 0 },
-        { lat: 53.351, lng: -6.258, speed: 25, type: 'location_update', penalty: 0 },
-        { lat: 53.3525, lng: -6.255, speed: 35, type: 'location_update', penalty: 0 },
-        { lat: 53.354, lng: -6.252, speed: 40, type: 'location_update', penalty: 0 },
-        { lat: 53.3555, lng: -6.249, speed: 45, type: 'location_update', penalty: 0 },
-        { lat: 53.357, lng: -6.246, speed: 35, type: 'speed_change', penalty: 0 },
-        { lat: 53.3585, lng: -6.243, speed: 30, type: 'location_update', penalty: 0 },
-        { lat: 53.36, lng: -6.24, speed: 25, type: 'location_update', penalty: 0 },
-        { lat: 53.3615, lng: -6.237, speed: 0, type: 'journey_end', penalty: 0 },
-      ],
-      [
-        { lat: 53.3498, lng: -6.2603, speed: 0, type: 'journey_start', penalty: 0 },
-        { lat: 53.3485, lng: -6.259, speed: 20, type: 'location_update', penalty: 0 },
-        { lat: 53.3472, lng: -6.2578, speed: 25, type: 'location_update', penalty: 0 },
-        { lat: 53.346, lng: -6.2565, speed: 30, type: 'location_update', penalty: 0 },
-        { lat: 53.3448, lng: -6.2553, speed: 0, type: 'journey_end', penalty: 0 },
-      ],
-      [
-        { lat: 53.3498, lng: -6.2603, speed: 0, type: 'journey_start', penalty: 0 },
-        { lat: 53.352, lng: -6.257, speed: 30, type: 'location_update', penalty: 0 },
-        { lat: 53.3542, lng: -6.2538, speed: 45, type: 'location_update', penalty: 0 },
-        { lat: 53.3564, lng: -6.2505, speed: 55, type: 'speeding', penalty: 10 },
-        { lat: 53.3586, lng: -6.2472, speed: 40, type: 'speed_change', penalty: 0 },
-        { lat: 53.3608, lng: -6.244, speed: 15, type: 'hard_brake', penalty: 5 },
-        { lat: 53.363, lng: -6.2408, speed: 25, type: 'location_update', penalty: 0 },
-        { lat: 53.3652, lng: -6.2375, speed: 30, type: 'location_update', penalty: 0 },
-        { lat: 53.3674, lng: -6.2342, speed: 0, type: 'journey_end', penalty: 0 },
-      ],
-      [
-        { lat: 53.3498, lng: -6.2603, speed: 0, type: 'journey_start', penalty: 0 },
-        { lat: 53.3515, lng: -6.262, speed: 25, type: 'location_update', penalty: 0 },
-        { lat: 53.3532, lng: -6.2638, speed: 35, type: 'location_update', penalty: 0 },
-        { lat: 53.3549, lng: -6.2655, speed: 40, type: 'location_update', penalty: 0 },
-        { lat: 53.3566, lng: -6.2672, speed: 38, type: 'location_update', penalty: 0 },
-        { lat: 53.3583, lng: -6.269, speed: 32, type: 'location_update', penalty: 0 },
-        { lat: 53.36, lng: -6.2708, speed: 0, type: 'journey_end', penalty: 0 },
-      ],
-      [
-        { lat: 53.3498, lng: -6.2603, speed: 0, type: 'journey_start', penalty: 0 },
-        { lat: 53.352, lng: -6.258, speed: 30, type: 'location_update', penalty: 0 },
-        { lat: 53.3545, lng: -6.2555, speed: 45, type: 'location_update', penalty: 0 },
-        { lat: 53.357, lng: -6.253, speed: 50, type: 'location_update', penalty: 0 },
-        { lat: 53.3595, lng: -6.2505, speed: 60, type: 'location_update', penalty: 0 },
-        { lat: 53.362, lng: -6.248, speed: 65, type: 'speeding', penalty: 8 },
-        { lat: 53.3645, lng: -6.2455, speed: 55, type: 'speed_change', penalty: 0 },
-        { lat: 53.367, lng: -6.243, speed: 45, type: 'location_update', penalty: 0 },
-        { lat: 53.3695, lng: -6.2405, speed: 25, type: 'hard_brake', penalty: 7 },
-        { lat: 53.372, lng: -6.238, speed: 35, type: 'location_update', penalty: 0 },
-        { lat: 53.3745, lng: -6.2355, speed: 40, type: 'location_update', penalty: 0 },
-        { lat: 53.377, lng: -6.233, speed: 0, type: 'journey_end', penalty: 0 },
-      ],
-    ];
-
-    for (let i = 0; i < insertedJourneyIds.length; i++) {
-      const journeyId = insertedJourneyIds[i];
-      const events = mockEvents[i] || [];
-      const journey = mockJourneys[i];
-
-      for (let j = 0; j < events.length; j++) {
-        const event = events[j];
-        const progress = j / (events.length - 1);
-        const timestamp = journey.startTime + (journey.endTime - journey.startTime) * progress;
-
-        await db.runAsync(
-          `INSERT INTO events (journeyId, timestamp, type, latitude, longitude, speed, penalty) 
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [journeyId, timestamp, event.type, event.lat, event.lng, event.speed, event.penalty]
-        );
+      if (existing.length > 0) {
+        continue;
       }
-    }
 
-    const totalEventsAdded = insertedJourneyIds.reduce((sum, _id, index) => sum + (mockEvents[index]?.length ?? 0), 0);
-    logger.info(`[JourneyService] Seeded ${insertedJourneyIds.length} mock journeys with ${totalEventsAdded} events.`);
+      logger.info(`Seeding missing journey: ${j.title} (${j.date})`);
+
+      const result = await db
+        .insert(journeys)
+        .values({
+          title: j.title,
+          date: j.date,
+          startTime: j.startTime,
+          endTime: j.endTime,
+          score: j.score,
+          distanceKm: j.distanceKm,
+          stats: j.stats,
+        })
+        .returning({ id: journeys.id });
+
+      const journeyId = result[0].id;
+
+      const duration = j.endTime - j.startTime;
+      const eventCount = j.events.length;
+
+      const eventsToInsert = j.events.map((evt, index) => {
+        const progress = index / (eventCount - 1);
+        return {
+          journeyId: journeyId,
+          timestamp: Math.floor(j.startTime + duration * progress),
+          type: evt.type,
+          latitude: evt.lat,
+          longitude: evt.lng,
+          speed: evt.speed,
+        };
+      });
+
+      await db.insert(events).values(eventsToInsert);
+    }
   } catch (error) {
     logger.error('Error seeding mock data:', error);
   }
+};
+
+// --- Helper Functions ---
+
+const createMockStats = (
+  score: number,
+  durationMs: number,
+  distanceKm: number,
+  incidents: { harshBraking?: number; harshAccel?: number; speeding?: number } = {}
+): ScoringStats => {
+  const avgSpeed = distanceKm / (durationMs / 3600000);
+
+  return {
+    durationMs,
+    score,
+    avgScore: score + 2,
+    blendedAvgScore: score,
+    endScore: score,
+    minScore: Math.max(0, score - 10),
+
+    harshBrakingCount: incidents.harshBraking ?? 0,
+    harshAccelerationCount: incidents.harshAccel ?? 0,
+    sharpTurnCount: 0,
+
+    moderateSpeedingEpisodeCount: incidents.speeding ?? 0,
+    harshSpeedingEpisodeCount: 0,
+    moderateSpeedingSeconds: (incidents.speeding ?? 0) * 15,
+    harshSpeedingSeconds: 0,
+
+    avgSpeed: parseFloat(avgSpeed.toFixed(1)),
+    maxSpeed: parseFloat((avgSpeed * 1.5).toFixed(1)),
+  };
+};
+
+const generateRouteEvents = (startLat: number, startLng: number, count: number) => {
+  const evts = [];
+  let currentLat = startLat;
+  let currentLng = startLng;
+
+  evts.push({ type: EventType.JourneyStart, lat: currentLat, lng: currentLng, speed: 0 });
+
+  for (let i = 0; i < count; i++) {
+    currentLat += (Math.random() - 0.5) * 0.002;
+    currentLng += (Math.random() - 0.5) * 0.002;
+    const speed = 30 + Math.random() * 40;
+
+    evts.push({
+      type: EventType.LocationUpdate,
+      lat: currentLat,
+      lng: currentLng,
+      speed: Math.floor(speed),
+    });
+  }
+
+  evts.push({ type: EventType.JourneyEnd, lat: currentLat, lng: currentLng, speed: 0 });
+  return evts;
 };

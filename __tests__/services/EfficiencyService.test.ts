@@ -182,9 +182,9 @@ describe('EfficiencyService', () => {
       const svc = createService();
 
       const events = [
-        { id: 1, journeyId: 1, timestamp: 0, type: EventType.JourneyStart, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
-        { id: 2, journeyId: 1, timestamp: 0, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
-        { id: 3, journeyId: 1, timestamp: 600000, type: EventType.JourneyEnd, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 1, journeyId: 1, timestamp: 0, type: EventType.JourneyStart, latitude: 0, longitude: 0, speed: 0 },
+        { id: 2, journeyId: 1, timestamp: 0, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0 },
+        { id: 3, journeyId: 1, timestamp: 600000, type: EventType.JourneyEnd, latitude: 0, longitude: 0, speed: 0 },
       ];
 
       (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce(events);
@@ -239,15 +239,15 @@ describe('EfficiencyService', () => {
     it('returns normalized incident/episode counts', async () => {
       const svc = createService();
       const events = [
-        { id: 1, journeyId: 1, timestamp: 0, type: EventType.JourneyStart, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
-        { id: 2, journeyId: 1, timestamp: 0, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
-        { id: 3, journeyId: 1, timestamp: 2000, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
-        { id: 4, journeyId: 1, timestamp: 100000, type: EventType.HarshAcceleration, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
-        { id: 5, journeyId: 1, timestamp: 200000, type: EventType.ModerateSpeeding, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
-        { id: 6, journeyId: 1, timestamp: 210000, type: EventType.ModerateSpeeding, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
-        { id: 7, journeyId: 1, timestamp: 400000, type: EventType.HarshSpeeding, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
-        { id: 8, journeyId: 1, timestamp: 410000, type: EventType.HarshSpeeding, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
-        { id: 9, journeyId: 1, timestamp: 600000, type: EventType.JourneyEnd, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 1, journeyId: 1, timestamp: 0, type: EventType.JourneyStart, latitude: 0, longitude: 0, speed: 0 },
+        { id: 2, journeyId: 1, timestamp: 0, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0 },
+        { id: 3, journeyId: 1, timestamp: 2000, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0 },
+        { id: 4, journeyId: 1, timestamp: 100000, type: EventType.HarshAcceleration, latitude: 0, longitude: 0, speed: 0 },
+        { id: 5, journeyId: 1, timestamp: 200000, type: EventType.ModerateSpeeding, latitude: 0, longitude: 0, speed: 0 },
+        { id: 6, journeyId: 1, timestamp: 210000, type: EventType.ModerateSpeeding, latitude: 0, longitude: 0, speed: 0 },
+        { id: 7, journeyId: 1, timestamp: 400000, type: EventType.HarshSpeeding, latitude: 0, longitude: 0, speed: 0 },
+        { id: 8, journeyId: 1, timestamp: 410000, type: EventType.HarshSpeeding, latitude: 0, longitude: 0, speed: 0 },
+        { id: 9, journeyId: 1, timestamp: 600000, type: EventType.JourneyEnd, latitude: 0, longitude: 0, speed: 0 },
       ];
 
       (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce(events);

@@ -13,7 +13,6 @@ const makeEvent = (partial: Partial<Event> & Pick<Event, 'timestamp' | 'type'>):
     latitude: partial.latitude ?? 0,
     longitude: partial.longitude ?? 0,
     speed: partial.speed ?? 0,
-    penalty: partial.penalty ?? 0,
   };
 };
 
