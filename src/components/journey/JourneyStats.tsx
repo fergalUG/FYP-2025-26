@@ -2,65 +2,45 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 import { useTheme } from '@hooks';
-import { Journey, Event, EventType } from '@types';
+import type { Journey } from '@types';
 import { getScoreColor } from '@utils/score';
+import { StatTile } from '@components/common/StatTile';
 
 interface JourneyStatsProps {
   journey: Journey;
-  events: Event[];
 }
-
-interface StatItemProps {
-  label: string;
-  value: string;
-  color?: string;
-}
-
-interface StatItemInnerProps extends StatItemProps {
-  styles: ReturnType<typeof createStyles>;
-}
-
-const StatItem = (props: StatItemInnerProps) => {
-  const { label, value, color, styles } = props;
-  return (
-    <View style={styles.statItem}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={[styles.statValue, color && { color }]}>{value}</Text>
-    </View>
-  );
-};
 
 export const JourneyStats = (props: JourneyStatsProps) => {
   const { theme } = useTheme();
-  const { journey, events } = props;
-  const durationMs = (journey.endTime ?? journey.startTime) - journey.startTime;
-  const durationMinutes = Math.floor(durationMs / 60000);
+  const { journey } = props;
+
+  const stats = journey.stats;
+  if (!stats) {
+    return (
+      <View style={createStyles(theme).container}>
+        <Text style={createStyles(theme).title}>Journey Statistics</Text>
+        <Text style={createStyles(theme).subtitle}>No statistics available</Text>
+      </View>
+    );
+  }
+
+  const displayedScore = Math.round(journey.score ?? stats.score);
+
+  const durationMinutes = Math.floor(stats.durationMs / 60000);
   const durationHours = Math.floor(durationMinutes / 60);
   const remainingMinutes = durationMinutes % 60;
 
   const durationText = durationHours > 0 ? `${durationHours}h ${remainingMinutes}m` : `${durationMinutes}m`;
 
-  const speeds = events.filter((event) => event.speed > 0).map((event) => event.speed);
-  const avgSpeed = speeds.length > 0 ? (speeds.reduce((sum, speed) => sum + speed, 0) / speeds.length).toFixed(1) : '0.0';
-  const maxSpeed = speeds.length > 0 ? Math.max(...speeds).toFixed(1) : '0.0';
-
-  const negativeEvents = events.filter((event) =>
-    [
-      EventType.HarshAcceleration,
-      EventType.HarshBraking,
-      EventType.SharpTurn,
-      EventType.ModerateSpeeding,
-      EventType.HarshSpeeding,
-    ].includes(event.type)
-  );
-
-  const eventCounts = negativeEvents.reduce(
-    (acc, event) => {
-      acc[event.type] = (acc[event.type] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
+  const formatSeconds = (seconds: number): string => {
+    const rounded = Math.round(seconds);
+    if (rounded < 60) {
+      return `${rounded}s`;
+    }
+    const m = Math.floor(rounded / 60);
+    const s = rounded % 60;
+    return s === 0 ? `${m}m` : `${m}m ${s}s`;
+  };
 
   const styles = createStyles(theme);
 
@@ -69,25 +49,51 @@ export const JourneyStats = (props: JourneyStatsProps) => {
       <Text style={styles.title}>Journey Statistics</Text>
 
       <View style={styles.statsGrid}>
-        <StatItem
-          styles={styles}
+        <StatTile
           label="Score"
-          value={`${Math.round(journey.score ?? 0)}/100`}
-          color={getScoreColor(journey.score ?? 0, theme)}
+          value={`${displayedScore}/100`}
+          valueColor={getScoreColor(displayedScore, theme)}
+          variant="compact"
+          style={styles.tile}
         />
-        <StatItem styles={styles} label="Distance" value={`${Math.round((journey.distanceKm ?? 0) * 100) / 100} km`} />
-        <StatItem styles={styles} label="Duration" value={durationText} />
-        <StatItem styles={styles} label="Avg Speed" value={`${avgSpeed} km/h`} />
-        <StatItem styles={styles} label="Max Speed" value={`${maxSpeed} km/h`} />
+        <StatTile
+          label="Distance"
+          value={`${Math.round((journey.distanceKm ?? 0) * 100) / 100} km`}
+          variant="compact"
+          style={styles.tile}
+        />
+        <StatTile label="Duration" value={durationText} variant="compact" style={styles.tile} />
+        <StatTile label="Avg Speed" value={`${stats.avgSpeed} km/h`} variant="compact" style={styles.tile} />
+        <StatTile label="Max Speed" value={`${stats.maxSpeed} km/h`} variant="compact" style={styles.tile} />
       </View>
 
-      {Object.keys(eventCounts).length > 0 && (
+      <Text style={styles.subtitle}>Efficiency Breakdown</Text>
+
+      <View style={styles.statsGrid}>
+        <StatTile label="Time Avg" value={`${stats.avgScore.toFixed(1)}/100`} variant="compact" style={styles.tile} />
+        <StatTile label="Lowest" value={`${Math.round(stats.minScore)}/100`} variant="compact" style={styles.tile} />
+        <StatTile label="End" value={`${Math.round(stats.endScore)}/100`} variant="compact" style={styles.tile} />
+        <StatTile label="Brakes" value={`${stats.harshBrakingCount}`} variant="compact" style={styles.tile} />
+        <StatTile label="Accel" value={`${stats.harshAccelerationCount}`} variant="compact" style={styles.tile} />
+        <StatTile label="Turns" value={`${stats.sharpTurnCount}`} variant="compact" style={styles.tile} />
+      </View>
+
+      {(stats.moderateSpeedingEpisodeCount > 0 || stats.harshSpeedingEpisodeCount > 0) && (
         <>
-          <Text style={styles.subtitle}>Event Summary</Text>
-          <View style={styles.eventsGrid}>
-            {Object.entries(eventCounts).map(([eventType, count]) => (
-              <StatItem styles={styles} key={eventType} label={eventType.replace(/_/g, ' ').toUpperCase()} value={`${count}`} />
-            ))}
+          <Text style={styles.subtitle}>Speeding</Text>
+          <View style={styles.statsGrid}>
+            <StatTile
+              label="Moderate"
+              value={`${stats.moderateSpeedingEpisodeCount} • ${formatSeconds(stats.moderateSpeedingSeconds)}`}
+              variant="compact"
+              style={styles.tileWide}
+            />
+            <StatTile
+              label="Harsh"
+              value={`${stats.harshSpeedingEpisodeCount} • ${formatSeconds(stats.harshSpeedingSeconds)}`}
+              variant="compact"
+              style={styles.tileWide}
+            />
           </View>
         </>
       )}
@@ -98,53 +104,28 @@ export const JourneyStats = (props: JourneyStatsProps) => {
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
     container: {
-      backgroundColor: theme.colors.surface,
-      padding: theme.spacing.lg,
-      borderRadius: theme.radius.lg,
+      gap: theme.spacing.lg,
     },
     title: {
       fontSize: 20,
       fontWeight: '700',
       color: theme.colors.onBackground,
-      marginBottom: theme.spacing.md,
     },
     subtitle: {
       fontSize: 18,
       fontWeight: '600',
       color: theme.colors.onBackground,
-      marginTop: theme.spacing.lg,
-      marginBottom: theme.spacing.md,
     },
     statsGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'space-between',
+      gap: theme.spacing.sm,
     },
-    eventsGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      justifyContent: 'space-between',
-    },
-    statItem: {
+    tile: {
       width: '48%',
-      marginBottom: theme.spacing.md,
-      padding: theme.spacing.sm,
-      backgroundColor: theme.colors.background,
-      borderRadius: theme.radius.md,
-      alignItems: 'center',
     },
-    statLabel: {
-      fontSize: 12,
-      color: theme.colors.textSecondary,
-      marginBottom: theme.spacing.xs,
-      textAlign: 'center',
-      textTransform: 'uppercase',
-      fontWeight: '500',
-    },
-    statValue: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: theme.colors.onBackground,
-      textAlign: 'center',
+    tileWide: {
+      width: '100%',
     },
   });

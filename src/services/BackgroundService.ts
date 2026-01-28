@@ -16,6 +16,28 @@ import { createLogger, LogModule } from '@utils/logger';
 
 const BACKGROUND_LOCATION_TASK: string = 'BACKGROUND-LOCATION-TASK';
 
+// Register the background location task handler at the module/global scope (Expo best practice!)
+// Do NOT re-import LocationTaskData; already imported from '@types' above
+import type { TaskManagerTaskBody } from 'expo-task-manager';
+
+TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManagerTaskBody<LocationTaskData>) => {
+  // On first import, singleton may not exist—so import lazily
+  // If the singleton controller is not available, just return.
+  try {
+    // Dynamically import BackgroundService to avoid circular dependency in module top-level.
+    // (Static import above will always exist, but this is defensive)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    import('./BackgroundService').then((svc) => {
+      if (svc && svc.singleton && typeof svc.singleton.handleLocationTask === 'function') {
+        svc.singleton.handleLocationTask({ data, error });
+      }
+    });
+    // Note: if this fails, do nothing (no fallback required)
+  } catch {
+    // Fall back: do nothing or maybe log
+  }
+});
+
 const ACTIVE_SPEED_THRESHOLD: number = 4.16667; // 15 km/h in m/s
 const PASSIVE_SPEED_THRESHOLD: number = 1.38889; // 5 km/h in m/s
 const PASSIVE_TIMEOUT_MS: number = 120000; // 2 minutes before switching to passive
@@ -167,8 +189,8 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       await deps.JourneyService.logEvent(EventType.JourneyEnd, state.lastLocation.coords.latitude, state.lastLocation.coords.longitude, 0);
     }
 
-    const finalScore = await deps.EfficiencyService.calculateJourneyScore(state.currentJourneyId);
-    const stats = await deps.EfficiencyService.getJourneyEfficiencyStats(state.currentJourneyId);
+    const finalScore = await deps.EfficiencyService.calculateJourneyScore(state.currentJourneyId, state.totalDistance);
+    const stats = await deps.EfficiencyService.getJourneyEfficiencyStats(state.currentJourneyId, state.totalDistance);
 
     if (state.currentJourneyId && state.lastLocation) {
       const endLocationLabel = await getLocationLabel(state.lastLocation.coords.latitude, state.lastLocation.coords.longitude);
@@ -239,7 +261,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     const speed: number | null = latestLocation.coords.speed;
     const speedKmh = convertMsToKmh(speed ?? 0);
 
-    deps.logger.info(`Location received. Speed: ${speed} m/s (${speedKmh} km/h). Current Mode: ${state.mode}`);
+    deps.logger.info(`Location received. Speed: ${speed?.toFixed(3)} m/s (${speedKmh.toFixed(3)} km/h). Current Mode: ${state.mode}`);
 
     if (state.mode === 'ACTIVE' && state.currentJourneyId !== null) {
       await processActiveLocation(latestLocation);
@@ -259,10 +281,12 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       }
 
       const elapsedTime = deps.now() - state.lowSpeedStartTime;
-      deps.logger.info(`${Math.floor((PASSIVE_TIMEOUT_MS - elapsedTime) / 1000)} seconds until switching to passive mode...`);
       if (elapsedTime >= PASSIVE_TIMEOUT_MS) {
         deps.logger.info('Speed < 5km/h for 2 minutes; Switching to PASSIVE tracking mode.');
         await endActiveTracking();
+      } else {
+        const secondsLeft = Math.ceil((PASSIVE_TIMEOUT_MS - elapsedTime) / 1000);
+        deps.logger.info(`Low speed ongoing, ${secondsLeft} seconds left before switching to PASSIVE mode.`);
       }
       return;
     }
@@ -340,7 +364,8 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
   return controller;
 };
 
-const singleton = createBackgroundServiceController({
+// Make singleton an export so dynamic import/require can access it robustly
+export const singleton = createBackgroundServiceController({
   Location,
   Notifications,
   TaskManager,

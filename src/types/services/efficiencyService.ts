@@ -21,6 +21,6 @@ export interface EfficiencyServiceController {
   startTracking: () => void;
   stopTracking: () => void;
   processLocation: (location: Location.LocationObject) => Promise<void>;
-  calculateJourneyScore: (journeyId: number) => Promise<number>;
-  getJourneyEfficiencyStats: (journeyId: number) => Promise<ScoringStats | null>;
+  calculateJourneyScore: (journeyId: number, distanceKm?: number) => Promise<number>;
+  getJourneyEfficiencyStats: (journeyId: number, distanceKm?: number) => Promise<ScoringStats | null>;
 }

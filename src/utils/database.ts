@@ -44,7 +44,8 @@ export const resetDatabase = async (): Promise<void> => {
         startTime INTEGER,
         endTime INTEGER,
         score INTEGER,
-        distanceKm REAL
+        distanceKm REAL,
+        stats TEXT
       );
       
       CREATE TABLE events (

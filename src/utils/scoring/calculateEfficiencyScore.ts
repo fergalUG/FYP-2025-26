@@ -90,7 +90,6 @@ export const calculateEfficiencyScore = (
   const blendedAvgScore = denom > 0 ? (avgScore * simulation.durationMs + config.maxScore * priorMs) / denom : avgScore;
   const finalScore = Math.round(clamp(blendedAvgScore, config.minScore, config.maxScore));
 
-  // Calculate speed statistics
   const speedValues = events.filter((e) => e.speed > 0).map((e) => e.speed);
   const maxSpeed = speedValues.length > 0 ? Math.max(...speedValues) : 0;
   const durationHours = simulation.durationMs / (1000 * 60 * 60);

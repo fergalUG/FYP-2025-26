@@ -227,20 +227,20 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastLocation = location;
   };
 
-  const calculateJourneyScore = async (journeyId: number): Promise<number> => {
+  const calculateJourneyScore = async (journeyId: number, distanceKm: number = 0): Promise<number> => {
     try {
       const events = await deps.JourneyService.getEventsByJourneyId(journeyId);
-      return calculateEfficiencyScore(events).score;
+      return calculateEfficiencyScore(events, distanceKm).score;
     } catch (error) {
       deps.logger.error('Error calculating journey score:', error);
       return 0;
     }
   };
 
-  const getJourneyEfficiencyStats = async (journeyId: number): Promise<ScoringStats | null> => {
+  const getJourneyEfficiencyStats = async (journeyId: number, distanceKm: number = 0): Promise<ScoringStats | null> => {
     try {
       const events = await deps.JourneyService.getEventsByJourneyId(journeyId);
-      return calculateEfficiencyScore(events).stats;
+      return calculateEfficiencyScore(events, distanceKm).stats;
     } catch (error) {
       deps.logger.error('Error getting efficiency stats:', error);
       return null;
