@@ -168,6 +168,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     }
 
     const finalScore = await deps.EfficiencyService.calculateJourneyScore(state.currentJourneyId);
+    const stats = await deps.EfficiencyService.getJourneyEfficiencyStats(state.currentJourneyId);
 
     if (state.currentJourneyId && state.lastLocation) {
       const endLocationLabel = await getLocationLabel(state.lastLocation.coords.latitude, state.lastLocation.coords.longitude);
@@ -176,7 +177,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       await deps.JourneyService.updateJourneyTitle(state.currentJourneyId, `From ${startLabel} → ${endLabel}`);
     }
 
-    await deps.JourneyService.endJourney(finalScore, state.totalDistance);
+    await deps.JourneyService.endJourney(finalScore, state.totalDistance, stats);
 
     deps.logger.info(`Journey ended (ID: ${state.currentJourneyId}), distance: ${state.totalDistance.toFixed(2)}km, score: ${finalScore}`);
 

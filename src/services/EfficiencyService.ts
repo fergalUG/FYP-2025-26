@@ -4,12 +4,13 @@ import VehicleMotion from '@modules/vehicle-motion';
 import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 
 import { EventType, type EfficiencyServiceController, type EfficiencyServiceDeps, type ScoringStats } from '@types';
-import { getPenaltyForEvent } from '@constants/penalties';
 import { JourneyService } from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
+import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
 
 const logger = createLogger(LogModule.EfficiencyService);
 
+// TODO: Map the speed thresholds to actual speed limits using a Maps API
 const SPEEDING_THRESHOLD_HIGH = 120; // km/h (these are placeholders for now)
 const SPEEDING_THRESHOLD_MEDIUM = 100; // km/h
 
@@ -49,8 +50,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     if (eventType) {
       await deps.JourneyService.logEvent(eventType, latitude, longitude, speedKmh);
-      const penalty = getPenaltyForEvent(eventType);
-      deps.logger.info(`${eventType} detected: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`);
+      deps.logger.info(`${eventType} detected: ${speedKmh.toFixed(1)} km/h`);
     }
   };
 
@@ -100,9 +100,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     await deps.JourneyService.logEvent(eventType, location.coords.latitude, location.coords.longitude, speedKmh);
-    const penalty = getPenaltyForEvent(eventType);
     deps.logger.info(
-      `${eventType} detected: ${horizontalForce.toFixed(2)}g horizontal force, speed change: ${speedChangeRate.toFixed(1)} km/h/s, penalty: ${penalty}`
+      `${eventType} detected: ${horizontalForce.toFixed(2)}g horizontal force, speed change: ${speedChangeRate.toFixed(1)} km/h/s`
     );
   };
 
@@ -134,18 +133,16 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       }
 
       await deps.JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
-      const penalty = getPenaltyForEvent(EventType.SharpTurn);
       deps.logger.info(
-        `harsh_cornering detected: ${horizontalForce.toFixed(2)}g force, ${headingChange.toFixed(1)}° turn, speed: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`
+        `harsh_cornering detected: ${horizontalForce.toFixed(2)}g force, ${headingChange.toFixed(1)}° turn, speed: ${speedKmh.toFixed(1)} km/h`
       );
       return;
     }
 
     if (horizontalForce > HARSH_CORNERING_THRESHOLD * 1.2) {
       await deps.JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
-      const penalty = getPenaltyForEvent(EventType.SharpTurn);
       deps.logger.info(
-        `harsh_cornering detected (no GPS validation): ${horizontalForce.toFixed(2)}g force, speed: ${speedKmh.toFixed(1)} km/h, penalty: ${penalty}`
+        `harsh_cornering detected (no GPS validation): ${horizontalForce.toFixed(2)}g force, speed: ${speedKmh.toFixed(1)} km/h`
       );
     }
   };
@@ -233,13 +230,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   const calculateJourneyScore = async (journeyId: number): Promise<number> => {
     try {
       const events = await deps.JourneyService.getEventsByJourneyId(journeyId);
-      if (events.length === 0) {
-        return 100;
-      }
-
-      const totalPenalty = events.reduce((sum, event) => sum + (event.penalty || 0), 0);
-      const score = Math.max(0, Math.min(100, 100 - totalPenalty));
-      return Math.round(score);
+      return calculateEfficiencyScore(events).score;
     } catch (error) {
       deps.logger.error('Error calculating journey score:', error);
       return 0;
@@ -249,40 +240,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   const getJourneyEfficiencyStats = async (journeyId: number): Promise<ScoringStats | null> => {
     try {
       const events = await deps.JourneyService.getEventsByJourneyId(journeyId);
-
-      const stats: ScoringStats = {
-        totalEvents: events.length,
-        totalPenalty: 0,
-        hardBrakeCount: 0,
-        hardAccelerationCount: 0,
-        harshCorneringCount: 0,
-        moderateSpeedingCount: 0,
-        harshSpeedingCount: 0,
-      };
-
-      events.forEach((event) => {
-        stats.totalPenalty += event.penalty || 0;
-
-        switch (event.type) {
-          case EventType.HarshBraking:
-            stats.hardBrakeCount += 1;
-            break;
-          case EventType.HarshAcceleration:
-            stats.hardAccelerationCount += 1;
-            break;
-          case EventType.SharpTurn:
-            stats.harshCorneringCount += 1;
-            break;
-          case EventType.ModerateSpeeding:
-            stats.moderateSpeedingCount += 1;
-            break;
-          case EventType.HarshSpeeding:
-            stats.harshSpeedingCount += 1;
-            break;
-        }
-      });
-
-      return stats;
+      return calculateEfficiencyScore(events).stats;
     } catch (error) {
       deps.logger.error('Error getting efficiency stats:', error);
       return null;

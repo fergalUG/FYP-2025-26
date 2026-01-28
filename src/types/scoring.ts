@@ -1,9 +1,21 @@
 export interface ScoringStats {
-  totalEvents: number;
-  totalPenalty: number;
-  hardBrakeCount: number;
-  hardAccelerationCount: number;
-  harshCorneringCount: number;
-  moderateSpeedingCount: number;
-  harshSpeedingCount: number;
+  durationMs: number;
+
+  score: number;
+  avgScore: number;
+  blendedAvgScore: number;
+  endScore: number;
+  minScore: number;
+
+  harshBrakingCount: number;
+  harshAccelerationCount: number;
+  sharpTurnCount: number;
+
+  moderateSpeedingEpisodeCount: number;
+  harshSpeedingEpisodeCount: number;
+  moderateSpeedingSeconds: number;
+  harshSpeedingSeconds: number;
+
+  avgSpeed: number;
+  maxSpeed: number;
 }
