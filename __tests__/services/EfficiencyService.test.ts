@@ -178,30 +178,22 @@ describe('EfficiencyService', () => {
       expect(score).toBe(100);
     });
 
-    it('calculates score based on total penalty', async () => {
+    it('calculates score from events using recovery-based scoring', async () => {
       const svc = createService();
+
       const events = [
-        { id: 1, type: EventType.HarshBraking, penalty: 1 },
-        { id: 2, type: EventType.SharpTurn, penalty: 1 },
-        { id: 3, type: EventType.ModerateSpeeding, penalty: 1 },
+        { id: 1, journeyId: 1, timestamp: 0, type: EventType.JourneyStart, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 2, journeyId: 1, timestamp: 0, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 3, journeyId: 1, timestamp: 600000, type: EventType.JourneyEnd, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
       ];
 
       (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce(events);
 
       const score = await svc.calculateJourneyScore(1);
 
-      expect(score).toBe(97);
-    });
-
-    it('clamps score to [0, 100]', async () => {
-      const svc = createService();
-      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce(Array(200).fill({ penalty: 1 }));
-      expect(await svc.calculateJourneyScore(1)).toBe(0);
-
-      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce([{ id: 1, type: EventType.HarshBraking, penalty: -10 }]);
-      const score2 = await svc.calculateJourneyScore(1);
-      expect(score2).toBeGreaterThanOrEqual(0);
-      expect(score2).toBeLessThanOrEqual(100);
+      expect(score).toBeGreaterThanOrEqual(0);
+      expect(score).toBeLessThanOrEqual(100);
+      expect(score).toBe(98);
     });
 
     it('returns 0 on error', async () => {
@@ -215,31 +207,6 @@ describe('EfficiencyService', () => {
   });
 
   describe('getJourneyEfficiencyStats', () => {
-    it('aggregates counts and penalties', async () => {
-      const svc = createService();
-      const events = [
-        { id: 1, type: EventType.HarshBraking, penalty: 1 },
-        { id: 2, type: EventType.HarshBraking, penalty: 1 },
-        { id: 3, type: EventType.HarshAcceleration, penalty: 1 },
-        { id: 4, type: EventType.SharpTurn, penalty: 1 },
-        { id: 5, type: EventType.ModerateSpeeding, penalty: 1 },
-        { id: 6, type: EventType.HarshSpeeding, penalty: 1 },
-      ];
-      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce(events);
-
-      const stats = await svc.getJourneyEfficiencyStats(1);
-
-      expect(stats).toEqual({
-        totalEvents: 6,
-        totalPenalty: 6,
-        hardBrakeCount: 2,
-        hardAccelerationCount: 1,
-        harshCorneringCount: 1,
-        moderateSpeedingCount: 1,
-        harshSpeedingCount: 1,
-      });
-    });
-
     it('returns empty stats for no events', async () => {
       const svc = createService();
       (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce([]);
@@ -247,14 +214,53 @@ describe('EfficiencyService', () => {
       const stats = await svc.getJourneyEfficiencyStats(1);
 
       expect(stats).toEqual({
-        totalEvents: 0,
-        totalPenalty: 0,
-        hardBrakeCount: 0,
-        hardAccelerationCount: 0,
-        harshCorneringCount: 0,
-        moderateSpeedingCount: 0,
-        harshSpeedingCount: 0,
+        durationMs: 0,
+
+        score: 100,
+        avgScore: 100,
+        blendedAvgScore: 100,
+        endScore: 100,
+        minScore: 100,
+
+        harshBrakingCount: 0,
+        harshAccelerationCount: 0,
+        sharpTurnCount: 0,
+
+        moderateSpeedingEpisodeCount: 0,
+        harshSpeedingEpisodeCount: 0,
+        moderateSpeedingSeconds: 0,
+        harshSpeedingSeconds: 0,
+
+        avgSpeed: 0,
+        maxSpeed: 0,
       });
+    });
+
+    it('returns normalized incident/episode counts', async () => {
+      const svc = createService();
+      const events = [
+        { id: 1, journeyId: 1, timestamp: 0, type: EventType.JourneyStart, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 2, journeyId: 1, timestamp: 0, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 3, journeyId: 1, timestamp: 2000, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 4, journeyId: 1, timestamp: 100000, type: EventType.HarshAcceleration, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 5, journeyId: 1, timestamp: 200000, type: EventType.ModerateSpeeding, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 6, journeyId: 1, timestamp: 210000, type: EventType.ModerateSpeeding, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 7, journeyId: 1, timestamp: 400000, type: EventType.HarshSpeeding, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 8, journeyId: 1, timestamp: 410000, type: EventType.HarshSpeeding, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+        { id: 9, journeyId: 1, timestamp: 600000, type: EventType.JourneyEnd, latitude: 0, longitude: 0, speed: 0, penalty: 0 },
+      ];
+
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce(events);
+
+      const stats = await svc.getJourneyEfficiencyStats(1);
+      expect(stats).not.toBeNull();
+      expect(stats?.harshBrakingCount).toBe(1);
+      expect(stats?.harshAccelerationCount).toBe(1);
+      expect(stats?.sharpTurnCount).toBe(0);
+      expect(stats?.moderateSpeedingEpisodeCount).toBe(1);
+      expect(stats?.harshSpeedingEpisodeCount).toBe(1);
+      expect(stats?.moderateSpeedingSeconds).toBe(10);
+      expect(stats?.harshSpeedingSeconds).toBe(10);
     });
 
     it('returns null on error', async () => {

@@ -2,8 +2,7 @@ import * as SQL from 'expo-sqlite';
 import { File, Directory, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
-import type { Event, EventType, Journey, JourneyServiceController, JourneyServiceDeps } from '@types';
-import { getPenaltyForEvent } from '@constants/penalties';
+import type { Event, EventType, Journey, JourneyServiceController, JourneyServiceDeps, ScoringStats } from '@types';
 import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.JourneyService);
@@ -28,7 +27,8 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
           startTime INTEGER,
           endTime INTEGER,
           score INTEGER,
-          distanceKm REAL
+          distanceKm REAL,
+		  stats TEXT
         );
         
         CREATE TABLE IF NOT EXISTS events (
@@ -39,7 +39,6 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
           latitude REAL,
           longitude REAL,
           speed REAL,
-          penalty INTEGER,
           FOREIGN KEY (journeyId) REFERENCES journeys (id)
         );
 
@@ -86,23 +85,25 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     }
   };
 
-  const endJourney = async (finalScore: number, distanceKm: number = 0): Promise<void> => {
+  const endJourney = async (finalScore: number, distanceKm: number = 0, stats: ScoringStats | null = null): Promise<void> => {
     if (!db || !currentJourneyId) {
       return;
     }
 
     try {
       const endTime = deps.now();
+      const statsJson = stats ? JSON.stringify(stats) : null;
 
       await db.runAsync(
         `
         UPDATE journeys
         SET endTime = ?, 
         score = ?,
-        distanceKm = ?
+        distanceKm = ?,
+		stats = ?
         WHERE id = ?;
       `,
-        [endTime, finalScore, distanceKm, currentJourneyId]
+        [endTime, finalScore, distanceKm, statsJson, currentJourneyId]
       );
 
       deps.logger.info(`Journey ended successfully (${currentJourneyId}).`);
@@ -138,14 +139,13 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
 
     try {
       const timestamp = deps.now();
-      const penalty = getPenaltyForEvent(type);
 
       await db.runAsync(
         `
-        INSERT INTO events (journeyId, timestamp, type, latitude, longitude, speed, penalty)
-        VALUES (?, ?, ?, ?, ?, ?, ?);
+        INSERT INTO events (journeyId, timestamp, type, latitude, longitude, speed)
+        VALUES (?, ?, ?, ?, ?, ?);
       `,
-        [currentJourneyId, timestamp, type, latitude, longitude, speed, penalty]
+        [currentJourneyId, timestamp, type, latitude, longitude, speed]
       );
     } catch (error) {
       deps.logger.error('Error logging event:', error);
@@ -164,12 +164,25 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     try {
       const result = await db.getFirstAsync(
         `
-        SELECT * FROM journeys WHERE id = ?;
-      `,
+         SELECT * FROM journeys WHERE id = ?;
+       `,
         [id]
       );
 
-      return result as Journey | null;
+      if (!result) {
+        return null;
+      }
+
+      const journey = result as Record<string, unknown>;
+      const stats = journey.stats ? (JSON.parse(journey.stats as string) as ScoringStats) : null;
+      if (stats) {
+        deps.logger.info(`Journey stats for ID ${id}: ${JSON.stringify(stats)}`);
+      }
+
+      return {
+        ...journey,
+        stats,
+      } as Journey;
     } catch (error) {
       deps.logger.error('Error fetching journey by ID:', error);
       return null;
@@ -189,7 +202,14 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
       const result = await db.getAllAsync(`
         SELECT * FROM journeys ORDER BY date DESC, startTime DESC;
       `);
-      return result as Journey[];
+
+      return result.map((journey) => {
+        const j = journey as Record<string, unknown>;
+        return {
+          ...j,
+          stats: j.stats ? (JSON.parse(j.stats as string) as ScoringStats) : null,
+        } as Journey;
+      });
     } catch (error) {
       deps.logger.error('Error fetching all journeys:', error);
       return [];

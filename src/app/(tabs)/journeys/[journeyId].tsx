@@ -1,16 +1,20 @@
 import { useLocalSearchParams } from 'expo-router';
 import { View, StyleSheet, ActivityIndicator, ScrollView, Text } from 'react-native';
 import { Stack } from 'expo-router';
+import { useMemo } from 'react';
 
 import { useJourneyWithEvents, useTheme } from '@hooks';
 
 import { DrivingScoreWheel, JourneyMap, JourneyStats } from '@components';
+import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
 
 export default function JourneyDetail() {
   const { theme } = useTheme();
   const { journeyId } = useLocalSearchParams<{ journeyId: string }>();
   const { journey, events, loading, error } = useJourneyWithEvents(Number(journeyId));
   const styles = createStyles(theme);
+
+  const efficiency = useMemo(() => calculateEfficiencyScore(events), [events]);
 
   if (loading) {
     return (
@@ -83,8 +87,12 @@ export default function JourneyDetail() {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Driving Efficiency</Text>
           <View style={styles.scoreWheelContainer}>
-            <DrivingScoreWheel score={journey.score ?? 0} size={200} />
+            <DrivingScoreWheel score={journey.score ?? efficiency.stats.score} size={200} />
           </View>
+          <Text style={styles.scoreMeta}>
+            Avg {efficiency.stats.avgScore.toFixed(1)} • Min {Math.round(efficiency.stats.minScore)} • End{' '}
+            {Math.round(efficiency.stats.endScore)}
+          </Text>
         </View>
 
         <View style={styles.sectionCard}>
@@ -93,7 +101,7 @@ export default function JourneyDetail() {
         </View>
 
         <View style={styles.sectionCard}>
-          <JourneyStats journey={journey} events={events} />
+          <JourneyStats journey={journey} />
         </View>
       </ScrollView>
     </>
@@ -202,6 +210,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     scoreWheelContainer: {
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    scoreMeta: {
+      fontSize: 13,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+      fontWeight: '600',
     },
     title: {
       fontSize: 22,

@@ -1,3 +1,5 @@
+import type { ScoringStats } from '@/types/scoring';
+
 export interface Journey {
   id: number;
   title: string;
@@ -6,6 +8,7 @@ export interface Journey {
   endTime?: number | null;
   score?: number | null;
   distanceKm?: number | null;
+  stats?: ScoringStats | null;
 }
 
 export interface Event {
@@ -16,7 +19,7 @@ export interface Event {
   latitude: number;
   longitude: number;
   speed: number;
-  penalty: number;
+  penalty?: number | null;
 }
 
 export enum EventType {
