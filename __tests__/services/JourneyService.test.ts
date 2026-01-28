@@ -50,7 +50,6 @@ describe('JourneyService', () => {
       expect(createTableQuery).toContain('latitude REAL');
       expect(createTableQuery).toContain('longitude REAL');
       expect(createTableQuery).toContain('speed REAL');
-      expect(createTableQuery).toContain('penalty INTEGER');
       expect(createTableQuery).toContain('FOREIGN KEY (journeyId) REFERENCES journeys (id)');
     });
   });
@@ -96,7 +95,7 @@ describe('JourneyService', () => {
       await JourneyService.startJourney();
     });
 
-    it('should update journey with end time, score, and distance', async () => {
+    it('should update journey with end time, score, distance, and stats', async () => {
       const score = 85;
       const distance = 15.5;
 
@@ -106,6 +105,7 @@ describe('JourneyService', () => {
         expect.any(Number), // endTime
         score,
         distance,
+        null, // stats
         1, // journeyId
       ]);
     });
@@ -146,18 +146,16 @@ describe('JourneyService', () => {
           latitude,
           longitude,
           speed,
-          expect.any(Number), // penalty
         ])
       );
     });
 
-    it('should auto-calculate penalty from event type', async () => {
+    it('should store required event fields', async () => {
       await JourneyService.logEvent(EventType.HarshBraking, 53.3498, -6.2603, 60);
 
       // Index 1 because 0 is startJourney, 1 is logEvent
       const args = mockDb.runAsync.mock.calls[1][1];
-      const penalty = args[6];
-      expect(penalty).toBeGreaterThanOrEqual(0);
+      expect(args).toEqual([1, expect.any(Number), EventType.HarshBraking, 53.3498, -6.2603, 60]);
     });
 
     it('should not log event if no active journey', async () => {
@@ -185,7 +183,10 @@ describe('JourneyService', () => {
       const journeys = await JourneyService.getAllJourneys();
 
       expect(mockDb.getAllAsync).toHaveBeenCalledWith(expect.stringContaining('SELECT * FROM journeys ORDER BY date DESC, startTime DESC'));
-      expect(journeys).toEqual(mockJourneys);
+      expect(journeys).toEqual([
+        { id: 2, title: 'Journey 2', startTime: 2000, stats: null },
+        { id: 1, title: 'Journey 1', startTime: 1000, stats: null },
+      ]);
     });
 
     it('should return empty array if no journeys exist', async () => {
@@ -209,7 +210,7 @@ describe('JourneyService', () => {
       const journey = await JourneyService.getJourneyById(1);
 
       expect(mockDb.getFirstAsync).toHaveBeenCalledWith(expect.stringContaining('SELECT * FROM journeys WHERE id = ?'), [1]);
-      expect(journey).toEqual(mockJourney);
+      expect(journey).toEqual({ ...mockJourney, stats: null });
     });
 
     it('should return null if journey not found', async () => {
