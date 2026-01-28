@@ -1,26 +1,52 @@
-import React, { createContext, useContext } from 'react';
-import type { ReactNode } from 'react';
+import React, { createContext, useEffect, useState, useCallback, ReactNode } from 'react';
 
-import { useBackgroundService } from '@hooks/useBackgroundService';
-import type { BackgroundServiceHook } from '@types';
+import { singleton as BackgroundService } from '@services/BackgroundService';
+import type { BackgroundServiceController, TrackingState, PermissionState } from '@types';
+import { AppState, AppStateStatus } from 'react-native';
 
-const BackgroundServiceContext = createContext<BackgroundServiceHook | null>(null);
-
-interface BackgroundServiceProviderProps {
-  children: ReactNode;
+interface BackgroundServiceContextType {
+  service: BackgroundServiceController;
+  state: TrackingState;
+  permissionState: PermissionState;
+  checkPermissions: () => Promise<void>;
 }
 
-export const BackgroundServiceProvider = (props: BackgroundServiceProviderProps) => {
-  const { children } = props;
-  const backgroundService = useBackgroundService();
+export const BackgroundServiceContext = createContext<BackgroundServiceContextType | null>(null);
 
-  return <BackgroundServiceContext.Provider value={backgroundService}>{children}</BackgroundServiceContext.Provider>;
-};
+export const BackgroundServiceProvider = ({ children }: { children: ReactNode }) => {
+  const [state, setState] = useState<TrackingState>(BackgroundService.getState());
+  const [permissionState, setPermissionState] = useState<PermissionState>('unknown');
 
-export const useBackgroundServiceContext = (): BackgroundServiceHook => {
-  const ctx = useContext(BackgroundServiceContext);
-  if (!ctx) {
-    throw new Error('useBackgroundServiceContext must be used within BackgroundServiceProvider');
-  }
-  return ctx;
+  const checkPermissions = useCallback(async () => {
+    const permState = await BackgroundService.getLocationPermissionState();
+    setPermissionState(permState);
+  }, []);
+
+  useEffect(() => {
+    BackgroundService.init();
+
+    checkPermissions();
+
+    const unsubscribeService = BackgroundService.addStateListener((newState) => {
+      setState(newState);
+    });
+
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      //checks permissions to update listeners when app is return to
+      if (nextAppState === 'active') {
+        checkPermissions();
+      }
+    });
+
+    return () => {
+      unsubscribeService();
+      subscription.remove();
+    };
+  }, [checkPermissions]);
+
+  return (
+    <BackgroundServiceContext.Provider value={{ service: BackgroundService, state, permissionState, checkPermissions }}>
+      {children}
+    </BackgroundServiceContext.Provider>
+  );
 };

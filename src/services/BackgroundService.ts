@@ -59,6 +59,13 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
   let isInited = false;
   let isTaskRegistered = false;
 
+  const listeners = new Set<(state: TrackingState) => void>();
+
+  const emitStateChange = () => {
+    const currentState = { ...state };
+    listeners.forEach((listener) => listener(currentState));
+  };
+
   const getLocationLabel = async (latitude: number, longitude: number): Promise<string | null> => {
     try {
       const [place] = await deps.Location.reverseGeocodeAsync({ latitude, longitude });
@@ -83,6 +90,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     });
 
     deps.EfficiencyService.stopTracking();
+    emitStateChange();
     deps.logger.info('Passive tracking started.');
   };
 
@@ -132,6 +140,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       trigger: null,
     });
 
+    emitStateChange();
     deps.logger.info('Active tracking started.');
   };
 
@@ -196,6 +205,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     state.startLocationLabel = null;
     state.lowSpeedStartTime = null;
 
+    emitStateChange();
     await startPassiveTracking();
   };
 
@@ -327,6 +337,15 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       registerBackgroundTask();
       await deps.Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       state.isMonitoring = false;
+    },
+    addStateListener: (listener: (state: TrackingState) => void): (() => void) => {
+      listeners.add(listener);
+      listener({ ...state });
+
+      // cleanup function to remove listener
+      return () => {
+        listeners.delete(listener);
+      };
     },
     manualStartActiveTracking: async () => {
       init();

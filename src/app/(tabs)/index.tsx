@@ -3,7 +3,7 @@ import * as Linking from 'expo-linking';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 
-import { useBackgroundServiceContext, useDriverProfile, useJourneys, useTheme } from '@hooks';
+import { useBackgroundService, useDriverProfile, useJourneys, useTheme } from '@hooks';
 
 import { HomeHeroCard } from '@components';
 import { HomeLastDriveCard } from '@components';
@@ -15,18 +15,18 @@ const logger = createLogger(LogModule.Component);
 
 export default function Page() {
   const router = useRouter();
-  const backgroundService = useBackgroundServiceContext();
+  const backgroundService = useBackgroundService();
   const { theme } = useTheme();
   const { driverName } = useDriverProfile();
   const { journeys, loading: journeysLoading, error: journeysError, refetch: refetchJourneys } = useJourneys();
   const styles = createStyles(theme);
 
   const handleEnableTracking = async (): Promise<void> => {
-    const success = await backgroundService.setupService();
-    if (!success) {
-      logger.warn(
-        `Tracking setup failed. permissionState=${backgroundService.permissionState} serviceState=${backgroundService.serviceState}`
-      );
+    const hasPermission = await backgroundService.requestLocationPermissions();
+    if (hasPermission) {
+      await backgroundService.startLocationMonitoring();
+    } else {
+      logger.warn(`Tracking setup failed. permissionState=${backgroundService.permissionState}`);
     }
   };
 
@@ -62,6 +62,8 @@ export default function Page() {
 
   const trackingEnabled = backgroundService.permissionState === 'granted' && backgroundService.serviceState !== 'stopped';
 
+  const isLoading = false;
+
   return (
     <ScrollView
       style={styles.screen}
@@ -73,7 +75,7 @@ export default function Page() {
         driverName={driverName}
         permissionState={backgroundService.permissionState}
         trackingEnabled={trackingEnabled}
-        isLoading={backgroundService.isLoading}
+        isLoading={isLoading}
         onEnableTracking={handleEnableTracking}
         onOpenSettings={handleOpenSettings}
         onPressJourneys={() => router.push('/journeys')}

@@ -43,6 +43,7 @@ export interface BackgroundServiceController {
   getLocationPermissionState: () => Promise<PermissionState>;
   startLocationMonitoring: () => Promise<void>;
   stopLocationMonitoring: () => Promise<void>;
+  addStateListener: (listener: (state: TrackingState) => void) => () => void;
   manualStartActiveTracking: () => Promise<void>;
   manualStopActiveTracking: () => Promise<void>;
   handleLocationTask: (body: { data?: LocationTaskData; error?: unknown }) => Promise<void>;
