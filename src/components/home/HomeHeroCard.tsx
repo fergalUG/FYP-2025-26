@@ -2,41 +2,37 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { PermissionState } from '@types';
-
 import { useTheme } from '@hooks';
 
 interface HomeHeroCardProps {
   driverName: string;
   permissionState: PermissionState;
   trackingEnabled: boolean;
-  isLoading: boolean;
-  onEnableTracking: () => void;
   onOpenSettings: () => void;
   onPressJourneys: () => void;
+  isLoading?: boolean;
 }
 
 export const HomeHeroCard = (props: HomeHeroCardProps) => {
-  const { driverName, permissionState, trackingEnabled, isLoading, onEnableTracking, onOpenSettings, onPressJourneys } = props;
+  const { driverName, permissionState, trackingEnabled, onOpenSettings, onPressJourneys, isLoading = false } = props;
   const { theme } = useTheme();
   const styles = createStyles(theme);
 
-  const showCta = !trackingEnabled;
-  const ctaLabel = permissionState === 'denied' ? 'Open Settings' : permissionState === 'granted' ? 'Turn On Tracking' : 'Enable Location';
-  const ctaAction = permissionState === 'denied' ? onOpenSettings : onEnableTracking;
+  const showCta = permissionState !== 'granted';
+  const ctaAction = onOpenSettings;
+  const ctaLabel = 'Open Settings';
 
   return (
     <View style={styles.card}>
       <Text style={styles.greeting}>Hi, {driverName}</Text>
       <Text style={styles.title}>VeloMetry</Text>
-      <Text style={styles.subtitle}>Drive smarter. Build better habits.</Text>
 
       {showCta ? (
         <View style={styles.permissionWrap}>
           <Text style={styles.permissionText}>
-            {permissionState === 'granted'
-              ? 'Turn on background tracking so VeloMetry can detect drives automatically.'
-              : 'Location access is required to detect drives automatically.'}{' '}
-            {permissionState === 'denied' ? 'Enable it in Settings.' : ''}
+            {permissionState === 'denied'
+              ? 'Location access is required to detect drives automatically. Enable it in Settings.'
+              : 'Turn on background tracking so VeloMetry can detect drives automatically.'}
           </Text>
           <Pressable
             style={({ pressed }) => [styles.button, styles.primaryButton, pressed && styles.buttonPressed]}
@@ -47,7 +43,9 @@ export const HomeHeroCard = (props: HomeHeroCardProps) => {
           </Pressable>
         </View>
       ) : (
-        <Text style={styles.readyText}>All set. Your drives will appear here after you finish one.</Text>
+        <Text style={styles.readyText}>
+          {trackingEnabled ? 'All set. Your drives will appear here after you finish one.' : 'Initializing tracking...'}
+        </Text>
       )}
 
       <Pressable
@@ -80,10 +78,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontWeight: '900',
       color: theme.colors.onBackground,
       letterSpacing: 0.2,
-    },
-    subtitle: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
     },
     permissionWrap: {
       gap: theme.spacing.sm,

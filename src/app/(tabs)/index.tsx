@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 
 import { useBackgroundService, useDriverProfile, useJourneys, useTheme } from '@hooks';
@@ -21,14 +21,16 @@ export default function Page() {
   const { journeys, loading: journeysLoading, error: journeysError, refetch: refetchJourneys } = useJourneys();
   const styles = createStyles(theme);
 
-  const handleEnableTracking = async (): Promise<void> => {
-    const hasPermission = await backgroundService.requestLocationPermissions();
-    if (hasPermission) {
-      await backgroundService.startLocationMonitoring();
-    } else {
-      logger.warn(`Tracking setup failed. permissionState=${backgroundService.permissionState}`);
-    }
-  };
+  useEffect(() => {
+    const initPermissions = async (): Promise<void> => {
+      if (backgroundService.permissionState === 'unknown') {
+        await backgroundService.requestLocationPermissions();
+        await backgroundService.checkPermissions();
+      }
+    };
+
+    initPermissions();
+  }, []);
 
   const handleOpenSettings = async (): Promise<void> => {
     try {
@@ -62,8 +64,6 @@ export default function Page() {
 
   const trackingEnabled = backgroundService.permissionState === 'granted' && backgroundService.serviceState !== 'stopped';
 
-  const isLoading = false;
-
   return (
     <ScrollView
       style={styles.screen}
@@ -75,8 +75,6 @@ export default function Page() {
         driverName={driverName}
         permissionState={backgroundService.permissionState}
         trackingEnabled={trackingEnabled}
-        isLoading={isLoading}
-        onEnableTracking={handleEnableTracking}
         onOpenSettings={handleOpenSettings}
         onPressJourneys={() => router.push('/journeys')}
       />

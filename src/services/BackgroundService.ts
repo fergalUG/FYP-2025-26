@@ -45,6 +45,26 @@ const calculateDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: num
 
 const convertMsToKmh = (speedMs: number): number => speedMs * 3.6;
 
+//declare this outside the controller so startLocationTracking can use it to not crash
+const getLocationPermissions = async () => {
+  try {
+    const foreground = await Location.getForegroundPermissionsAsync();
+    if (!foreground.granted) {
+      return foreground.canAskAgain ? 'unknown' : 'denied';
+    }
+
+    const background = await Location.getBackgroundPermissionsAsync();
+    if (!background.granted) {
+      return background.canAskAgain ? 'unknown' : 'denied';
+    }
+
+    return 'granted';
+  } catch (error) {
+    logger.warn('Error checking location permission status:', error);
+    return 'unknown';
+  }
+};
+
 export const createBackgroundServiceController = (deps: BackgroundServiceDeps): BackgroundServiceController => {
   const state: TrackingState = {
     mode: 'PASSIVE',
@@ -307,36 +327,25 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
         return false;
       }
     },
-    getLocationPermissionState: async () => {
-      try {
-        const foreground = await deps.Location.getForegroundPermissionsAsync();
-        if (!foreground.granted) {
-          return foreground.canAskAgain ? 'unknown' : 'denied';
-        }
-
-        const background = await deps.Location.getBackgroundPermissionsAsync();
-        if (!background.granted) {
-          return background.canAskAgain ? 'unknown' : 'denied';
-        }
-
-        return 'granted';
-      } catch (error) {
-        deps.logger.warn('Error checking location permission status:', error);
-        return 'unknown';
-      }
-    },
+    getLocationPermissionState: getLocationPermissions,
     startLocationMonitoring: async () => {
-      init();
+      const permState = await getLocationPermissions();
+      if (permState !== 'granted') {
+        deps.logger.warn('Cannot start location monitoring: permissions not granted.');
+        return;
+      }
       registerBackgroundTask();
       if (state.isMonitoring) return;
       await startPassiveTracking();
       state.isMonitoring = true;
+      emitStateChange();
     },
     stopLocationMonitoring: async () => {
       init();
       registerBackgroundTask();
       await deps.Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       state.isMonitoring = false;
+      emitStateChange();
     },
     addStateListener: (listener: (state: TrackingState) => void): (() => void) => {
       listeners.add(listener);

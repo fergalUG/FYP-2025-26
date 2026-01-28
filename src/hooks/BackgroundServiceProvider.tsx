@@ -3,6 +3,9 @@ import React, { createContext, useEffect, useState, useCallback, ReactNode } fro
 import { singleton as BackgroundService } from '@services/BackgroundService';
 import type { BackgroundServiceController, TrackingState, PermissionState } from '@types';
 import { AppState, AppStateStatus } from 'react-native';
+import { createLogger, LogModule } from '@utils/logger';
+
+const logger = createLogger(LogModule.Provider);
 
 interface BackgroundServiceContextType {
   service: BackgroundServiceController;
@@ -18,8 +21,20 @@ export const BackgroundServiceProvider = ({ children }: { children: ReactNode })
   const [permissionState, setPermissionState] = useState<PermissionState>('unknown');
 
   const checkPermissions = useCallback(async () => {
-    const permState = await BackgroundService.getLocationPermissionState();
-    setPermissionState(permState);
+    try {
+      const permState = await BackgroundService.getLocationPermissionState();
+      setPermissionState(permState);
+
+      if (permState === 'granted') {
+        const currentState = BackgroundService.getState();
+        if (!currentState.isMonitoring) {
+          logger.info('Permissions granted, starting location monitoring');
+          await BackgroundService.startLocationMonitoring();
+        }
+      }
+    } catch (error) {
+      logger.error('Error checking permissions:', error);
+    }
   }, []);
 
   useEffect(() => {

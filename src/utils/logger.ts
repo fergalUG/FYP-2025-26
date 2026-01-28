@@ -1,4 +1,5 @@
 const logColours = {
+  provider: '\x1b[92m', // Light Green (#90EE90)
   component: '\x1b[36m', // Cyan (#00FFFF)
   hooks: '\x1b[35m', // Magenta (#FF00FF)
   backgroundService: '\x1b[33m', // Yellow (#FFFF00)
@@ -11,6 +12,7 @@ const logColours = {
 };
 
 export const enum LogModule {
+  Provider = 'provider',
   Component = 'component',
   Hooks = 'hooks',
   BackgroundService = 'backgroundService',

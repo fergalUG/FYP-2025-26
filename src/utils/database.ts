@@ -1,6 +1,6 @@
 import { eq, and } from 'drizzle-orm';
 import { db, resetDatabase as resetDbSchema } from '../db/client';
-import { journeys, events, settings } from '../db/schema';
+import { journeys, events } from '../db/schema';
 import { EventType } from '@/types/db';
 import type { ScoringStats } from '@/types/scoring';
 import { createLogger, LogModule } from '@utils/logger';
@@ -30,16 +30,6 @@ export const resetDatabase = async (): Promise<void> => {
 
 export const seedMockData = async (): Promise<void> => {
   try {
-    const driverNameCheck = await db.select().from(settings).where(eq(settings.key, 'driverName'));
-
-    if (driverNameCheck.length === 0) {
-      logger.info('Seeding missing setting: driverName');
-      await db.insert(settings).values({
-        key: 'driverName',
-        value: 'Test Driver',
-      });
-    }
-
     const now = Date.now();
     const day = 86400000;
 
