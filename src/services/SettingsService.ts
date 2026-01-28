@@ -1,6 +1,7 @@
-import type * as SQL from 'expo-sqlite';
+import { eq } from 'drizzle-orm';
+import { db } from '@db/client';
+import { settings } from '@db/schema';
 
-import { JourneyService } from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
 import { DEFAULT_DRIVER_NAME } from '@constants/defaults';
 
@@ -8,26 +9,12 @@ const logger = createLogger(LogModule.SettingsService);
 
 const DRIVER_NAME_KEY = 'driverName';
 
-const ensureDb = async (): Promise<SQL.SQLiteDatabase | null> => {
-  let db = JourneyService.getDatabase();
-  if (!db) {
-    await JourneyService.initDatabase();
-  }
-  db = JourneyService.getDatabase();
-  return db;
-};
-
 export const getDriverName = async (): Promise<string> => {
-  const db = await ensureDb();
-  if (!db) {
-    return DEFAULT_DRIVER_NAME;
-  }
-
   try {
-    const result = await db.getFirstAsync('SELECT value FROM settings WHERE key = ?;', [DRIVER_NAME_KEY]);
-    const value = (result as { value?: unknown } | null)?.value;
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim();
+    const result = await db.select().from(settings).where(eq(settings.key, DRIVER_NAME_KEY));
+
+    if (result.length > 0 && result[0].value) {
+      return result[0].value;
     }
     return DEFAULT_DRIVER_NAME;
   } catch (error) {
@@ -37,19 +24,19 @@ export const getDriverName = async (): Promise<string> => {
 };
 
 export const setDriverName = async (name: string): Promise<boolean> => {
-  const db = await ensureDb();
-  if (!db) {
-    return false;
-  }
-
-  const next = name.trim().length > 0 ? name.trim() : DEFAULT_DRIVER_NAME;
+  const input = name.trim().length > 0 ? name.trim() : DEFAULT_DRIVER_NAME;
 
   try {
-    logger.debug('Saving driver name:', next);
-    await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value;', [
-      DRIVER_NAME_KEY,
-      next,
-    ]);
+    logger.debug('Saving driver name:', input);
+
+    await db
+      .insert(settings)
+      .values({
+        key: DRIVER_NAME_KEY,
+        value: input,
+      })
+      .onConflictDoUpdate({ target: settings.key, set: { value: input } });
+
     return true;
   } catch (error) {
     logger.warn('Failed to save driver name:', error);

@@ -24,7 +24,6 @@ export interface JourneyServiceDeps {
 }
 
 export interface JourneyServiceController {
-  getDatabase: () => SQL.SQLiteDatabase | null;
   initDatabase: () => Promise<void>;
   getCurrentJourneyId: () => number | null;
   startJourney: () => Promise<void>;

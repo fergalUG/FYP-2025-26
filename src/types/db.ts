@@ -19,7 +19,6 @@ export interface Event {
   latitude: number;
   longitude: number;
   speed: number;
-  penalty?: number | null;
 }
 
 export enum EventType {

@@ -19,7 +19,8 @@
       "@types/*": ["types/*"],
       "@constants/*": ["constants/*"],
       "@theme": ["theme"],
-      "@modules/*": ["../modules/*"]
+      "@modules/*": ["../modules/*"],
+      "@db/*": ["db/*"],
     }
   }
 }
