@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
+
 import {
   EventType,
   type BackgroundServiceController,
@@ -16,30 +17,8 @@ import { createLogger, LogModule } from '@utils/logger';
 
 const BACKGROUND_LOCATION_TASK: string = 'BACKGROUND-LOCATION-TASK';
 
-// Register the background location task handler at the module/global scope (Expo best practice!)
-// Do NOT re-import LocationTaskData; already imported from '@types' above
-import type { TaskManagerTaskBody } from 'expo-task-manager';
-
-TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManagerTaskBody<LocationTaskData>) => {
-  // On first import, singleton may not exist—so import lazily
-  // If the singleton controller is not available, just return.
-  try {
-    // Dynamically import BackgroundService to avoid circular dependency in module top-level.
-    // (Static import above will always exist, but this is defensive)
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    import('./BackgroundService').then((svc) => {
-      if (svc && svc.singleton && typeof svc.singleton.handleLocationTask === 'function') {
-        svc.singleton.handleLocationTask({ data, error });
-      }
-    });
-    // Note: if this fails, do nothing (no fallback required)
-  } catch {
-    // Fall back: do nothing or maybe log
-  }
-});
-
 const ACTIVE_SPEED_THRESHOLD: number = 4.16667; // 15 km/h in m/s
-const PASSIVE_SPEED_THRESHOLD: number = 1.38889; // 5 km/h in m/s
+const PASSIVE_SPEED_THRESHOLD: number = 2.77778; // 10 km/h in m/s
 const PASSIVE_TIMEOUT_MS: number = 120000; // 2 minutes before switching to passive
 
 const logger = createLogger(LogModule.BackgroundService);
@@ -236,15 +215,18 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
   const registerBackgroundTask = () => {
     if (isTaskRegistered) return;
-    isTaskRegistered = true;
 
     const isDefined =
       typeof deps.TaskManager.isTaskDefined === 'function' ? deps.TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK) : false;
-    if (isDefined) return;
 
-    deps.TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
-      await controller.handleLocationTask({ data, error });
-    });
+    if (!isDefined) {
+      deps.logger.warn('Background location task is not defined in TaskManager. Registering now.');
+      deps.TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
+        await controller.handleLocationTask({ data, error });
+      });
+    }
+
+    isTaskRegistered = true;
   };
 
   const handleLocationTask = async ({ data, error }: { data?: LocationTaskData; error?: unknown }): Promise<void> => {
@@ -364,7 +346,6 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
   return controller;
 };
 
-// Make singleton an export so dynamic import/require can access it robustly
 export const singleton = createBackgroundServiceController({
   Location,
   Notifications,
@@ -400,3 +381,9 @@ export const __internal = {
   PASSIVE_SPEED_THRESHOLD,
   PASSIVE_TIMEOUT_MS,
 };
+
+TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
+  if (singleton) {
+    await singleton.handleLocationTask({ data, error });
+  }
+});
