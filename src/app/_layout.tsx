@@ -51,6 +51,17 @@ const ThemedRootStack = () => {
             ...headerOptions,
           }}
         />
+        <Stack.Screen
+          name="journey/[journeyId]"
+          options={{
+            presentation: 'modal',
+            title: 'Journey Details',
+            headerShown: true,
+            headerBackTitle: 'Back',
+            headerBackVisible: true,
+            ...headerOptions,
+          }}
+        />
       </Stack>
     </>
   );

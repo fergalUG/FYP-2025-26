@@ -86,7 +86,7 @@ export default function Page() {
         loading={journeysLoading}
         error={journeysError}
         onRefresh={refetchJourneys}
-        onPressJourney={(journeyId) => router.push(`/journeys/${journeyId}`)}
+        onPressJourney={(journeyId) => router.push(`/journey/${journeyId}`)}
       />
     </ScrollView>
   );

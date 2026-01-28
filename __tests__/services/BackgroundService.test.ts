@@ -114,8 +114,22 @@ describe('BackgroundService', () => {
   });
 
   describe('startLocationMonitoring / stopLocationMonitoring', () => {
+    it('does not start tracking if permissions are not granted', async () => {
+      const Location = await import('expo-location');
+      (Location.getForegroundPermissionsAsync as unknown as jest.Mock).mockResolvedValueOnce({ granted: false, canAskAgain: true });
+
+      const BackgroundService = await importFresh();
+      await BackgroundService.startLocationMonitoring();
+
+      expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
+      expect(BackgroundService.getTrackingStatus().isMonitoring).toBe(false);
+    });
+
     it('starts passive tracking once and sets monitoring state', async () => {
       const Location = await import('expo-location');
+      (Location.getForegroundPermissionsAsync as unknown as jest.Mock).mockResolvedValue({ granted: true });
+      (Location.getBackgroundPermissionsAsync as unknown as jest.Mock).mockResolvedValue({ granted: true });
+
       const BackgroundService = await importFresh();
 
       expect(BackgroundService.getTrackingStatus()).toEqual({ mode: 'PASSIVE', isMonitoring: false });
@@ -133,6 +147,9 @@ describe('BackgroundService', () => {
 
     it('is idempotent: calling startLocationMonitoring twice does not re-register updates', async () => {
       const Location = await import('expo-location');
+      (Location.getForegroundPermissionsAsync as unknown as jest.Mock).mockResolvedValue({ granted: true });
+      (Location.getBackgroundPermissionsAsync as unknown as jest.Mock).mockResolvedValue({ granted: true });
+
       const BackgroundService = await importFresh();
 
       await BackgroundService.startLocationMonitoring();
@@ -143,6 +160,9 @@ describe('BackgroundService', () => {
 
     it('stops monitoring and clears monitoring state', async () => {
       const Location = await import('expo-location');
+      (Location.getForegroundPermissionsAsync as unknown as jest.Mock).mockResolvedValue({ granted: true });
+      (Location.getBackgroundPermissionsAsync as unknown as jest.Mock).mockResolvedValue({ granted: true });
+
       const BackgroundService = await importFresh();
 
       await BackgroundService.startLocationMonitoring();

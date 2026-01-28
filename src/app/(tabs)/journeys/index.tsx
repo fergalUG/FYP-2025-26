@@ -78,7 +78,7 @@ export default function Journeys() {
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <Swipeable renderRightActions={() => renderRightActions(item.id)} overshootRight={false}>
-            <Link href={{ pathname: `/journeys/${item.id}` }} asChild>
+            <Link href={{ pathname: `/journey/${item.id}` }} asChild>
               <Pressable style={styles.card}>
                 <View style={styles.cardTopRow}>
                   <ScoreBadge score={item.score ?? 0} color={getScoreColor(item.score ?? 0, theme)} />
