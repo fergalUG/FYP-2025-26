@@ -90,8 +90,8 @@ export default function Settings() {
             <Switch
               value={mode === 'dark'}
               onValueChange={toggleMode}
-              trackColor={{ false: theme.colors.outline, true: theme.colors.primary }}
-              thumbColor={mode === 'dark' ? theme.colors.surface : theme.colors.background}
+              trackColor={{ false: theme.colors.error, true: theme.colors.primary }}
+              thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
           </View>
         </View>
@@ -107,8 +107,8 @@ export default function Settings() {
             <Switch
               value={isDebugEnabled}
               onValueChange={toggleOverlay}
-              trackColor={{ false: theme.colors.outline, true: theme.colors.primary }}
-              thumbColor={isDebugEnabled ? theme.colors.surface : theme.colors.background}
+              trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
+              thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
           </View>
           <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />

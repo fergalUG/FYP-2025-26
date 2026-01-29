@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   minimizedWindow: {
     height: 40,
     width: 150,
-    alignSelf: 'flex-end',
+    alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',

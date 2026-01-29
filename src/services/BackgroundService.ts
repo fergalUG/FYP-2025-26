@@ -76,6 +76,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     startLocationLabel: null,
   };
 
+  let lowSpeedTimeout: ReturnType<typeof setTimeout> | null = null;
   let isInited = false;
   let isTaskRegistered = false;
 
@@ -225,6 +226,11 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     state.startLocationLabel = null;
     state.lowSpeedStartTime = null;
 
+    if (lowSpeedTimeout) {
+      clearTimeout(lowSpeedTimeout);
+      lowSpeedTimeout = null;
+    }
+
     emitStateChange();
     await startPassiveTracking();
   };
@@ -289,6 +295,18 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       if (state.lowSpeedStartTime === null) {
         state.lowSpeedStartTime = deps.now();
         deps.logger.info('Low speed detected, starting timeout...');
+
+        if (lowSpeedTimeout) clearTimeout(lowSpeedTimeout);
+        lowSpeedTimeout = setTimeout(async () => {
+          deps.logger.info('Low speed timeout triggered via timer.');
+          if (state.mode === 'ACTIVE' && state.lowSpeedStartTime !== null) {
+            const currentElapsedTime = deps.now() - state.lowSpeedStartTime;
+            if (currentElapsedTime >= PASSIVE_TIMEOUT_MS) {
+              await endActiveTracking();
+            }
+          }
+        }, PASSIVE_TIMEOUT_MS);
+
         return;
       }
 
@@ -305,6 +323,10 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
     if (speed != null && speed >= PASSIVE_SPEED_THRESHOLD && state.lowSpeedStartTime !== null) {
       state.lowSpeedStartTime = null;
+      if (lowSpeedTimeout) {
+        clearTimeout(lowSpeedTimeout);
+        lowSpeedTimeout = null;
+      }
       deps.logger.info('Speed increased, timeout cancelled.');
     }
   };
