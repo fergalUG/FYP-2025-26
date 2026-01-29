@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { AppButton } from '@components';
 import type { PermissionState } from '@types';
 import { useTheme } from '@hooks';
 
@@ -34,13 +35,9 @@ export const HomeHeroCard = (props: HomeHeroCardProps) => {
               ? 'Location access is required to detect drives automatically. Enable it in Settings.'
               : 'Turn on background tracking so VeloMetry can detect drives automatically.'}
           </Text>
-          <Pressable
-            style={({ pressed }) => [styles.button, styles.primaryButton, pressed && styles.buttonPressed]}
-            onPress={ctaAction}
-            disabled={isLoading}
-          >
+          <AppButton onPress={ctaAction} disabled={isLoading}>
             <Text style={styles.buttonText}>{isLoading ? 'Working…' : ctaLabel}</Text>
-          </Pressable>
+          </AppButton>
         </View>
       ) : (
         <Text style={styles.readyText}>
@@ -48,12 +45,9 @@ export const HomeHeroCard = (props: HomeHeroCardProps) => {
         </Text>
       )}
 
-      <Pressable
-        style={({ pressed }) => [styles.button, styles.secondaryButton, pressed && styles.buttonPressed]}
-        onPress={onPressJourneys}
-      >
+      <AppButton onPress={onPressJourneys}>
         <Text style={styles.secondaryButtonText}>View Journeys</Text>
-      </Pressable>
+      </AppButton>
     </View>
   );
 };
@@ -94,7 +88,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       color: theme.colors.onSurface,
       opacity: 0.8,
       lineHeight: 20,
-      marginTop: theme.spacing.xs,
     },
     button: {
       paddingVertical: theme.spacing.md,

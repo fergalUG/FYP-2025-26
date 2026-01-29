@@ -6,6 +6,8 @@ export { ServiceStatusIndicator } from './ServiceStatusIndicator';
 export { IconChip } from './common/IconChip';
 export { ScoreBadge } from './common/ScoreBadge';
 export { StatTile } from './common/StatTile';
+export { AppButton } from './common/AppButton';
+export { TabButton } from './common/TabButton';
 
 export { HomeHeroCard } from './home/HomeHeroCard';
 export { HomeLastDriveCard } from './home/HomeLastDriveCard';

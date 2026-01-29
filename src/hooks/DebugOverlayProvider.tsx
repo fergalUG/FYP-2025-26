@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Platform, PanResponder, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, PanResponder, Animated, Dimensions } from 'react-native';
 
 import { addLogListener } from '@utils/logger';
 import { getDebugOverlay, setDebugOverlay as saveSetting } from '@services/SettingsService';
@@ -28,6 +28,8 @@ export const DebugOverlayProvider = ({ children }: { children: React.ReactNode }
   const overlayHeight = useRef(new Animated.Value(200)).current;
   const lastHeight = useRef(200);
 
+  const numLogs = 100;
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -55,7 +57,7 @@ export const DebugOverlayProvider = ({ children }: { children: React.ReactNode }
     }
 
     const unsubscribe = addLogListener((msg) => {
-      setLogs((prev) => [msg, ...prev].slice(0, 50));
+      setLogs((prev) => [msg, ...prev].slice(0, numLogs));
     });
 
     return unsubscribe;
@@ -71,9 +73,7 @@ export const DebugOverlayProvider = ({ children }: { children: React.ReactNode }
       {children}
       {isEnabled && (
         <View style={styles.overlayContainer} pointerEvents="box-none">
-          {/* 3. Wrap the window in Animated.View */}
           <Animated.View style={[styles.logWindow, isMinimized ? styles.minimizedWindow : { height: overlayHeight }]}>
-            {/* 4. Attach panHandlers to the header for dragging */}
             <View style={styles.header} {...panResponder.panHandlers}>
               <View style={styles.dragIndicator} />
               <Text style={styles.headerTitle}>Debug Logs</Text>

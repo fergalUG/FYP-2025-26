@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 
 import { useTheme } from '@hooks';
 
-import { ServiceStatusIndicator } from '@components';
+import { ServiceStatusIndicator, TabButton } from '@components';
 
 import { appHeaderOptions } from '@constants/navigation';
 
@@ -18,6 +18,7 @@ export default function Layout() {
     <Tabs
       screenOptions={{
         headerShown: true,
+        tabBarButton: (props) => <TabButton {...props} />,
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.onSurface,
         tabBarStyle: {

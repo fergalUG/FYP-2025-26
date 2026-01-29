@@ -1,4 +1,4 @@
-import * as Notifications from 'expo-notifications';
+// import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 
@@ -152,13 +152,13 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       pausesUpdatesAutomatically: false,
     });
 
-    await deps.Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Driving Detected',
-        body: 'Active tracking has started. Drive safely!',
-      },
-      trigger: null,
-    });
+    // await deps.Notifications.scheduleNotificationAsync({
+    //   content: {
+    //     title: 'Driving Detected',
+    //     body: 'Active tracking has started. Drive safely!',
+    //   },
+    //   trigger: null,
+    // });
 
     emitStateChange();
     deps.logger.info('Active tracking started.');
@@ -211,13 +211,13 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
     deps.logger.info(`Journey ended (ID: ${state.currentJourneyId}), distance: ${state.totalDistance.toFixed(2)}km, score: ${finalScore}`);
 
-    await deps.Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Journey Complete',
-        body: `Score: ${finalScore}/100 • Distance: ${state.totalDistance.toFixed(1)}km`,
-      },
-      trigger: null,
-    });
+    // await deps.Notifications.scheduleNotificationAsync({
+    //   content: {
+    //     title: 'Journey Complete',
+    //     body: `Score: ${finalScore}/100 • Distance: ${state.totalDistance.toFixed(1)}km`,
+    //   },
+    //   trigger: null,
+    // });
 
     state.currentJourneyId = null;
     state.totalDistance = 0;
@@ -233,14 +233,14 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     if (isInited) return;
     isInited = true;
 
-    deps.Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
+    // deps.Notifications.setNotificationHandler({
+    //   handleNotification: async () => ({
+    //     shouldPlaySound: true,
+    //     shouldSetBadge: false,
+    //     shouldShowBanner: true,
+    //     shouldShowList: true,
+    //   }),
+    // });
   };
 
   const registerBackgroundTask = () => {
@@ -376,7 +376,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
 export const singleton = createBackgroundServiceController({
   Location,
-  Notifications,
+  // Notifications,
   TaskManager,
   JourneyService,
   EfficiencyService,

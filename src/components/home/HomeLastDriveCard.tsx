@@ -1,11 +1,10 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { Journey } from '@types';
 
 import { useTheme } from '@hooks';
 import { getScoreColor } from '@utils/score';
-import { IconChip } from '@components/common/IconChip';
-import { ScoreBadge } from '@components/common/ScoreBadge';
+import { IconChip, ScoreBadge, AppButton } from '@components';
 
 interface HomeLastDriveCardProps {
   lastJourney: Journey | null;
@@ -37,9 +36,9 @@ export const HomeLastDriveCard = (props: HomeLastDriveCardProps) => {
         {loading ? (
           <ActivityIndicator size="small" color={theme.colors.primary} />
         ) : (
-          <Pressable onPress={onRefresh}>
+          <AppButton style={styles.refreshButton} onPress={onRefresh}>
             <Text style={styles.sectionLink}>Refresh</Text>
-          </Pressable>
+          </AppButton>
         )}
       </View>
 
@@ -53,7 +52,7 @@ export const HomeLastDriveCard = (props: HomeLastDriveCardProps) => {
       ) : null}
 
       {lastJourney ? (
-        <Pressable style={({ pressed }) => [styles.card, pressed && styles.cardPressed]} onPress={() => onPressJourney(lastJourney.id)}>
+        <AppButton style={styles.card} onPress={() => onPressJourney(lastJourney.id)}>
           <View style={styles.topRow}>
             <ScoreBadge score={lastJourney.score ?? 0} color={getScoreColor(lastJourney.score ?? 0, theme)} />
             <View style={styles.body}>
@@ -74,7 +73,7 @@ export const HomeLastDriveCard = (props: HomeLastDriveCardProps) => {
               </View>
             </View>
           </View>
-        </Pressable>
+        </AppButton>
       ) : null}
     </View>
   );
@@ -154,5 +153,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: theme.spacing.sm,
+    },
+    refreshButton: {
+      backgroundColor: 'transparent',
+      margin: 0,
+      padding: 0,
     },
   });

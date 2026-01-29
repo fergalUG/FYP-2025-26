@@ -4,6 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useDriverProfile, useDebugOverlay, useTheme } from '@hooks';
 
+import { AppButton } from '@components';
 import { JourneyService } from '@services/JourneyService';
 
 export default function Settings() {
@@ -101,7 +102,7 @@ export default function Settings() {
           <View style={styles.rowBetween}>
             <View style={styles.rowText}>
               <Text style={styles.itemTitle}>Show Debug Overlay</Text>
-              <Text style={styles.itemSubtitle}>Show logs on screen (for field testing).</Text>
+              <Text style={styles.itemSubtitle}>Show logs on screen.</Text>
             </View>
             <Switch
               value={isDebugEnabled}
@@ -110,9 +111,10 @@ export default function Settings() {
               thumbColor={isDebugEnabled ? theme.colors.surface : theme.colors.background}
             />
           </View>
+          <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />
           <Text style={styles.itemTitle}>Export Database</Text>
           <Text style={styles.itemSubtitle}>Download a copy of journey data.</Text>
-          <Pressable
+          <AppButton
             style={[styles.exportButton, exporting && styles.exportButtonDisabled]}
             onPress={handleExportDatabase}
             disabled={exporting}
@@ -125,7 +127,7 @@ export default function Settings() {
             ) : (
               <Text style={styles.exportButtonText}>Export DB</Text>
             )}
-          </Pressable>
+          </AppButton>
         </View>
       </View>
     </View>

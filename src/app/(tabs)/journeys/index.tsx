@@ -1,13 +1,12 @@
 import { Link } from 'expo-router';
-import { FlatList, Pressable, Text, View, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { FlatList, Text, View, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useJourneys, useTheme } from '@hooks';
 import { useMemo, useState } from 'react';
 
-import { IconChip } from '@components';
-import { ScoreBadge } from '@components';
+import { IconChip, ScoreBadge, AppButton } from '@components';
 
 import { getScoreColor } from '@utils/score';
 
@@ -36,18 +35,20 @@ export default function Journeys() {
   };
 
   const renderRightActions = (journeyId: number) => (
-    <Pressable
-      style={({ pressed }) => [styles.deleteAction, pressed && styles.deleteActionPressed]}
-      onPress={() => handleDeleteJourney(journeyId)}
-      disabled={deletingId === journeyId}
-    >
-      {deletingId === journeyId ? (
-        <ActivityIndicator size="small" color={theme.colors.background} />
-      ) : (
-        <MaterialIcons name="delete" size={22} color={theme.colors.background} />
-      )}
-      <Text style={styles.deleteActionText}>{deletingId === journeyId ? 'Deleting' : 'Delete'}</Text>
-    </Pressable>
+    <View style={{}}>
+      <AppButton
+        style={[styles.deleteAction, { height: '100%' }]}
+        onPress={() => handleDeleteJourney(journeyId)}
+        disabled={deletingId === journeyId}
+      >
+        {deletingId === journeyId ? (
+          <ActivityIndicator size="small" color={theme.colors.background} />
+        ) : (
+          <MaterialIcons name="delete" size={22} color={theme.colors.background} />
+        )}
+        <Text style={styles.deleteActionText}>{deletingId === journeyId ? 'Deleting' : 'Delete'}</Text>
+      </AppButton>
+    </View>
   );
 
   if (loading && !refreshing) {
@@ -63,9 +64,9 @@ export default function Journeys() {
     return (
       <View style={[styles.list, styles.centerContent]}>
         <Text style={styles.errorText}>Error: {error}</Text>
-        <Pressable style={styles.retryButton} onPress={refetch}>
+        <AppButton style={styles.retryButton} onPress={refetch}>
           <Text style={styles.retryButtonText}>Retry</Text>
-        </Pressable>
+        </AppButton>
       </View>
     );
   }
@@ -79,7 +80,7 @@ export default function Journeys() {
         renderItem={({ item }) => (
           <Swipeable renderRightActions={() => renderRightActions(item.id)} overshootRight={false}>
             <Link href={{ pathname: `/journey/${item.id}` }} asChild>
-              <Pressable style={styles.card}>
+              <AppButton style={styles.card}>
                 <View style={styles.cardTopRow}>
                   <ScoreBadge score={item.score ?? 0} color={getScoreColor(item.score ?? 0, theme)} />
                   <View style={styles.cardBody}>
@@ -92,7 +93,7 @@ export default function Journeys() {
                     </View>
                   </View>
                 </View>
-              </Pressable>
+              </AppButton>
             </Link>
           </Swipeable>
         )}
@@ -159,11 +160,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     },
     deleteAction: {
       backgroundColor: theme.colors.error,
-      borderRadius: theme.radius.md,
-      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      paddingHorizontal: theme.spacing.lg,
       justifyContent: 'center',
       alignItems: 'center',
       gap: theme.spacing.xs,
+      marginVertical: 0,
     },
     deleteActionPressed: {
       opacity: 0.85,

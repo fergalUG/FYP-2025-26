@@ -1,4 +1,4 @@
-import type * as Notifications from 'expo-notifications';
+// import type * as Notifications from 'expo-notifications';
 import type * as TaskManager from 'expo-task-manager';
 import type * as Location from 'expo-location';
 
@@ -23,7 +23,7 @@ export interface TrackingState {
 
 export interface BackgroundServiceDeps {
   Location: typeof Location;
-  Notifications: typeof Notifications;
+  // Notifications: typeof Notifications;
   TaskManager: typeof TaskManager;
   JourneyService: Pick<JourneyServiceController, 'startJourney' | 'getCurrentJourneyId' | 'logEvent' | 'updateJourneyTitle' | 'endJourney'>;
   EfficiencyService: Pick<
