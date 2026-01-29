@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-import { useDriverProfile, useTheme } from '@hooks';
+import { useDriverProfile, useDebugOverlay, useTheme } from '@hooks';
 
 import { JourneyService } from '@services/JourneyService';
 
@@ -13,6 +13,9 @@ export default function Settings() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState('');
   const styles = createStyles(theme);
+
+  //debug stuff
+  const { isEnabled: isDebugEnabled, toggleOverlay } = useDebugOverlay();
 
   const handleExportDatabase = async () => {
     setExporting(true);
@@ -95,6 +98,18 @@ export default function Settings() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Debug</Text>
         <View style={styles.card}>
+          <View style={styles.rowBetween}>
+            <View style={styles.rowText}>
+              <Text style={styles.itemTitle}>Show Debug Overlay</Text>
+              <Text style={styles.itemSubtitle}>Show logs on screen (for field testing).</Text>
+            </View>
+            <Switch
+              value={isDebugEnabled}
+              onValueChange={toggleOverlay}
+              trackColor={{ false: theme.colors.outline, true: theme.colors.primary }}
+              thumbColor={isDebugEnabled ? theme.colors.surface : theme.colors.background}
+            />
+          </View>
           <Text style={styles.itemTitle}>Export Database</Text>
           <Text style={styles.itemSubtitle}>Download a copy of journey data.</Text>
           <Pressable

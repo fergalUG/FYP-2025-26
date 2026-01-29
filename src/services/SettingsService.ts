@@ -9,6 +9,7 @@ import { DEFAULT_DRIVER_NAME } from '@constants/defaults';
 const logger = createLogger(LogModule.SettingsService);
 
 const DRIVER_NAME_KEY = 'driverName';
+const DEBUG_OVERLAY_KEY = 'debugOverlay';
 
 export const getDriverName = async (): Promise<string> => {
   try {
@@ -41,6 +42,33 @@ export const setDriverName = async (name: string): Promise<boolean> => {
     return true;
   } catch (error) {
     logger.warn('Failed to save driver name:', error);
+    return false;
+  }
+};
+
+export const getDebugOverlay = async (): Promise<boolean> => {
+  try {
+    const result = await db.select().from(settings).where(eq(settings.key, DEBUG_OVERLAY_KEY));
+    if (result.length > 0 && result[0].value) {
+      return result[0].value === 'true';
+    }
+    return false;
+  } catch (error) {
+    logger.warn('Failed to load debug overlay setting:', error);
+    return false;
+  }
+};
+
+export const setDebugOverlay = async (enabled: boolean): Promise<boolean> => {
+  const input = String(enabled);
+  try {
+    await db
+      .insert(settings)
+      .values({ key: DEBUG_OVERLAY_KEY, value: input })
+      .onConflictDoUpdate({ target: settings.key, set: { value: input } });
+    return true;
+  } catch (error) {
+    logger.warn('Failed to save debug overlay setting:', error);
     return false;
   }
 };

@@ -23,24 +23,51 @@ export const enum LogModule {
   DB = 'db',
 }
 
+//UI LOGGING FUNCTIONS
+type LogListener = (logLine: string) => void;
+const listeners: LogListener[] = [];
+
+export const addLogListener = (listener: LogListener) => {
+  listeners.push(listener);
+  return () => {
+    const index = listeners.indexOf(listener);
+    if (index > -1) listeners.splice(index, 1);
+  };
+};
+
+const broadcast = (modeule: LogModule, message: string, ...data: any[]) => {
+  if (listeners.length === 0) return;
+
+  const args = data.map((d) => (typeof d === 'object' ? JSON.stringify(d) : String(d))).join(' ');
+
+  const timestamp = new Date().toLocaleTimeString().split(' ')[0];
+  const line = `${timestamp} [${modeule}] ${message} ${args}`;
+
+  listeners.forEach((listener) => listener(line));
+};
+
 const info = (module: LogModule, message: string, ...data: any[]) => {
   const colour = logColours[module] || logColours.reset;
   console.log(`${colour}[${module}] ${message}`, ...data, logColours.reset);
+  broadcast(module, message, ...data);
 };
 
 const error = (module: LogModule, message: string, ...data: any[]) => {
   const colour = logColours[module] || logColours.reset;
   console.error(`${colour}[${module}] ${message}`, ...data, logColours.reset);
+  broadcast(module, message, ...data);
 };
 
 const warn = (module: LogModule, message: string, ...data: any[]) => {
   const colour = logColours[module] || logColours.reset;
   console.warn(`${colour}[${module}] ${message}`, ...data, logColours.reset);
+  broadcast(module, message, ...data);
 };
 
 const debug = (module: LogModule, message: string, ...data: any[]) => {
   const colour = logColours[module] || logColours.reset;
   console.debug(`${colour}[${module}] ${message}`, ...data, logColours.reset);
+  broadcast(module, message, ...data);
 };
 
 export const createLogger = (module: LogModule) => ({

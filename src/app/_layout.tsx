@@ -7,7 +7,7 @@ import { initDatabaseWithMockData } from '@utils/database';
 import { JourneyService } from '@services/JourneyService';
 import { initBackgroundService } from '@services/BackgroundService';
 import { appHeaderOptions } from '@constants/navigation';
-import { BackgroundServiceProvider, ThemeProvider, useTheme } from '@hooks';
+import { BackgroundServiceProvider, DebugOverlayProvider, ThemeProvider, useTheme } from '@hooks';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -24,9 +24,11 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <BackgroundServiceProvider>
-          <SafeAreaProvider>
-            <ThemedRootStack />
-          </SafeAreaProvider>
+          <DebugOverlayProvider>
+            <SafeAreaProvider>
+              <ThemedRootStack />
+            </SafeAreaProvider>
+          </DebugOverlayProvider>
         </BackgroundServiceProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
