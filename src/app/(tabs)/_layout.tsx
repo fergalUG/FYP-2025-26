@@ -22,10 +22,9 @@ export default function Layout() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.onSurface,
         tabBarStyle: {
-          paddingBottom: 6,
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outline,
-          height: 65,
+          height: 80,
         },
         ...headerOptions,
         headerLeft: () => (

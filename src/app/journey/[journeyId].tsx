@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View, StyleSheet, ActivityIndicator, ScrollView, Text, TextInput } from 'react-native';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -8,6 +8,7 @@ import { useJourneyWithEvents, useTheme } from '@hooks';
 import { DrivingScoreWheel, JourneyMap, JourneyStats, AppButton } from '@components';
 
 export default function JourneyDetail() {
+  const router = useRouter();
   const { theme } = useTheme();
   const { journeyId } = useLocalSearchParams<{ journeyId: string }>();
   const { journey, events, journeyLoading, eventsLoading, journeyError, eventsError, updateJourney } = useJourneyWithEvents(
@@ -32,11 +33,18 @@ export default function JourneyDetail() {
 
     try {
       await updateJourney({ title: draftTitle });
-    } catch (error) {
+    } catch {
       setDraftTitle(journey.title || '');
     } finally {
       setIsEditingtitle(false);
     }
+  };
+
+  const handleMapPress = () => {
+    router.push({
+      pathname: '/journey/map',
+      params: { journeyId },
+    });
   };
 
   if (journeyLoading || eventsLoading) {
@@ -75,7 +83,7 @@ export default function JourneyDetail() {
 
   return (
     <>
-      <Stack.Screen options={{ title: journey.title || 'Journey Detail', contentStyle: styles.screen, headerBackVisible: true }} />
+      <Stack.Screen options={{ title: 'Journey Details', contentStyle: styles.screen, headerBackVisible: true }} />
       <ScrollView
         style={styles.screen}
         contentContainerStyle={styles.content}
@@ -138,7 +146,9 @@ export default function JourneyDetail() {
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Route Map</Text>
-          <JourneyMap events={events} height={260} />
+          <AppButton style={styles.mapButton} onPress={handleMapPress} variant="secondary">
+            <JourneyMap events={events} height={300} interactive={false} />
+          </AppButton>
         </View>
 
         <View style={styles.sectionCard}>
@@ -283,5 +293,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     },
     titleButton: {
       backgroundColor: 'transparent',
+    },
+    mapButton: {
+      padding: 0,
+      overflow: 'hidden',
+      borderWidth: 0,
     },
   });

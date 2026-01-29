@@ -1,22 +1,24 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useTheme } from '@hooks';
 import type { Event } from '@types';
 
 interface JourneyMapProps {
   events: Event[];
-  height?: number;
+  height?: number | string;
+  interactive?: boolean;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const JourneyMap = (props: JourneyMapProps) => {
   const { theme } = useTheme();
-  const { events, height = 300 } = props;
+  const { events, height = 300, interactive = true, style } = props;
   const styles = createStyles(theme);
 
   if (events.length === 0) {
     return (
-      <View style={[styles.container, { height }]}>
+      <View style={[styles.container, { height: typeof height === 'number' ? height : undefined }, style]}>
         <View style={styles.placeholderContainer}>
           <Text style={styles.placeholderText}>No route data available</Text>
         </View>
@@ -36,7 +38,7 @@ export const JourneyMap = (props: JourneyMapProps) => {
 
   if (routeCoordinates.length === 0) {
     return (
-      <View style={[styles.container, { height }]}>
+      <View style={[styles.container, { height: typeof height === 'number' ? height : undefined }, style]}>
         <View style={styles.placeholderContainer}>
           <Text style={styles.placeholderText}>No valid GPS coordinates</Text>
         </View>
@@ -65,8 +67,18 @@ export const JourneyMap = (props: JourneyMapProps) => {
   };
 
   return (
-    <View style={[styles.container, { height }]}>
-      <MapView style={styles.map} initialRegion={region} showsUserLocation={false} showsMyLocationButton={false} toolbarEnabled={false}>
+    <View style={[{ height }, styles.container, style]} pointerEvents={interactive ? 'auto' : 'none'}>
+      <MapView
+        style={styles.map}
+        initialRegion={region}
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        toolbarEnabled={false}
+        scrollEnabled={interactive}
+        zoomEnabled={interactive}
+        pitchEnabled={interactive}
+        rotateEnabled={interactive}
+      >
         {routeCoordinates.length > 1 && (
           <Polyline coordinates={routeCoordinates} strokeColor={theme.colors.primary} strokeWidth={4} lineCap="round" lineJoin="round" />
         )}
@@ -103,9 +115,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       borderRadius: theme.radius.lg,
       overflow: 'hidden',
       backgroundColor: theme.colors.surface,
+      width: '100%',
     },
     map: {
       flex: 1,
+      width: '100%',
+      height: '100%',
     },
     placeholderContainer: {
       flex: 1,
