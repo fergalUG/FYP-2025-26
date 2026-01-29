@@ -56,11 +56,21 @@ const ThemedRootStack = () => {
         <Stack.Screen
           name="journey/[journeyId]"
           options={{
-            presentation: 'modal',
+            presentation: 'card',
             title: 'Journey Details',
             headerShown: true,
             headerBackTitle: 'Back',
             headerBackVisible: true,
+            ...headerOptions,
+          }}
+        />
+        <Stack.Screen
+          name="journey/map"
+          options={{
+            title: 'Route Map',
+            presentation: 'card',
+            headerBackTitle: 'Details',
+            contentStyle: { backgroundColor: theme.colors.background },
             ...headerOptions,
           }}
         />
