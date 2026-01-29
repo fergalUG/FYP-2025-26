@@ -32,7 +32,7 @@ export const DebugOverlayProvider = ({ children }: { children: React.ReactNode }
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderMove: (_, gestureState) => {
-        let newHeight = lastHeight.current - gestureState.dy;
+        const newHeight = lastHeight.current - gestureState.dy;
 
         if (newHeight >= MIN_HEIGHT && newHeight <= MAX_HEIGHT) {
           overlayHeight.setValue(newHeight);
