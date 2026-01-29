@@ -1,22 +1,45 @@
 import { useLocalSearchParams } from 'expo-router';
-import { View, StyleSheet, ActivityIndicator, ScrollView, Text } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, ScrollView, Text, TextInput } from 'react-native';
 import { Stack } from 'expo-router';
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useJourneyWithEvents, useTheme } from '@hooks';
 
-import { DrivingScoreWheel, JourneyMap, JourneyStats } from '@components';
-import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
+import { DrivingScoreWheel, JourneyMap, JourneyStats, AppButton } from '@components';
 
 export default function JourneyDetail() {
   const { theme } = useTheme();
   const { journeyId } = useLocalSearchParams<{ journeyId: string }>();
-  const { journey, events, loading, error } = useJourneyWithEvents(Number(journeyId));
+  const { journey, events, journeyLoading, eventsLoading, journeyError, eventsError, updateJourney } = useJourneyWithEvents(
+    Number(journeyId)
+  );
   const styles = createStyles(theme);
 
-  const efficiency = useMemo(() => calculateEfficiencyScore(events), [events]);
+  const [isEditingtitle, setIsEditingtitle] = useState<boolean>(false);
+  const [draftTitle, setDraftTitle] = useState<string>('');
 
-  if (loading) {
+  useEffect(() => {
+    if (journey) {
+      setDraftTitle(journey.title || '');
+    }
+  }, [journey]);
+
+  const handleTitleSave = async () => {
+    if (!journey || draftTitle === journey.title) {
+      setIsEditingtitle(false);
+      return;
+    }
+
+    try {
+      await updateJourney({ title: draftTitle });
+    } catch (error) {
+      setDraftTitle(journey.title || '');
+    } finally {
+      setIsEditingtitle(false);
+    }
+  };
+
+  if (journeyLoading || eventsLoading) {
     return (
       <>
         <Stack.Screen options={{ title: 'Loading...' }} />
@@ -28,12 +51,12 @@ export default function JourneyDetail() {
     );
   }
 
-  if (error) {
+  if (journeyError || eventsError) {
     return (
       <>
         <Stack.Screen options={{ title: 'Error' }} />
         <View style={[styles.screen, styles.centerContent]}>
-          <Text style={styles.errorText}>Error: {error}</Text>
+          <Text style={styles.errorText}>Error: {journeyError}</Text>
         </View>
       </>
     );
@@ -58,11 +81,28 @@ export default function JourneyDetail() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         contentInsetAdjustmentBehavior="automatic"
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerCard}>
           <View style={styles.headerTop}>
             <View style={styles.headerText}>
-              <Text style={styles.journeyTitle}>{journey.title}</Text>
+              {isEditingtitle ? (
+                <TextInput
+                  style={[styles.journeyTitle, styles.journeyTitleInput]}
+                  value={draftTitle}
+                  onChangeText={setDraftTitle}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleTitleSave}
+                  onBlur={handleTitleSave}
+                  multiline={false}
+                />
+              ) : (
+                <AppButton style={styles.titleButton} onPress={() => setIsEditingtitle(true)}>
+                  <Text style={styles.journeyTitle}>{journey.title || 'Untitled Journey'}</Text>
+                </AppButton>
+              )}
               <Text style={styles.journeyDate}>
                 {new Date(journey.date).toLocaleDateString() +
                   ', ' +
@@ -87,12 +127,13 @@ export default function JourneyDetail() {
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Driving Efficiency</Text>
           <View style={styles.scoreWheelContainer}>
-            <DrivingScoreWheel score={journey.score ?? efficiency.stats.score} size={200} />
+            <DrivingScoreWheel score={journey.score ?? journey.stats?.score ?? 0} size={200} />
           </View>
-          <Text style={styles.scoreMeta}>
-            Avg {efficiency.stats.avgScore.toFixed(1)} • Min {Math.round(efficiency.stats.minScore)} • End{' '}
-            {Math.round(efficiency.stats.endScore)}
-          </Text>
+          {journey.stats && (
+            <Text style={styles.scoreMeta}>
+              Avg {journey.stats.avgScore.toFixed(1)} • Min {Math.round(journey.stats.minScore)} • End {Math.round(journey.stats.endScore)}
+            </Text>
+          )}
         </View>
 
         <View style={styles.sectionCard}>
@@ -233,5 +274,14 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontSize: 16,
       color: theme.colors.error,
       textAlign: 'center',
+    },
+    journeyTitleInput: {
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.primary,
+      paddingVertical: 0,
+      color: theme.colors.primary,
+    },
+    titleButton: {
+      backgroundColor: 'transparent',
     },
   });

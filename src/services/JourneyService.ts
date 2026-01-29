@@ -93,6 +93,20 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     }
   };
 
+  const updateJourney = async (
+    id: number,
+    updates: Partial<typeof journeys.$inferSelect>
+  ): Promise<typeof journeys.$inferSelect | undefined> => {
+    try {
+      const result = await db.update(journeys).set(updates).where(eq(journeys.id, id)).returning();
+
+      return result[0];
+    } catch (error) {
+      logger.error('JourneyService', 'Failed to update journey', error);
+      throw error;
+    }
+  };
+
   const updateJourneyTitle = async (journeyId: number, title: string): Promise<boolean> => {
     try {
       await db.update(journeys).set({ title }).where(eq(journeys.id, journeyId));
@@ -210,6 +224,7 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     getCurrentJourneyId,
     startJourney,
     endJourney,
+    updateJourney,
     updateJourneyTitle,
     logEvent,
     getJourneyById,

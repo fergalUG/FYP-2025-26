@@ -28,6 +28,7 @@ export interface JourneyServiceController {
   getCurrentJourneyId: () => number | null;
   startJourney: () => Promise<void>;
   endJourney: (finalScore: number, distanceKm?: number, stats?: ScoringStats | null) => Promise<void>;
+  updateJourney: (id: number, updates: Partial<Journey>) => Promise<Journey | undefined>;
   updateJourneyTitle: (journeyId: number, title: string) => Promise<boolean>;
   logEvent: (type: EventType, latitude: number, longitude: number, speed: number) => Promise<void>;
   getJourneyById: (id: number) => Promise<Journey | null>;

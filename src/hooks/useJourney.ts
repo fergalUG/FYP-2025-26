@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Journey, Event } from '@types';
 import { JourneyService } from '@services/JourneyService';
 import { executeWithLoading } from '@utils/async';
+import { createLogger, LogModule } from '@utils/logger';
+
+const logger = createLogger(LogModule.Hooks);
 
 export const useJourney = (id: number) => {
   const [journey, setJourney] = useState<Journey | null>(null);
@@ -24,53 +27,73 @@ export const useJourney = (id: number) => {
     fetchJourney();
   }, [fetchJourney]);
 
+  const updateJourney = async (updates: Partial<Journey>) => {
+    try {
+      const updatedJourney = await JourneyService.updateJourney(id, updates);
+      if (!updatedJourney) {
+        logger.warn('useJourney', `No journey found with id ${id} to update`);
+        return null;
+      }
+      setJourney(updatedJourney);
+      return updatedJourney;
+    } catch (err) {
+      logger.error('useJourney', 'Failed to update journey', err);
+      return null;
+    }
+  };
+
   return {
     journey,
     loading,
     error,
     refetch: fetchJourney,
+    updateJourney: updateJourney,
   };
 };
 
-export const useJourneyWithEvents = (id: number) => {
-  const [journey, setJourney] = useState<Journey | null>(null);
+export const useJourneyEvents = (journeyId: number) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchJourneyWithEvents = useCallback(async () => {
-    if (!id) {
-      setJourney(null);
+  const fetchEvents = useCallback(async () => {
+    if (!journeyId) {
       setEvents([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    const result = await executeWithLoading(() => JourneyService.getEventsByJourneyId(journeyId), setLoading, setError);
 
-    try {
-      const [journeyResult, eventsResult] = await Promise.all([JourneyService.getJourneyById(id), JourneyService.getEventsByJourneyId(id)]);
-
-      setJourney(journeyResult || null);
-      setEvents(eventsResult || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+    setEvents(result || []);
+  }, [journeyId]);
 
   useEffect(() => {
-    fetchJourneyWithEvents();
-  }, [fetchJourneyWithEvents]);
+    fetchEvents();
+  }, [fetchEvents]);
+
+  return {
+    events,
+    loading,
+    error,
+    refetch: fetchEvents,
+  };
+};
+
+export const useJourneyWithEvents = (id: number) => {
+  const { journey, loading: journeyLoading, error: journeyError, refetch: refetchJourney, updateJourney } = useJourney(id);
+  const { events, loading: eventsLoading, error: eventsError, refetch: refetchEvents } = useJourneyEvents(id);
 
   return {
     journey,
     events,
-    loading,
-    error,
-    refetch: fetchJourneyWithEvents,
+    journeyLoading,
+    eventsLoading,
+    journeyError,
+    eventsError,
+    refetchJourney,
+    refetchEvents,
+    updateJourney,
   };
 };
 
