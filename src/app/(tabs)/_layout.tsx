@@ -22,9 +22,10 @@ export default function Layout() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.onSurface,
         tabBarStyle: {
+          paddingBottom: 6,
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.outline,
-          height: 80,
+          height: 65,
         },
         ...headerOptions,
         headerLeft: () => (
@@ -62,7 +63,7 @@ export default function Layout() {
 
 const styles = StyleSheet.create({
   headerLeft: {
-    marginLeft: 10,
+    marginLeft: 12,
   },
   headerRight: {
     marginRight: 12,

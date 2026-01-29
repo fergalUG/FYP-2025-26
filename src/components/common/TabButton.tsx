@@ -3,7 +3,7 @@ import { useRef } from 'react';
 import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 
 export const TabButton = (props: BottomTabBarButtonProps) => {
-  const { children, onPress, onLongPress } = props;
+  const { children, onPress, onLongPress, style } = props;
   const animatedScale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -22,8 +22,16 @@ export const TabButton = (props: BottomTabBarButtonProps) => {
   };
 
   return (
-    <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={handlePressIn} onPressOut={handlePressOut} style={styles.container}>
-      <Animated.View style={{ transform: [{ scale: animatedScale }] }}>{children}</Animated.View>
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[style, styles.container]}
+    >
+      <Animated.View style={{ transform: [{ scale: animatedScale }], alignItems: 'center', justifyContent: 'center' }}>
+        {children}
+      </Animated.View>
     </Pressable>
   );
 };
