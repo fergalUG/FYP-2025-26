@@ -1,0 +1,59 @@
+export interface GpsConfig {
+  // Speed validation thresholds (in m/s)
+  MIN_VALID_SPEED: number;
+  MAX_VALID_SPEED: number;
+
+  // Accuracy thresholds (in meters)
+  MIN_ACCURACY: number;
+  MAX_ACCURACY: number;
+
+  // Speed buffer
+  SPEED_BUFFER_SIZE: number;
+  MAX_CONSECUTIVE_INVALID_SPEEDS: number;
+
+  // Mode switching thresholds (in m/s)
+  ACTIVE_SPEED_THRESHOLD: number;
+  PASSIVE_SPEED_THRESHOLD: number;
+  PASSIVE_TIMEOUT_MS: number;
+}
+
+export const DEFAULT_GPS_CONFIG: GpsConfig = {
+  MIN_VALID_SPEED: 0.5, // 1.8 km/h
+  MAX_VALID_SPEED: 90, // 324 km/h
+
+  MIN_ACCURACY: 5,
+  MAX_ACCURACY: 50,
+
+  SPEED_BUFFER_SIZE: 5,
+  MAX_CONSECUTIVE_INVALID_SPEEDS: 3,
+
+  ACTIVE_SPEED_THRESHOLD: 4.16667, // 15 km/h
+  PASSIVE_SPEED_THRESHOLD: 2.77778, // 10 km/h
+  PASSIVE_TIMEOUT_MS: 120000, // 2 minutes
+};
+
+export const STRICT_GPS_CONFIG: GpsConfig = {
+  ...DEFAULT_GPS_CONFIG,
+  MIN_ACCURACY: 3,
+  MAX_ACCURACY: 30,
+  MAX_CONSECUTIVE_INVALID_SPEEDS: 2,
+};
+
+export const LENIENT_GPS_CONFIG: GpsConfig = {
+  ...DEFAULT_GPS_CONFIG,
+  MIN_ACCURACY: 10,
+  MAX_ACCURACY: 100,
+  MAX_CONSECUTIVE_INVALID_SPEEDS: 5,
+};
+
+export const {
+  MIN_VALID_SPEED,
+  MAX_VALID_SPEED,
+  MIN_ACCURACY,
+  MAX_ACCURACY,
+  SPEED_BUFFER_SIZE,
+  MAX_CONSECUTIVE_INVALID_SPEEDS,
+  ACTIVE_SPEED_THRESHOLD,
+  PASSIVE_SPEED_THRESHOLD,
+  PASSIVE_TIMEOUT_MS,
+} = DEFAULT_GPS_CONFIG;

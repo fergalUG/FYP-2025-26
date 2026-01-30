@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { AppButton } from '@components';
+import { AppButton } from '@/components/common/AppButton';
 import type { PermissionState } from '@types';
 import { useTheme } from '@hooks';
 

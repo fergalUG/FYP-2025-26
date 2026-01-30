@@ -14,12 +14,33 @@ import {
 import { JourneyService } from '@services/JourneyService';
 import { EfficiencyService } from '@services/EfficiencyService';
 import { createLogger, LogModule } from '@utils/logger';
+import {
+  calculateDistanceKm,
+  calculateSpeedFromLocations,
+  convertMsToKmh,
+  type GpsValidationOptions,
+  validateGpsSpeed,
+} from '@utils/gpsValidation';
+import {
+  ACTIVE_SPEED_THRESHOLD,
+  MAX_ACCURACY,
+  MAX_CONSECUTIVE_INVALID_SPEEDS,
+  MAX_VALID_SPEED,
+  MIN_ACCURACY,
+  MIN_VALID_SPEED,
+  PASSIVE_SPEED_THRESHOLD,
+  PASSIVE_TIMEOUT_MS,
+  SPEED_BUFFER_SIZE,
+} from '@constants/gpsConfig';
 
 const BACKGROUND_LOCATION_TASK: string = 'BACKGROUND-LOCATION-TASK';
 
-const ACTIVE_SPEED_THRESHOLD: number = 4.16667; // 15 km/h in m/s
-const PASSIVE_SPEED_THRESHOLD: number = 2.77778; // 10 km/h in m/s
-const PASSIVE_TIMEOUT_MS: number = 120000; // 2 minutes before switching to passive
+const DEFAULT_GPS_OPTIONS: GpsValidationOptions = {
+  minValidSpeed: MIN_VALID_SPEED,
+  maxValidSpeed: MAX_VALID_SPEED,
+  minAccuracy: MIN_ACCURACY,
+  maxAccuracy: MAX_ACCURACY,
+};
 
 const logger = createLogger(LogModule.BackgroundService);
 
@@ -30,20 +51,6 @@ const formatPlaceLabel = (place: Location.LocationGeocodedAddress | null): strin
   const label = place.name || place.street || place.city || place.region || place.country;
   return label || 'Unknown location';
 };
-
-const toRad = (degrees: number): number => degrees * (Math.PI / 180);
-
-const calculateDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
-const convertMsToKmh = (speedMs: number): number => speedMs * 3.6;
 
 //declare this outside the controller so startLocationTracking can use it to not crash
 const getLocationPermissions = async () => {
@@ -74,6 +81,9 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     totalDistance: 0,
     lastLocation: null,
     startLocationLabel: null,
+    lastValidSpeed: 0,
+    consecutiveInvalidSpeeds: 0,
+    speedBuffer: [],
   };
 
   let lowSpeedTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -126,6 +136,9 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     state.lastLocation = null;
     state.lowSpeedStartTime = null;
     state.startLocationLabel = null;
+    state.lastValidSpeed = 0;
+    state.consecutiveInvalidSpeeds = 0;
+    state.speedBuffer = [];
 
     await deps.JourneyService.startJourney();
     state.currentJourneyId = deps.JourneyService.getCurrentJourneyId();
@@ -168,21 +181,60 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
   const processActiveLocation = async (location: Location.LocationObject): Promise<void> => {
     const { latitude, longitude, speed, accuracy } = location.coords;
 
-    if (accuracy && accuracy > 50) {
-      deps.logger.info(`Poor accuracy (${accuracy}m), skipping location.`);
+    const validatedSpeed = validateGpsSpeed(speed, accuracy, DEFAULT_GPS_OPTIONS);
+
+    if (!validatedSpeed.isValid) {
+      state.consecutiveInvalidSpeeds++;
+      deps.logger.debug(`Invalid GPS speed: ${validatedSpeed.reason}`, {
+        speed,
+        accuracy,
+        consecutiveInvalid: state.consecutiveInvalidSpeeds,
+      });
+
+      if (state.consecutiveInvalidSpeeds >= MAX_CONSECUTIVE_INVALID_SPEEDS && state.lastLocation) {
+        const calculatedSpeed = calculateSpeedFromLocations(state.lastLocation, location);
+        const calculatedValidated = validateGpsSpeed(calculatedSpeed, accuracy, DEFAULT_GPS_OPTIONS);
+
+        if (calculatedValidated.isValid) {
+          state.speedBuffer.push(calculatedValidated.value);
+          if (state.speedBuffer.length > SPEED_BUFFER_SIZE) {
+            state.speedBuffer.shift();
+          }
+          state.lastValidSpeed = calculatedValidated.value;
+          deps.logger.debug(`Using calculated speed fallback`, {
+            calculatedSpeed: calculatedValidated.value,
+          });
+        }
+      }
+
+      state.lastLocation = location;
       return;
     }
 
-    if (state.lastLocation) {
+    state.consecutiveInvalidSpeeds = 0;
+
+    state.speedBuffer.push(validatedSpeed.value);
+    if (state.speedBuffer.length > SPEED_BUFFER_SIZE) {
+      state.speedBuffer.shift();
+    }
+
+    const sortedSpeeds = [...state.speedBuffer].sort((a, b) => a - b);
+    const medianSpeed = sortedSpeeds[Math.floor(sortedSpeeds.length / 2)];
+    state.lastValidSpeed = medianSpeed;
+
+    if (state.lastLocation && validatedSpeed.confidence !== 'low') {
       const distance = calculateDistanceKm(state.lastLocation.coords.latitude, state.lastLocation.coords.longitude, latitude, longitude);
       state.totalDistance += distance;
     }
 
-    const speedKmh = convertMsToKmh(speed ?? 0);
+    const speedKmh = convertMsToKmh(medianSpeed);
     await deps.JourneyService.logEvent(EventType.LocationUpdate, latitude, longitude, speedKmh);
 
-    if (state.currentJourneyId) {
-      await deps.EfficiencyService.processLocation(location);
+    if (state.currentJourneyId && validatedSpeed.confidence !== 'low') {
+      await deps.EfficiencyService.processLocation({
+        ...location,
+        coords: { ...location.coords, speed: medianSpeed },
+      });
     }
 
     state.lastLocation = location;
@@ -225,6 +277,9 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     state.lastLocation = null;
     state.startLocationLabel = null;
     state.lowSpeedStartTime = null;
+    state.lastValidSpeed = 0;
+    state.consecutiveInvalidSpeeds = 0;
+    state.speedBuffer = [];
 
     if (lowSpeedTimeout) {
       clearTimeout(lowSpeedTimeout);
@@ -276,58 +331,64 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     }
 
     const latestLocation = data.locations[data.locations.length - 1];
-    const speed: number | null = latestLocation.coords.speed;
-    const speedKmh = convertMsToKmh(speed ?? 0);
+    const { speed, accuracy } = latestLocation.coords;
 
-    deps.logger.info(`Location received. Speed: ${speed?.toFixed(3)} m/s (${speedKmh.toFixed(3)} km/h). Current Mode: ${state.mode}`);
+    const validatedSpeed = validateGpsSpeed(speed, accuracy, DEFAULT_GPS_OPTIONS);
+    const speedKmh = convertMsToKmh(validatedSpeed.value);
+
+    deps.logger.info(
+      `Location received. Speed: ${speed?.toFixed(3)} m/s (${speedKmh.toFixed(3)} km/h) [${validatedSpeed.confidence}]. Current Mode: ${state.mode}`
+    );
 
     if (state.mode === 'ACTIVE' && state.currentJourneyId !== null) {
       await processActiveLocation(latestLocation);
     }
 
-    if (speed != null && speed >= ACTIVE_SPEED_THRESHOLD && state.mode === 'PASSIVE') {
-      deps.logger.info('Speed > 15km/h; Switching to ACTIVE tracking mode.');
+    if (state.mode === 'PASSIVE' && validatedSpeed.isValid && validatedSpeed.value >= ACTIVE_SPEED_THRESHOLD) {
+      deps.logger.info(`Speed > 15km/h (valid: ${speedKmh.toFixed(1)} km/h); Switching to ACTIVE tracking mode.`);
       await startActiveTracking();
       return;
     }
 
-    if ((speed == null || speed < PASSIVE_SPEED_THRESHOLD) && state.mode === 'ACTIVE') {
-      if (state.lowSpeedStartTime === null) {
-        state.lowSpeedStartTime = deps.now();
-        deps.logger.info('Low speed detected, starting timeout...');
+    if (state.mode === 'ACTIVE') {
+      if (!validatedSpeed.isValid || validatedSpeed.value < PASSIVE_SPEED_THRESHOLD) {
+        if (state.lowSpeedStartTime === null) {
+          state.lowSpeedStartTime = deps.now();
+          deps.logger.info(`Low speed or invalid speed detected (${validatedSpeed.reason}), starting timeout...`);
 
-        if (lowSpeedTimeout) clearTimeout(lowSpeedTimeout);
-        lowSpeedTimeout = setTimeout(async () => {
-          deps.logger.info('Low speed timeout triggered via timer.');
-          if (state.mode === 'ACTIVE' && state.lowSpeedStartTime !== null) {
-            const currentElapsedTime = deps.now() - state.lowSpeedStartTime;
-            if (currentElapsedTime >= PASSIVE_TIMEOUT_MS) {
-              await endActiveTracking();
+          if (lowSpeedTimeout) clearTimeout(lowSpeedTimeout);
+          lowSpeedTimeout = setTimeout(async () => {
+            deps.logger.info('Low speed timeout triggered via timer.');
+            if (state.mode === 'ACTIVE' && state.lowSpeedStartTime !== null) {
+              const currentElapsedTime = deps.now() - state.lowSpeedStartTime;
+              if (currentElapsedTime >= PASSIVE_TIMEOUT_MS) {
+                await endActiveTracking();
+              }
             }
-          }
-        }, PASSIVE_TIMEOUT_MS);
+          }, PASSIVE_TIMEOUT_MS);
 
+          return;
+        }
+
+        const elapsedTime = deps.now() - state.lowSpeedStartTime;
+        if (elapsedTime >= PASSIVE_TIMEOUT_MS) {
+          deps.logger.info('Speed < 10km/h for 2 minutes; Switching to PASSIVE tracking mode.');
+          await endActiveTracking();
+        } else {
+          const secondsLeft = Math.ceil((PASSIVE_TIMEOUT_MS - elapsedTime) / 1000);
+          deps.logger.info(`Low speed ongoing, ${secondsLeft} seconds left before switching to PASSIVE mode.`);
+        }
         return;
       }
 
-      const elapsedTime = deps.now() - state.lowSpeedStartTime;
-      if (elapsedTime >= PASSIVE_TIMEOUT_MS) {
-        deps.logger.info('Speed < 5km/h for 2 minutes; Switching to PASSIVE tracking mode.');
-        await endActiveTracking();
-      } else {
-        const secondsLeft = Math.ceil((PASSIVE_TIMEOUT_MS - elapsedTime) / 1000);
-        deps.logger.info(`Low speed ongoing, ${secondsLeft} seconds left before switching to PASSIVE mode.`);
+      if (validatedSpeed.isValid && validatedSpeed.value >= PASSIVE_SPEED_THRESHOLD && state.lowSpeedStartTime !== null) {
+        state.lowSpeedStartTime = null;
+        if (lowSpeedTimeout) {
+          clearTimeout(lowSpeedTimeout);
+          lowSpeedTimeout = null;
+        }
+        deps.logger.info('Speed increased, timeout cancelled.');
       }
-      return;
-    }
-
-    if (speed != null && speed >= PASSIVE_SPEED_THRESHOLD && state.lowSpeedStartTime !== null) {
-      state.lowSpeedStartTime = null;
-      if (lowSpeedTimeout) {
-        clearTimeout(lowSpeedTimeout);
-        lowSpeedTimeout = null;
-      }
-      deps.logger.info('Speed increased, timeout cancelled.');
     }
   };
 

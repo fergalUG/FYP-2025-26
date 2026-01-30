@@ -19,6 +19,9 @@ export interface TrackingState {
   totalDistance: number;
   lastLocation: Location.LocationObject | null;
   startLocationLabel: string | null;
+  lastValidSpeed: number;
+  consecutiveInvalidSpeeds: number;
+  speedBuffer: number[];
 }
 
 export interface BackgroundServiceDeps {
