@@ -2,11 +2,13 @@ import type * as Location from 'expo-location';
 
 import { createLogger, LogModule } from '@utils/logger';
 import { DEFAULT_GPS_CONFIG } from '@constants/gpsConfig';
-import { MAX_DISTANCE_DEVIATION_METERS } from '@constants/tracking';
+import { MAX_DISTANCE_DEVIATION_METERS, MIN_TIME_DELTA_FOR_SPEED_CALC_MS } from '@constants/tracking';
 
 import type { DistanceValidationResult } from '@/types/tracking';
 
-const logger = createLogger(LogModule.EfficiencyService);
+const logger = createLogger(LogModule.GpsValidation);
+
+const EARTH_RADIUS_KM = 6371;
 
 export type SpeedConfidence = 'high' | 'medium' | 'low' | 'none';
 export type SpeedSource = 'gps' | 'calculated' | 'none';
@@ -36,13 +38,12 @@ const DEFAULT_VALIDATION_OPTIONS: Required<GpsValidationOptions> = {
 const toRad = (degrees: number): number => degrees * (Math.PI / 180);
 
 export const calculateDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return EARTH_RADIUS_KM * c;
 };
 
 export const validateGpsSpeed = (
@@ -133,7 +134,7 @@ export const calculateSpeedFromLocations = (prevLocation: Location.LocationObjec
 
   const timeDeltaMs = currentLocation.timestamp - prevLocation.timestamp;
 
-  if (timeDeltaMs < 500) {
+  if (timeDeltaMs < MIN_TIME_DELTA_FOR_SPEED_CALC_MS) {
     logger.debug('Time delta too small for speed calculation', { timeDeltaMs });
     return 0;
   }

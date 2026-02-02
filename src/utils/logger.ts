@@ -8,6 +8,7 @@ const logColours = {
   themeService: '\x1b[34m', // Blue (#0000FF)
   settingsService: '\x1b[91m', // Light Red (#FF6347)
   db: '\x1b[37m', // White (#FFFFFF)
+  gpsValidation: '\x1b[31m', // Red (#FF0000)
   reset: '\x1b[0m', // Reset
 };
 
@@ -21,6 +22,7 @@ export const enum LogModule {
   ThemeService = 'themeService',
   SettingsService = 'settingsService',
   DB = 'db',
+  GpsValidation = 'gpsValidation',
 }
 
 //UI LOGGING FUNCTIONS

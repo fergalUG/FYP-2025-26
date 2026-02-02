@@ -188,6 +188,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
     if (!started) {
       deps.logger.error('Failed to start passive tracking after retries.');
+      state.mode = previousMode;
       emitStateChange();
       return false;
     }

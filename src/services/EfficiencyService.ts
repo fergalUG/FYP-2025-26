@@ -41,6 +41,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let highForceStartTime: number | null = null;
   let headingHistory: Array<{ heading: number; timestamp: number }> = [];
   let motionDataBuffer: MotionData[] = [];
+  let motionDataBufferSum = 0;
 
   const checkSpeeding = async (latitude: number, longitude: number, speedKmh: number): Promise<void> => {
     let eventType: EventType | null = null;
@@ -115,10 +116,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return;
     }
 
-    const avgHorizontalForce =
-      motionDataBuffer.length > 0
-        ? motionDataBuffer.reduce((sum, d) => sum + d.horizontalMagnitude, 0) / motionDataBuffer.length
-        : data.horizontalMagnitude;
+    const avgHorizontalForce = motionDataBuffer.length > 0 ? motionDataBufferSum / motionDataBuffer.length : data.horizontalMagnitude;
 
     if (avgHorizontalForce >= HARSH_CORNERING_THRESHOLD) {
       if (highForceStartTime === null) {
@@ -174,8 +172,13 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     motionDataBuffer.push(data);
+    motionDataBufferSum += data.horizontalMagnitude;
+
     if (motionDataBuffer.length > MOTION_BUFFER_SIZE) {
-      motionDataBuffer.shift();
+      const removed = motionDataBuffer.shift();
+      if (removed) {
+        motionDataBufferSum -= removed.horizontalMagnitude;
+      }
     }
 
     const validatedSpeed = validateGpsSpeed(lastLocation.coords.speed, lastLocation.coords.accuracy);
@@ -202,6 +205,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     highForceStartTime = null;
     headingHistory = [];
     motionDataBuffer = [];
+    motionDataBufferSum = 0;
 
     deps.VehicleMotion.startTracking();
     deps.VehicleMotion.addListener('onMotionUpdate', handleMotionUpdate);
@@ -221,6 +225,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     highForceStartTime = null;
     headingHistory = [];
     motionDataBuffer = [];
+    motionDataBufferSum = 0;
 
     deps.VehicleMotion.removeAllListeners('onMotionUpdate');
     deps.VehicleMotion.stopTracking();
