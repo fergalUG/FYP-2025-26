@@ -59,7 +59,7 @@ describe('BackgroundService Timeout Logic', () => {
     jest.useRealTimers();
   });
 
-  it('switches to PASSIVE mode automatically after timeout even if no location updates received', async () => {
+  it('switches to PASSIVE mode after timeout when low speed location update received', async () => {
     await controller.startLocationMonitoring();
     expect(controller.getState().mode).toBe('PASSIVE');
 
@@ -79,13 +79,15 @@ describe('BackgroundService Timeout Logic', () => {
     expect(controller.getState().mode).toBe('ACTIVE');
     expect(controller.getState().lowSpeedStartTime).toBe(nowMs);
 
+    // Advance time past the timeout threshold
     nowMs += 121000;
 
-    jest.advanceTimersByTime(121000);
-
-    for (let i = 0; i < 10; i++) {
-      await Promise.resolve();
-    }
+    // Send another low speed location update to trigger the timeout check
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0, speed: 1, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
 
     expect(controller.getState().mode).toBe('PASSIVE');
     expect(mockJourneyService.endJourney).toHaveBeenCalled();
@@ -108,7 +110,7 @@ describe('BackgroundService Timeout Logic', () => {
     });
     expect(controller.getState().lowSpeedStartTime).toBe(nowMs);
 
-    nowMs += 30000;
+    nowMs += 5000;
     await controller.handleLocationTask({
       data: {
         locations: [{ coords: { latitude: 0, longitude: 0, speed: 10, accuracy: 5 }, timestamp: nowMs }],

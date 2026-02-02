@@ -22,6 +22,8 @@ export interface TrackingState {
   lastValidSpeed: number;
   consecutiveInvalidSpeeds: number;
   speedBuffer: number[];
+  isTransitioning: boolean;
+  lastStateChange: number;
 }
 
 export interface BackgroundServiceDeps {

@@ -2,6 +2,9 @@ import type * as Location from 'expo-location';
 
 import { createLogger, LogModule } from '@utils/logger';
 import { DEFAULT_GPS_CONFIG } from '@constants/gpsConfig';
+import { MAX_DISTANCE_DEVIATION_METERS } from '@constants/tracking';
+
+import type { DistanceValidationResult } from '@/types/tracking';
 
 const logger = createLogger(LogModule.EfficiencyService);
 
@@ -146,6 +149,46 @@ export const calculateSpeedFromLocations = (prevLocation: Location.LocationObjec
   });
 
   return speedMs;
+};
+
+export const validateDistanceCalculation = (
+  calculatedDistanceKm: number,
+  speedMs: number,
+  timeDeltaSeconds: number,
+  accuracy: number | null | undefined
+): DistanceValidationResult => {
+  if (timeDeltaSeconds <= 0) {
+    return {
+      isValid: false,
+      reason: 'Non-positive time delta',
+      adjustedDistanceKm: 0,
+    };
+  }
+
+  if (accuracy !== null && accuracy !== undefined && accuracy > DEFAULT_GPS_CONFIG.MAX_ACCURACY) {
+    return {
+      isValid: false,
+      reason: `Accuracy too low for distance (${accuracy}m)`,
+      adjustedDistanceKm: 0,
+    };
+  }
+
+  const expectedDistanceMeters = speedMs * timeDeltaSeconds;
+  const calculatedDistanceMeters = calculatedDistanceKm * 1000;
+  const deviationMeters = Math.abs(calculatedDistanceMeters - expectedDistanceMeters);
+
+  if (deviationMeters > MAX_DISTANCE_DEVIATION_METERS) {
+    return {
+      isValid: false,
+      reason: `Distance deviation too large (${Math.round(deviationMeters)}m)`,
+      adjustedDistanceKm: 0,
+    };
+  }
+
+  return {
+    isValid: true,
+    adjustedDistanceKm: calculatedDistanceKm,
+  };
 };
 
 export const convertMsToKmh = (speedMs: number): number => speedMs * 3.6;
