@@ -1,0 +1,11 @@
+export const MAX_ACCELERATION_MS2 = 15;
+export const MAX_DECELERATION_MS2 = -20;
+export const MAX_DISTANCE_DEVIATION_METERS = 500;
+export const MIN_TIME_DELTA_FOR_SPEED_CALC_MS = 500;
+
+export const GPS_DROPOUT_START_MS = 10000;
+export const MAX_GPS_DROPOUT_DURATION_MS = 300000;
+
+export const RETRY_MAX_ATTEMPTS = 3;
+export const RETRY_BASE_DELAY_MS = 1000;
+export const RETRY_MAX_DELAY_MS = 4000;

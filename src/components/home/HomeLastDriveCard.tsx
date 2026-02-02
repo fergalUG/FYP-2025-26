@@ -4,7 +4,9 @@ import type { Journey } from '@types';
 
 import { useTheme } from '@hooks';
 import { getScoreColor } from '@utils/score';
-import { IconChip, ScoreBadge, AppButton } from '@components';
+import { AppButton } from '@components/common/AppButton';
+import { IconChip } from '@components/common/IconChip';
+import { ScoreBadge } from '@components/common/ScoreBadge';
 
 interface HomeLastDriveCardProps {
   lastJourney: Journey | null;

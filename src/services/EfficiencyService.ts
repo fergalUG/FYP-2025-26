@@ -7,6 +7,7 @@ import { EventType, type EfficiencyServiceController, type EfficiencyServiceDeps
 import { JourneyService } from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
 import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
+import { convertMsToKmh, validateGpsSpeed } from '@utils/gpsValidation';
 
 const logger = createLogger(LogModule.EfficiencyService);
 
@@ -20,24 +21,27 @@ const HARD_BRAKE_SPEED_CHANGE = -18; // km/h/s - rapid deceleration
 const HARD_ACCELERATION_FORCE_THRESHOLD = 0.28; // g-force threshold for harsh acceleration
 const HARD_ACCELERATION_SPEED_CHANGE = 12; // km/h/s - rapid acceleration
 
-const HARSH_CORNERING_THRESHOLD = 0.4; // g-force threshold for lateral acceleration
+const HARSH_CORNERING_THRESHOLD = 0.55; // g-force threshold for lateral acceleration
 const MIN_SPEED_FOR_EVENTS = 10; // km/h
-const MIN_HEADING_CHANGE_FOR_CORNER = 15; // degrees - minimum heading change to confirm a turn
+const MIN_HEADING_CHANGE_FOR_CORNER = 25; // degrees - minimum heading change to confirm a turn
 const MIN_SPEED_FOR_HEADING = 15; // km/h - minimum speed for reliable GPS heading
 const HEADING_LOOKBACK_TIME = 2000; // ms - look back this far for heading changes
+const CORNERING_EVENT_COOLDOWN_MS = 5000; // ms - prevent multiple events for the same turn
+const SUSTAINED_FORCE_DURATION_MS = 500; // ms - force must be sustained for this long
 
-const MOTION_BUFFER_SIZE = 10;
+const MOTION_BUFFER_SIZE = 25; // 500ms at 50Hz polling rate on sensors
 const HEADING_HISTORY_SIZE = 5;
-
-const convertMsToKmh = (speedMs: number): number => speedMs * 3.6;
 
 export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): EfficiencyServiceController => {
   let isTracking = false;
   let lastLocation: Location.LocationObject | null = null;
   let lastSpeedKmh = 0;
   let lastSpeedUpdateTime = 0;
+  let lastCornerEventTime = 0;
+  let highForceStartTime: number | null = null;
   let headingHistory: Array<{ heading: number; timestamp: number }> = [];
   let motionDataBuffer: MotionData[] = [];
+  let motionDataBufferSum = 0;
 
   const checkSpeeding = async (latitude: number, longitude: number, speedKmh: number): Promise<void> => {
     let eventType: EventType | null = null;
@@ -106,13 +110,29 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   };
 
   const checkHarshCornering = async (data: MotionData, location: Location.LocationObject, speedKmh: number): Promise<void> => {
-    const horizontalForce = data.horizontalMagnitude;
+    const currentTime = deps.now();
 
-    if (horizontalForce < HARSH_CORNERING_THRESHOLD) {
+    if (currentTime - lastCornerEventTime < CORNERING_EVENT_COOLDOWN_MS) {
       return;
     }
 
-    const currentTime = deps.now();
+    const avgHorizontalForce = motionDataBuffer.length > 0 ? motionDataBufferSum / motionDataBuffer.length : data.horizontalMagnitude;
+
+    if (avgHorizontalForce >= HARSH_CORNERING_THRESHOLD) {
+      if (highForceStartTime === null) {
+        highForceStartTime = currentTime;
+        return;
+      }
+
+      const duration = currentTime - highForceStartTime;
+      if (duration < SUSTAINED_FORCE_DURATION_MS) {
+        return;
+      }
+    } else {
+      highForceStartTime = null;
+      return;
+    }
+
     const timeDeltaSeconds = (currentTime - lastSpeedUpdateTime) / 1000;
 
     if (timeDeltaSeconds >= 0.1) {
@@ -127,23 +147,22 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       const headingChange = calculateMaxHeadingChange(currentTime);
       if (headingChange < MIN_HEADING_CHANGE_FOR_CORNER) {
         deps.logger.info(
-          `Filtered harsh_cornering: ${horizontalForce.toFixed(2)}g force but only ${headingChange.toFixed(1)}° heading change`
+          `Filtered harsh_cornering: Sustained force (${avgHorizontalForce.toFixed(2)}g) but only ${headingChange.toFixed(
+            1
+          )}° heading change`
         );
         return;
       }
 
+      lastCornerEventTime = currentTime;
+      highForceStartTime = null;
       await deps.JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
       deps.logger.info(
-        `harsh_cornering detected: ${horizontalForce.toFixed(2)}g force, ${headingChange.toFixed(1)}° turn, speed: ${speedKmh.toFixed(1)} km/h`
+        `harsh_cornering detected: ${avgHorizontalForce.toFixed(2)}g sustained force, ${headingChange.toFixed(
+          1
+        )}° turn, speed: ${speedKmh.toFixed(1)} km/h`
       );
       return;
-    }
-
-    if (horizontalForce > HARSH_CORNERING_THRESHOLD * 1.2) {
-      await deps.JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
-      deps.logger.info(
-        `harsh_cornering detected (no GPS validation): ${horizontalForce.toFixed(2)}g force, speed: ${speedKmh.toFixed(1)} km/h`
-      );
     }
   };
 
@@ -153,12 +172,19 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     motionDataBuffer.push(data);
+    motionDataBufferSum += data.horizontalMagnitude;
+
     if (motionDataBuffer.length > MOTION_BUFFER_SIZE) {
-      motionDataBuffer.shift();
+      const removed = motionDataBuffer.shift();
+      if (removed) {
+        motionDataBufferSum -= removed.horizontalMagnitude;
+      }
     }
 
-    const speedKmh = convertMsToKmh(lastLocation.coords.speed ?? 0);
-    if (speedKmh <= MIN_SPEED_FOR_EVENTS) {
+    const validatedSpeed = validateGpsSpeed(lastLocation.coords.speed, lastLocation.coords.accuracy);
+    const speedKmh = convertMsToKmh(validatedSpeed.value);
+
+    if (!validatedSpeed.isValid || speedKmh <= MIN_SPEED_FOR_EVENTS) {
       return;
     }
 
@@ -175,8 +201,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastLocation = null;
     lastSpeedKmh = 0;
     lastSpeedUpdateTime = 0;
+    lastCornerEventTime = 0;
+    highForceStartTime = null;
     headingHistory = [];
     motionDataBuffer = [];
+    motionDataBufferSum = 0;
 
     deps.VehicleMotion.startTracking();
     deps.VehicleMotion.addListener('onMotionUpdate', handleMotionUpdate);
@@ -192,8 +221,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastLocation = null;
     lastSpeedKmh = 0;
     lastSpeedUpdateTime = 0;
+    lastCornerEventTime = 0;
+    highForceStartTime = null;
     headingHistory = [];
     motionDataBuffer = [];
+    motionDataBufferSum = 0;
 
     deps.VehicleMotion.removeAllListeners('onMotionUpdate');
     deps.VehicleMotion.stopTracking();
@@ -205,23 +237,31 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return;
     }
 
-    const { latitude, longitude, speed, heading } = location.coords;
-    const speedKmh = convertMsToKmh(speed ?? 0);
+    const { latitude, longitude, speed, heading, accuracy } = location.coords;
+    const validatedSpeed = validateGpsSpeed(speed, accuracy);
+    const speedKmh = convertMsToKmh(validatedSpeed.value);
     const currentTime = deps.now();
 
-    await checkSpeeding(latitude, longitude, speedKmh);
+    if (validatedSpeed.isValid && validatedSpeed.confidence !== 'low') {
+      await checkSpeeding(latitude, longitude, speedKmh);
+    }
 
-    if (lastLocation) {
-      lastSpeedKmh = convertMsToKmh(lastLocation.coords.speed ?? 0);
+    if (lastLocation && validatedSpeed.isValid) {
+      const lastValidatedSpeed = validateGpsSpeed(lastLocation.coords.speed, lastLocation.coords.accuracy);
+      if (lastValidatedSpeed.isValid) {
+        lastSpeedKmh = convertMsToKmh(lastValidatedSpeed.value);
+      }
     }
     lastSpeedUpdateTime = currentTime;
 
-    if (heading !== null && heading !== -1 && speedKmh >= MIN_SPEED_FOR_HEADING) {
+    if (heading !== null && heading !== -1 && validatedSpeed.isValid && speedKmh >= MIN_SPEED_FOR_HEADING) {
       headingHistory.push({ heading, timestamp: currentTime });
       headingHistory = headingHistory.filter((h) => currentTime - h.timestamp < HEADING_LOOKBACK_TIME);
       if (headingHistory.length > HEADING_HISTORY_SIZE) {
         headingHistory.shift();
       }
+    } else if (!validatedSpeed.isValid || speedKmh < MIN_SPEED_FOR_HEADING) {
+      headingHistory = [];
     }
 
     lastLocation = location;

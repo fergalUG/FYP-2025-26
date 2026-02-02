@@ -332,5 +332,83 @@ describe('EfficiencyService', () => {
 
       expect(mockJourneyService.logEvent).not.toHaveBeenCalled();
     });
+
+    describe('Harsh Cornering', () => {
+      it('detects harsh cornering with sustained force and heading change', async () => {
+        const svc = createService();
+        svc.startTracking();
+        const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
+
+        nowMs = 10000;
+        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 0 } });
+        nowMs = 11000;
+        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } });
+
+        // Buffer must be filled (25 samples at 10ms each = 250ms)
+        // AND duration must reach 500ms
+        for (let i = 0; i < 60; i++) {
+          nowMs += 10;
+          await motionListener({ ...mockMotionData, horizontalMagnitude: 0.6 });
+        }
+
+        expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
+          EventType.SharpTurn,
+          expect.any(Number),
+          expect.any(Number),
+          expect.any(Number)
+        );
+      });
+
+      it('filters out momentary spikes (not sustained force)', async () => {
+        const svc = createService();
+        svc.startTracking();
+        const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
+
+        nowMs = 10000;
+        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 0 } });
+        nowMs = 11000;
+        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } });
+
+        // Buffer has low average
+        for (let i = 0; i < 24; i++) {
+          nowMs += 10;
+          await motionListener({ ...mockMotionData, horizontalMagnitude: 0.1 });
+        }
+        // One spike - even if very high, it won't be sustained for 500ms
+        nowMs += 10;
+        await motionListener({ ...mockMotionData, horizontalMagnitude: 0.9 });
+
+        expect(mockJourneyService.logEvent).not.toHaveBeenCalledWith(
+          EventType.SharpTurn,
+          expect.any(Number),
+          expect.any(Number),
+          expect.any(Number)
+        );
+      });
+
+      it('respects event cooldown', async () => {
+        const svc = createService();
+        svc.startTracking();
+        const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
+
+        nowMs = 10000;
+        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 0 } });
+        nowMs = 11000;
+        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } });
+
+        // Fill buffer and trigger first event (60 * 10ms = 600ms > 500ms)
+        for (let i = 0; i < 60; i++) {
+          nowMs += 10;
+          await motionListener({ ...mockMotionData, horizontalMagnitude: 0.6 });
+        }
+        const firstCallCount = (mockJourneyService.logEvent as jest.Mock).mock.calls.length;
+        expect(firstCallCount).toBeGreaterThan(0);
+
+        // Immediate second attempt (within cooldown)
+        nowMs += 10;
+        await motionListener({ ...mockMotionData, horizontalMagnitude: 0.6 });
+        expect(mockJourneyService.logEvent).toHaveBeenCalledTimes(firstCallCount);
+      });
+    });
   });
 });

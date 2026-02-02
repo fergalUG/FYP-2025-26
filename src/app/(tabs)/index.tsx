@@ -5,9 +5,7 @@ import { ScrollView, StyleSheet } from 'react-native';
 
 import { useBackgroundService, useDriverProfile, useJourneys, useTheme } from '@hooks';
 
-import { HomeHeroCard } from '@components';
-import { HomeLastDriveCard } from '@components';
-import { HomeWeekSummary } from '@components';
+import { HomeHeroCard, HomeWeekSummary, HomeLastDriveCard } from '@components';
 
 import { createLogger, LogModule } from '@utils/logger';
 
