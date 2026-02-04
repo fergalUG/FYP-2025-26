@@ -1,5 +1,5 @@
 import { createEfficiencyServiceController } from '@services/EfficiencyService';
-import type { EfficiencyServiceDeps } from '@types';
+import type { EfficiencyServiceDeps, ProcessLocationOptions } from '@types';
 import { EventType } from '@types';
 import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 
@@ -57,6 +57,12 @@ describe('EfficiencyService', () => {
     horizontalMagnitude: 0,
   };
 
+  const buildOptions = (location: typeof mockLocation): ProcessLocationOptions => ({
+    speedMs: Number(location.coords.speed ?? 0),
+    speedConfidence: 'medium',
+    speedSource: 'gps',
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     nowMs = 0;
@@ -109,7 +115,7 @@ describe('EfficiencyService', () => {
     it('does nothing when not tracking', async () => {
       const svc = createService();
 
-      await svc.processLocation(mockLocation);
+      await svc.processLocation(mockLocation, buildOptions(mockLocation));
 
       expect(mockJourneyService.logEvent).not.toHaveBeenCalled();
     });
@@ -126,7 +132,7 @@ describe('EfficiencyService', () => {
         },
       };
 
-      await svc.processLocation(speedingLocation);
+      await svc.processLocation(speedingLocation, buildOptions(speedingLocation));
 
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
         EventType.ModerateSpeeding,
@@ -148,7 +154,7 @@ describe('EfficiencyService', () => {
         },
       };
 
-      await svc.processLocation(speedingLocation);
+      await svc.processLocation(speedingLocation, buildOptions(speedingLocation));
 
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
         EventType.HarshSpeeding,
@@ -162,7 +168,7 @@ describe('EfficiencyService', () => {
       const svc = createService();
       svc.startTracking();
 
-      await svc.processLocation(mockLocation);
+      await svc.processLocation(mockLocation, buildOptions(mockLocation));
 
       expect(mockJourneyService.logEvent).not.toHaveBeenCalled();
     });
@@ -281,9 +287,11 @@ describe('EfficiencyService', () => {
       const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
 
       nowMs = 0;
-      await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 20 } });
+      const firstLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 20 } };
+      await svc.processLocation(firstLocation, buildOptions(firstLocation));
       nowMs = 200;
-      await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10 } });
+      const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10 } };
+      await svc.processLocation(secondLocation, buildOptions(secondLocation));
       nowMs = 300;
 
       await motionListener({ ...mockMotionData, horizontalMagnitude: 0.45 });
@@ -303,9 +311,11 @@ describe('EfficiencyService', () => {
       const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
 
       nowMs = 0;
-      await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 20 } });
+      const firstLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 20 } };
+      await svc.processLocation(firstLocation, buildOptions(firstLocation));
       nowMs = 200;
-      await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 25 } });
+      const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 25 } };
+      await svc.processLocation(secondLocation, buildOptions(secondLocation));
       nowMs = 300;
 
       await motionListener({ ...mockMotionData, horizontalMagnitude: 0.35 });
@@ -325,7 +335,8 @@ describe('EfficiencyService', () => {
       const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
 
       nowMs = 0;
-      await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 1 } });
+      const slowLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 1 } };
+      await svc.processLocation(slowLocation, buildOptions(slowLocation));
       nowMs = 300;
 
       await motionListener({ ...mockMotionData, horizontalMagnitude: 0.5 });
@@ -340,9 +351,11 @@ describe('EfficiencyService', () => {
         const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
 
         nowMs = 10000;
-        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 0 } });
+        const firstLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 0 } };
+        await svc.processLocation(firstLocation, buildOptions(firstLocation));
         nowMs = 11000;
-        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } });
+        const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } };
+        await svc.processLocation(secondLocation, buildOptions(secondLocation));
 
         // Buffer must be filled (25 samples at 10ms each = 250ms)
         // AND duration must reach 500ms
@@ -365,9 +378,11 @@ describe('EfficiencyService', () => {
         const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
 
         nowMs = 10000;
-        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 0 } });
+        const firstLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 0 } };
+        await svc.processLocation(firstLocation, buildOptions(firstLocation));
         nowMs = 11000;
-        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } });
+        const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } };
+        await svc.processLocation(secondLocation, buildOptions(secondLocation));
 
         // Buffer has low average
         for (let i = 0; i < 24; i++) {
@@ -392,9 +407,11 @@ describe('EfficiencyService', () => {
         const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
 
         nowMs = 10000;
-        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 0 } });
+        const firstLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 0 } };
+        await svc.processLocation(firstLocation, buildOptions(firstLocation));
         nowMs = 11000;
-        await svc.processLocation({ ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } });
+        const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } };
+        await svc.processLocation(secondLocation, buildOptions(secondLocation));
 
         // Fill buffer and trigger first event (60 * 10ms = 600ms > 500ms)
         for (let i = 0; i < 60; i++) {

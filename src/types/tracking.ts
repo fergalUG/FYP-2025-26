@@ -1,8 +1,10 @@
 import type * as Location from 'expo-location';
+import type { SpeedConfidence, SpeedSource } from '@utils/gpsValidation';
 
 export type ServiceState = 'stopped' | 'passive' | 'active';
 export type PermissionState = 'unknown' | 'granted' | 'denied';
 export type TrackingMode = 'PASSIVE' | 'ACTIVE';
+export type SpeedBand = 'low' | 'mid' | 'high' | 'very_high';
 
 export interface TrackingStatus {
   mode: TrackingMode;
@@ -19,6 +21,19 @@ export interface DistanceValidationResult {
   isValid: boolean;
   reason?: string;
   adjustedDistanceKm: number;
+}
+
+export interface SpeedSample {
+  speedMs: number;
+  confidence: SpeedConfidence;
+  source: SpeedSource;
+}
+
+export interface SmoothedSpeed {
+  speedMs: number;
+  confidence: SpeedConfidence;
+  source: SpeedSource;
+  samples: number;
 }
 
 export interface GpsDropoutState {

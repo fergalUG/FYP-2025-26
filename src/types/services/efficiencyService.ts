@@ -4,6 +4,7 @@ import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types
 import type { ScoringStats } from '@/types/scoring';
 import type { JourneyServiceController } from '@/types/services/journeyService';
 import type { createLogger } from '@utils/logger';
+import type { SpeedConfidence, SpeedSource } from '@utils/gpsValidation';
 
 export interface EfficiencyServiceDeps {
   JourneyService: Pick<JourneyServiceController, 'logEvent' | 'getEventsByJourneyId'>;
@@ -17,10 +18,16 @@ export interface EfficiencyServiceDeps {
   logger: ReturnType<typeof createLogger>;
 }
 
+export interface ProcessLocationOptions {
+  speedMs: number;
+  speedConfidence: SpeedConfidence;
+  speedSource: SpeedSource;
+}
+
 export interface EfficiencyServiceController {
   startTracking: () => void;
   stopTracking: () => void;
-  processLocation: (location: Location.LocationObject) => Promise<void>;
+  processLocation: (location: Location.LocationObject, options: ProcessLocationOptions) => Promise<void>;
   calculateJourneyScore: (journeyId: number, distanceKm?: number) => Promise<number>;
   getJourneyEfficiencyStats: (journeyId: number, distanceKm?: number) => Promise<ScoringStats | null>;
 }

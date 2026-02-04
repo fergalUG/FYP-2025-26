@@ -21,7 +21,6 @@ export interface TrackingState {
   startLocationLabel: string | null;
   lastValidSpeed: number;
   consecutiveInvalidSpeeds: number;
-  speedBuffer: number[];
   isTransitioning: boolean;
   lastStateChange: number;
 }
