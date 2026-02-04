@@ -202,7 +202,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   };
 
   const handleMotionUpdate = async (data: MotionData): Promise<void> => {
-    if (!isTracking || !lastLocation) {
+    if (!isTracking) {
+      return;
+    }
+    if (!lastLocation) {
+      deps.logger.warn('Motion update received but no last location available.');
       return;
     }
 
@@ -288,9 +292,9 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     const { latitude, longitude, heading } = location.coords;
-    const speedMs = options.speedMs ?? 0;
-    const speedConfidence: SpeedConfidence = options.speedConfidence ?? 'medium';
-    const speedSource: SpeedSource = options.speedSource ?? 'none';
+    const speedMs = options.speedMs;
+    const speedConfidence = options.speedConfidence;
+    const speedSource = options.speedSource;
     const isSpeedValid = Number.isFinite(speedMs) && speedMs >= 0;
 
     const speedKmh = convertMsToKmh(speedMs);

@@ -20,8 +20,8 @@ export interface EfficiencyServiceDeps {
 
 export interface ProcessLocationOptions {
   speedMs: number;
-  speedConfidence?: SpeedConfidence;
-  speedSource?: SpeedSource;
+  speedConfidence: SpeedConfidence;
+  speedSource: SpeedSource;
 }
 
 export interface EfficiencyServiceController {
