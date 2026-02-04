@@ -73,6 +73,7 @@ describe('speedSmoother', () => {
     const smoother = createSpeedSmoother(3);
 
     smoother.addSample(10, 'high', 'gps');
+    smoother.addSample(-10, 'high', 'gps');
     const result = smoother.addSample(Number.NaN, 'high', 'gps');
 
     expect(result.speedMs).toBe(10);

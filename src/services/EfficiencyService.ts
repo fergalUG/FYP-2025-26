@@ -13,7 +13,7 @@ import {
 import { JourneyService } from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
 import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
-import { convertMsToKmh, type SpeedConfidence, validateGpsSpeed } from '@utils/gpsValidation';
+import { convertMsToKmh, type SpeedConfidence, type SpeedSource, validateGpsSpeed } from '@utils/gpsValidation';
 import { createSpeedSmoother } from '@utils/tracking/speedSmoother';
 import {
   getAccelerationForceThreshold,
@@ -49,6 +49,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let lastSpeedUpdateTime = 0;
   let lastSpeedMs: number | null = null;
   let lastSpeedConfidence: SpeedConfidence = 'none';
+  let lastSpeedSource: SpeedSource = 'none';
   let lastCornerEventTime = 0;
   let highForceStartTime: number | null = null;
   let headingHistory: Array<{ heading: number; timestamp: number }> = [];
@@ -219,7 +220,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     const speedMs = lastSpeedMs;
-    if (speedMs === null || lastSpeedConfidence === 'low' || lastSpeedConfidence === 'none') {
+    if (speedMs === null || lastSpeedSource === 'none' || lastSpeedConfidence === 'low' || lastSpeedConfidence === 'none') {
       return;
     }
 
@@ -244,6 +245,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastSpeedUpdateTime = 0;
     lastSpeedMs = null;
     lastSpeedConfidence = 'none';
+    lastSpeedSource = 'none';
     lastCornerEventTime = 0;
     highForceStartTime = null;
     headingHistory = [];
@@ -268,6 +270,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastSpeedUpdateTime = 0;
     lastSpeedMs = null;
     lastSpeedConfidence = 'none';
+    lastSpeedSource = 'none';
     lastCornerEventTime = 0;
     highForceStartTime = null;
     headingHistory = [];
@@ -290,18 +293,21 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     const hasSpeedOverride = typeof options?.speedMs === 'number';
     let speedMs = hasSpeedOverride ? (options?.speedMs ?? 0) : (speed ?? 0);
     let speedConfidence: SpeedConfidence = hasSpeedOverride ? (options?.speedConfidence ?? 'medium') : 'none';
+    let speedSource: SpeedSource = hasSpeedOverride ? (options?.speedSource ?? 'none') : 'none';
     let isSpeedValid = hasSpeedOverride ? Number.isFinite(speedMs) && speedMs >= 0 : false;
 
     if (!hasSpeedOverride) {
       const validatedSpeed = validateGpsSpeed(speed, accuracy);
       speedMs = validatedSpeed.value;
       speedConfidence = validatedSpeed.confidence;
+      speedSource = validatedSpeed.source;
       isSpeedValid = validatedSpeed.isValid;
 
       if (validatedSpeed.isValid) {
         const smoothed = speedSmoother.addSample(validatedSpeed.value, validatedSpeed.confidence, validatedSpeed.source);
         speedMs = smoothed.speedMs;
         speedConfidence = smoothed.confidence;
+        speedSource = smoothed.source;
       }
     }
 
@@ -324,6 +330,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       }
       lastSpeedMs = speedMs;
       lastSpeedConfidence = speedConfidence;
+      lastSpeedSource = speedSource;
     }
     lastSpeedUpdateTime = currentTime;
 
