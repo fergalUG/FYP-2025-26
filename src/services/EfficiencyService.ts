@@ -13,7 +13,7 @@ import {
 import { JourneyService } from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
 import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
-import { convertMsToKmh, type SpeedConfidence, type SpeedSource, validateGpsSpeed } from '@utils/gpsValidation';
+import { convertMsToKmh, type SpeedConfidence, type SpeedSource } from '@utils/gpsValidation';
 import {
   getAccelerationForceThreshold,
   getAccelerationSpeedChangeThreshold,
@@ -282,34 +282,21 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     deps.logger.info('Stopped tracking.');
   };
 
-  const processLocation = async (location: Location.LocationObject, options?: ProcessLocationOptions): Promise<void> => {
+  const processLocation = async (location: Location.LocationObject, options: ProcessLocationOptions): Promise<void> => {
     if (!isTracking) {
       return;
     }
 
-    const { latitude, longitude, speed, heading, accuracy } = location.coords;
-    const hasSpeedOverride = typeof options?.speedMs === 'number';
-    let speedMs = hasSpeedOverride ? (options?.speedMs ?? 0) : (speed ?? 0);
-    let speedConfidence: SpeedConfidence = hasSpeedOverride ? (options?.speedConfidence ?? 'medium') : 'none';
-    let speedSource: SpeedSource = hasSpeedOverride ? (options?.speedSource ?? 'none') : 'none';
-    let isSpeedValid = hasSpeedOverride ? Number.isFinite(speedMs) && speedMs >= 0 : false;
-
-    if (!hasSpeedOverride) {
-      const validatedSpeed = validateGpsSpeed(speed, accuracy);
-      speedMs = validatedSpeed.value;
-      speedConfidence = validatedSpeed.confidence;
-      speedSource = validatedSpeed.source;
-      isSpeedValid = validatedSpeed.isValid;
-    }
+    const { latitude, longitude, heading } = location.coords;
+    const speedMs = options.speedMs ?? 0;
+    const speedConfidence: SpeedConfidence = options.speedConfidence ?? 'medium';
+    const speedSource: SpeedSource = options.speedSource ?? 'none';
+    const isSpeedValid = Number.isFinite(speedMs) && speedMs >= 0;
 
     const speedKmh = convertMsToKmh(speedMs);
     const currentTime = deps.now();
 
-    if (isSpeedValid) {
-      currentSpeedBand = resolveBand(speedKmh);
-    } else {
-      currentSpeedBand = null;
-    }
+    currentSpeedBand = isSpeedValid ? resolveBand(speedKmh) : null;
 
     if (isSpeedValid && speedConfidence !== 'low') {
       await checkSpeeding(latitude, longitude, speedKmh);

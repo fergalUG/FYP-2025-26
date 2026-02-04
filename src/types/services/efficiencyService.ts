@@ -19,7 +19,7 @@ export interface EfficiencyServiceDeps {
 }
 
 export interface ProcessLocationOptions {
-  speedMs?: number;
+  speedMs: number;
   speedConfidence?: SpeedConfidence;
   speedSource?: SpeedSource;
 }
@@ -27,7 +27,7 @@ export interface ProcessLocationOptions {
 export interface EfficiencyServiceController {
   startTracking: () => void;
   stopTracking: () => void;
-  processLocation: (location: Location.LocationObject, options?: ProcessLocationOptions) => Promise<void>;
+  processLocation: (location: Location.LocationObject, options: ProcessLocationOptions) => Promise<void>;
   calculateJourneyScore: (journeyId: number, distanceKm?: number) => Promise<number>;
   getJourneyEfficiencyStats: (journeyId: number, distanceKm?: number) => Promise<ScoringStats | null>;
 }
