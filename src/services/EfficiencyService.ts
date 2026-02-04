@@ -15,6 +15,14 @@ import { createLogger, LogModule } from '@utils/logger';
 import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
 import { convertMsToKmh, type SpeedConfidence, validateGpsSpeed } from '@utils/gpsValidation';
 import { createSpeedSmoother } from '@utils/tracking/speedSmoother';
+import {
+  getAccelerationForceThreshold,
+  getAccelerationSpeedChangeThreshold,
+  getBrakingForceThreshold,
+  getBrakingSpeedChangeThreshold,
+  getCorneringForceThreshold,
+  getCorneringHeadingThreshold,
+} from '@utils/tracking/dynamicThresholds';
 import { SPEED_BUFFER_SIZE } from '@constants/gpsConfig';
 
 const logger = createLogger(LogModule.EfficiencyService);
@@ -22,48 +30,6 @@ const logger = createLogger(LogModule.EfficiencyService);
 // TODO: Map the speed thresholds to actual speed limits using a Maps API
 const SPEEDING_THRESHOLD_HIGH = 120; // km/h (these are placeholders for now)
 const SPEEDING_THRESHOLD_MEDIUM = 100; // km/h
-
-const getBrakingForceThreshold = (speedKmh: number): number => {
-  if (speedKmh < 20) return 0.45;
-  if (speedKmh < 50) return 0.4;
-  if (speedKmh < 80) return 0.35;
-  return 0.3;
-};
-
-const getBrakingSpeedChangeThreshold = (speedKmh: number): number => {
-  if (speedKmh < 20) return -22;
-  if (speedKmh < 50) return -18;
-  if (speedKmh < 80) return -14;
-  return -12;
-};
-
-const getAccelerationForceThreshold = (speedKmh: number): number => {
-  if (speedKmh < 20) return 0.32;
-  if (speedKmh < 50) return 0.28;
-  if (speedKmh < 80) return 0.26;
-  return 0.24;
-};
-
-const getAccelerationSpeedChangeThreshold = (speedKmh: number): number => {
-  if (speedKmh < 20) return 15;
-  if (speedKmh < 50) return 12;
-  if (speedKmh < 80) return 9;
-  return 7;
-};
-
-const getCorneringForceThreshold = (speedKmh: number): number => {
-  if (speedKmh < 20) return 0.65;
-  if (speedKmh < 50) return 0.55;
-  if (speedKmh < 80) return 0.5;
-  return 0.45;
-};
-
-const getCorneringHeadingThreshold = (speedKmh: number): number => {
-  if (speedKmh < 20) return 35;
-  if (speedKmh < 50) return 25;
-  if (speedKmh < 80) return 20;
-  return 15;
-};
 
 const MIN_SPEED_FOR_EVENTS = 10; // km/h
 const MIN_SPEED_FOR_HEADING = 15; // km/h - minimum speed for reliable GPS heading
