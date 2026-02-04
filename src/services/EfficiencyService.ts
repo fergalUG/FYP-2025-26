@@ -47,6 +47,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let lastLocation: Location.LocationObject | null = null;
   let lastSpeedKmh = 0;
   let lastSpeedUpdateTime = 0;
+  let lastSpeedMs: number | null = null;
+  let lastSpeedConfidence: SpeedConfidence = 'none';
   let lastCornerEventTime = 0;
   let highForceStartTime: number | null = null;
   let headingHistory: Array<{ heading: number; timestamp: number }> = [];
@@ -216,10 +218,13 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       }
     }
 
-    const validatedSpeed = validateGpsSpeed(lastLocation.coords.speed, lastLocation.coords.accuracy);
-    const speedKmh = convertMsToKmh(validatedSpeed.value);
+    const speedMs = lastSpeedMs;
+    if (speedMs === null || lastSpeedConfidence === 'low' || lastSpeedConfidence === 'none') {
+      return;
+    }
 
-    if (!validatedSpeed.isValid || speedKmh <= MIN_SPEED_FOR_EVENTS) {
+    const speedKmh = convertMsToKmh(speedMs);
+    if (speedKmh <= MIN_SPEED_FOR_EVENTS) {
       return;
     }
 
@@ -237,6 +242,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastLocation = null;
     lastSpeedKmh = 0;
     lastSpeedUpdateTime = 0;
+    lastSpeedMs = null;
+    lastSpeedConfidence = 'none';
     lastCornerEventTime = 0;
     highForceStartTime = null;
     headingHistory = [];
@@ -259,6 +266,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastLocation = null;
     lastSpeedKmh = 0;
     lastSpeedUpdateTime = 0;
+    lastSpeedMs = null;
+    lastSpeedConfidence = 'none';
     lastCornerEventTime = 0;
     highForceStartTime = null;
     headingHistory = [];
@@ -307,11 +316,14 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       await checkSpeeding(latitude, longitude, speedKmh);
     }
 
-    if (lastLocation && isSpeedValid) {
-      const lastSpeedMs = lastLocation.coords.speed;
+    if (isSpeedValid) {
       if (typeof lastSpeedMs === 'number' && Number.isFinite(lastSpeedMs)) {
         lastSpeedKmh = convertMsToKmh(lastSpeedMs);
+      } else {
+        lastSpeedKmh = speedKmh;
       }
+      lastSpeedMs = speedMs;
+      lastSpeedConfidence = speedConfidence;
     }
     lastSpeedUpdateTime = currentTime;
 

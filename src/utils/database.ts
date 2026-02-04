@@ -30,15 +30,15 @@ export const resetDatabase = async (): Promise<void> => {
 
 export const seedMockData = async (): Promise<void> => {
   try {
-    const now = Date.now();
+    const baseTime = new Date('2026-01-25T08:00:00.000Z').getTime();
     const day = 86400000;
 
     const mockJourneys = [
       {
         title: 'Morning Commute',
-        date: new Date(now - day * 1).toISOString().split('T')[0],
-        startTime: now - day * 1 - 3600000, // Yesterday 1 hour ago
-        endTime: now - day * 1 - 3600000 + 1800000, // 30 mins duration
+        date: '2026-01-30',
+        startTime: baseTime + day * 5 - 3600000, // Jan 30, 07:00
+        endTime: baseTime + day * 5 - 3600000 + 1800000, // 07:00-07:30, 30 mins
         distanceKm: 12.5,
         score: 94,
         stats: createMockStats(94, 1800000, 12.5),
@@ -46,9 +46,9 @@ export const seedMockData = async (): Promise<void> => {
       },
       {
         title: 'Grocery Run',
-        date: new Date(now - day * 2).toISOString().split('T')[0],
-        startTime: now - day * 2 - 7200000,
-        endTime: now - day * 2 - 7200000 + 900000, // 15 mins
+        date: '2026-01-29',
+        startTime: baseTime + day * 4 - 7200000, // Jan 29, 06:00
+        endTime: baseTime + day * 4 - 7200000 + 900000, // 06:00-06:15, 15 mins
         distanceKm: 3.2,
         score: 88,
         stats: createMockStats(88, 900000, 3.2),
@@ -56,9 +56,9 @@ export const seedMockData = async (): Promise<void> => {
       },
       {
         title: 'Weekend Roadtrip',
-        date: new Date(now - day * 5).toISOString().split('T')[0],
-        startTime: now - day * 5 - 14400000,
-        endTime: now - day * 5 - 14400000 + 7200000, // 2 hours
+        date: '2026-01-26',
+        startTime: baseTime + day * 1 - 14400000, // Jan 26, 04:00
+        endTime: baseTime + day * 1 - 14400000 + 7200000, // 04:00-06:00, 2 hours
         distanceKm: 120.5,
         score: 72,
         stats: createMockStats(72, 7200000, 120.5, { harshBraking: 3, speeding: 2 }),
@@ -66,9 +66,9 @@ export const seedMockData = async (): Promise<void> => {
       },
       {
         title: 'Late Night Drive',
-        date: new Date(now - day * 6).toISOString().split('T')[0],
-        startTime: now - day * 6 - 80000000,
-        endTime: now - day * 6 - 80000000 + 1200000, // 20 mins
+        date: '2026-01-25',
+        startTime: baseTime - 28800000, // Jan 25, 00:00 (midnight)
+        endTime: baseTime - 28800000 + 1200000, // 00:00-00:20, 20 mins
         distanceKm: 15.0,
         score: 45, // Bad score
         stats: createMockStats(45, 1200000, 15.0, { harshBraking: 5, harshAccel: 4, speeding: 5 }),
