@@ -26,6 +26,7 @@ import { withRetry } from '@utils/async/retry';
 import { checkSpeedOutlier } from '@utils/tracking/outlierDetection';
 import { handleGpsDropout } from '@utils/tracking/gpsDropoutHandler';
 import { checkServiceHealth } from '@utils/tracking/healthMonitor';
+import { createSpeedSmoother } from '@utils/tracking/speedSmoother';
 import {
   ACTIVE_SPEED_THRESHOLD,
   MAX_ACCURACY,
@@ -91,10 +92,11 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     startLocationLabel: null,
     lastValidSpeed: 0,
     consecutiveInvalidSpeeds: 0,
-    speedBuffer: [],
     isTransitioning: false,
     lastStateChange: 0,
   };
+
+  const speedSmoother = createSpeedSmoother(SPEED_BUFFER_SIZE);
 
   let isInited = false;
   let isTaskRegistered = false;
@@ -215,8 +217,8 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       state.startLocationLabel = null;
       state.lastValidSpeed = 0;
       state.consecutiveInvalidSpeeds = 0;
-      state.speedBuffer = [];
       state.lastStateChange = deps.now();
+      speedSmoother.reset();
 
       await deps.JourneyService.startJourney();
       state.currentJourneyId = deps.JourneyService.getCurrentJourneyId();
@@ -299,11 +301,8 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
         const calculatedValidated = validateGpsSpeed(calculatedSpeed, accuracy, DEFAULT_GPS_OPTIONS);
 
         if (calculatedValidated.isValid) {
-          state.speedBuffer.push(calculatedValidated.value);
-          if (state.speedBuffer.length > SPEED_BUFFER_SIZE) {
-            state.speedBuffer.shift();
-          }
-          state.lastValidSpeed = calculatedValidated.value;
+          const smoothed = speedSmoother.addSample(calculatedValidated.value, calculatedValidated.confidence, 'calculated');
+          state.lastValidSpeed = smoothed.speedMs;
           deps.logger.debug(`Using calculated speed fallback`, {
             calculatedSpeed: calculatedValidated.value,
           });
@@ -329,18 +328,12 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       }
     }
 
-    state.speedBuffer.push(validatedSpeed.value);
-    if (state.speedBuffer.length > SPEED_BUFFER_SIZE) {
-      state.speedBuffer.shift();
-    }
+    const smoothed = speedSmoother.addSample(validatedSpeed.value, validatedSpeed.confidence, validatedSpeed.source);
+    state.lastValidSpeed = smoothed.speedMs;
 
-    const sortedSpeeds = [...state.speedBuffer].sort((a, b) => a - b);
-    const medianSpeed = sortedSpeeds[Math.floor(sortedSpeeds.length / 2)];
-    state.lastValidSpeed = medianSpeed;
-
-    if (state.lastLocation && validatedSpeed.confidence !== 'low' && timeDeltaSeconds > 0) {
+    if (state.lastLocation && smoothed.confidence !== 'low' && timeDeltaSeconds > 0) {
       const distance = calculateDistanceKm(state.lastLocation.coords.latitude, state.lastLocation.coords.longitude, latitude, longitude);
-      const distanceCheck = validateDistanceCalculation(distance, medianSpeed, timeDeltaSeconds, accuracy);
+      const distanceCheck = validateDistanceCalculation(distance, smoothed.speedMs, timeDeltaSeconds, accuracy);
 
       if (!distanceCheck.isValid) {
         if (!isOutlierSeriesActive) {
@@ -353,13 +346,14 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       }
     }
 
-    const speedKmh = convertMsToKmh(medianSpeed);
+    const speedKmh = convertMsToKmh(smoothed.speedMs);
     await deps.JourneyService.logEvent(EventType.LocationUpdate, latitude, longitude, speedKmh);
 
-    if (state.currentJourneyId && validatedSpeed.confidence !== 'low') {
-      await deps.EfficiencyService.processLocation({
-        ...location,
-        coords: { ...location.coords, speed: medianSpeed },
+    if (state.currentJourneyId && smoothed.confidence !== 'low') {
+      await deps.EfficiencyService.processLocation(location, {
+        speedMs: smoothed.speedMs,
+        speedConfidence: smoothed.confidence,
+        speedSource: smoothed.source,
       });
     }
 
@@ -367,7 +361,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       isOutlierSeriesActive = false;
     }
 
-    state.lastLocation = location;
+    state.lastLocation = { ...location, coords: { ...location.coords, speed: smoothed.speedMs } };
   };
 
   const endActiveTracking = async (): Promise<void> => {
@@ -419,8 +413,8 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       state.lowSpeedStartTime = null;
       state.lastValidSpeed = 0;
       state.consecutiveInvalidSpeeds = 0;
-      state.speedBuffer = [];
       state.lastStateChange = deps.now();
+      speedSmoother.reset();
 
       emitStateChange();
       await startPassiveTracking();
