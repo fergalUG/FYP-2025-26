@@ -3,11 +3,17 @@ import type * as Location from 'expo-location';
 import VehicleMotion from '@modules/vehicle-motion';
 import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 
-import { EventType, type EfficiencyServiceController, type EfficiencyServiceDeps, type ProcessLocationOptions, type ScoringStats } from '@types';
+import {
+  EventType,
+  type EfficiencyServiceController,
+  type EfficiencyServiceDeps,
+  type ProcessLocationOptions,
+  type ScoringStats,
+} from '@types';
 import { JourneyService } from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
 import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
-import { convertMsToKmh, type SpeedConfidence, type SpeedSource, validateGpsSpeed } from '@utils/gpsValidation';
+import { convertMsToKmh, type SpeedConfidence, validateGpsSpeed } from '@utils/gpsValidation';
 import { createSpeedSmoother } from '@utils/tracking/speedSmoother';
 import { SPEED_BUFFER_SIZE } from '@constants/gpsConfig';
 
@@ -285,18 +291,22 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     const { latitude, longitude, speed, heading, accuracy } = location.coords;
-    const validatedSpeed = validateGpsSpeed(speed, accuracy);
     const hasSpeedOverride = typeof options?.speedMs === 'number';
-    const isSpeedValid = hasSpeedOverride ? true : validatedSpeed.isValid;
-    let speedConfidence: SpeedConfidence = hasSpeedOverride
-      ? options?.speedConfidence ?? validatedSpeed.confidence
-      : validatedSpeed.confidence;
-    let speedMs = hasSpeedOverride ? (options?.speedMs ?? 0) : validatedSpeed.value;
+    let speedMs = hasSpeedOverride ? (options?.speedMs ?? 0) : (speed ?? 0);
+    let speedConfidence: SpeedConfidence = hasSpeedOverride ? (options?.speedConfidence ?? 'medium') : 'none';
+    let isSpeedValid = hasSpeedOverride ? Number.isFinite(speedMs) && speedMs >= 0 : false;
 
-    if (!hasSpeedOverride && validatedSpeed.isValid) {
-      const smoothed = speedSmoother.addSample(validatedSpeed.value, validatedSpeed.confidence, validatedSpeed.source);
-      speedMs = smoothed.speedMs;
-      speedConfidence = smoothed.confidence;
+    if (!hasSpeedOverride) {
+      const validatedSpeed = validateGpsSpeed(speed, accuracy);
+      speedMs = validatedSpeed.value;
+      speedConfidence = validatedSpeed.confidence;
+      isSpeedValid = validatedSpeed.isValid;
+
+      if (validatedSpeed.isValid) {
+        const smoothed = speedSmoother.addSample(validatedSpeed.value, validatedSpeed.confidence, validatedSpeed.source);
+        speedMs = smoothed.speedMs;
+        speedConfidence = smoothed.confidence;
+      }
     }
 
     const speedKmh = convertMsToKmh(speedMs);
@@ -307,9 +317,9 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     if (lastLocation && isSpeedValid) {
-      const lastValidatedSpeed = validateGpsSpeed(lastLocation.coords.speed, lastLocation.coords.accuracy);
-      if (lastValidatedSpeed.isValid) {
-        lastSpeedKmh = convertMsToKmh(lastValidatedSpeed.value);
+      const lastSpeedMs = lastLocation.coords.speed;
+      if (typeof lastSpeedMs === 'number' && Number.isFinite(lastSpeedMs)) {
+        lastSpeedKmh = convertMsToKmh(lastSpeedMs);
       }
     }
     lastSpeedUpdateTime = currentTime;
