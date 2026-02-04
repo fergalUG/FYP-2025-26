@@ -4,6 +4,7 @@ import type { SpeedConfidence, SpeedSource } from '@utils/gpsValidation';
 export type ServiceState = 'stopped' | 'passive' | 'active';
 export type PermissionState = 'unknown' | 'granted' | 'denied';
 export type TrackingMode = 'PASSIVE' | 'ACTIVE';
+export type SpeedBand = 'low' | 'mid' | 'high' | 'very_high';
 
 export interface TrackingStatus {
   mode: TrackingMode;

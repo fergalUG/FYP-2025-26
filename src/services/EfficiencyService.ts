@@ -23,7 +23,9 @@ import {
   getCorneringForceThreshold,
   getCorneringHeadingThreshold,
 } from '@utils/tracking/dynamicThresholds';
+import { resolveSpeedBand } from '@utils/tracking/thresholdBands';
 import { SPEED_BUFFER_SIZE } from '@constants/gpsConfig';
+import type { SpeedBand } from '@/types/tracking';
 
 const logger = createLogger(LogModule.EfficiencyService);
 
@@ -51,6 +53,12 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let motionDataBuffer: MotionData[] = [];
   let motionDataBufferSum = 0;
   const speedSmoother = createSpeedSmoother(SPEED_BUFFER_SIZE);
+  let currentSpeedBand: SpeedBand | null = null;
+
+  const resolveBand = (speedKmh: number): SpeedBand => {
+    currentSpeedBand = resolveSpeedBand(speedKmh, currentSpeedBand, 3);
+    return currentSpeedBand;
+  };
 
   const checkSpeeding = async (latitude: number, longitude: number, speedKmh: number): Promise<void> => {
     let eventType: EventType | null = null;
@@ -88,7 +96,12 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     return delta;
   };
 
-  const checkBrakingAndAcceleration = async (data: MotionData, location: Location.LocationObject, speedKmh: number): Promise<void> => {
+  const checkBrakingAndAcceleration = async (
+    data: MotionData,
+    location: Location.LocationObject,
+    speedKmh: number,
+    band: SpeedBand
+  ): Promise<void> => {
     const horizontalForce = data.horizontalMagnitude;
     const currentTime = deps.now();
     const timeDeltaSeconds = (currentTime - lastSpeedUpdateTime) / 1000;
@@ -100,10 +113,10 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     const speedChange = speedKmh - lastSpeedKmh;
     const speedChangeRate = speedChange / timeDeltaSeconds;
 
-    const brakeForceThreshold = getBrakingForceThreshold(speedKmh);
-    const brakeSpeedChangeThreshold = getBrakingSpeedChangeThreshold(speedKmh);
-    const accelForceThreshold = getAccelerationForceThreshold(speedKmh);
-    const accelSpeedChangeThreshold = getAccelerationSpeedChangeThreshold(speedKmh);
+    const brakeForceThreshold = getBrakingForceThreshold(band);
+    const brakeSpeedChangeThreshold = getBrakingSpeedChangeThreshold(band);
+    const accelForceThreshold = getAccelerationForceThreshold(band);
+    const accelSpeedChangeThreshold = getAccelerationSpeedChangeThreshold(band);
 
     let eventType: EventType | null = null;
 
@@ -123,7 +136,12 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     );
   };
 
-  const checkHarshCornering = async (data: MotionData, location: Location.LocationObject, speedKmh: number): Promise<void> => {
+  const checkHarshCornering = async (
+    data: MotionData,
+    location: Location.LocationObject,
+    speedKmh: number,
+    band: SpeedBand
+  ): Promise<void> => {
     const currentTime = deps.now();
 
     if (currentTime - lastCornerEventTime < CORNERING_EVENT_COOLDOWN_MS) {
@@ -132,7 +150,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     const avgHorizontalForce = motionDataBuffer.length > 0 ? motionDataBufferSum / motionDataBuffer.length : data.horizontalMagnitude;
 
-    const corneringForceThreshold = getCorneringForceThreshold(speedKmh);
+    const corneringForceThreshold = getCorneringForceThreshold(band);
 
     if (avgHorizontalForce >= corneringForceThreshold) {
       if (highForceStartTime === null) {
@@ -161,7 +179,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     if (speedKmh >= MIN_SPEED_FOR_HEADING && headingHistory.length >= 2) {
       const headingChange = calculateMaxHeadingChange(currentTime);
-      const headingThreshold = getCorneringHeadingThreshold(speedKmh);
+      const headingThreshold = getCorneringHeadingThreshold(band);
       if (headingChange < headingThreshold) {
         deps.logger.info(
           `Filtered harsh_cornering: Sustained force (${avgHorizontalForce.toFixed(2)}g) but only ${headingChange.toFixed(
@@ -205,8 +223,9 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return;
     }
 
-    await checkBrakingAndAcceleration(data, lastLocation, speedKmh);
-    await checkHarshCornering(data, lastLocation, speedKmh);
+    const band = resolveBand(speedKmh);
+    await checkBrakingAndAcceleration(data, lastLocation, speedKmh, band);
+    await checkHarshCornering(data, lastLocation, speedKmh, band);
   };
 
   const startTracking = (): void => {
@@ -224,6 +243,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     motionDataBuffer = [];
     motionDataBufferSum = 0;
     speedSmoother.reset();
+    currentSpeedBand = null;
 
     deps.VehicleMotion.startTracking();
     deps.VehicleMotion.addListener('onMotionUpdate', handleMotionUpdate);
@@ -245,6 +265,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     motionDataBuffer = [];
     motionDataBufferSum = 0;
     speedSmoother.reset();
+    currentSpeedBand = null;
 
     deps.VehicleMotion.removeAllListeners('onMotionUpdate');
     deps.VehicleMotion.stopTracking();
@@ -277,6 +298,10 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     const speedKmh = convertMsToKmh(speedMs);
     const currentTime = deps.now();
+
+    if (isSpeedValid) {
+      currentSpeedBand = resolveBand(speedKmh);
+    }
 
     if (isSpeedValid && speedConfidence !== 'low') {
       await checkSpeeding(latitude, longitude, speedKmh);
