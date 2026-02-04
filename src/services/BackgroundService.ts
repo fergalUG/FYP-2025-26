@@ -361,7 +361,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       isOutlierSeriesActive = false;
     }
 
-    state.lastLocation = { ...location, coords: { ...location.coords, speed: smoothed.speedMs } };
+    state.lastLocation = location;
   };
 
   const endActiveTracking = async (): Promise<void> => {

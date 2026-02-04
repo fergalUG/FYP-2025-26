@@ -14,7 +14,6 @@ import { JourneyService } from '@services/JourneyService';
 import { createLogger, LogModule } from '@utils/logger';
 import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
 import { convertMsToKmh, type SpeedConfidence, type SpeedSource, validateGpsSpeed } from '@utils/gpsValidation';
-import { createSpeedSmoother } from '@utils/tracking/speedSmoother';
 import {
   getAccelerationForceThreshold,
   getAccelerationSpeedChangeThreshold,
@@ -24,7 +23,6 @@ import {
   getCorneringHeadingThreshold,
 } from '@utils/tracking/dynamicThresholds';
 import { resolveSpeedBand } from '@utils/tracking/thresholdBands';
-import { SPEED_BUFFER_SIZE } from '@constants/gpsConfig';
 import type { SpeedBand } from '@/types/tracking';
 
 const logger = createLogger(LogModule.EfficiencyService);
@@ -55,7 +53,6 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let headingHistory: Array<{ heading: number; timestamp: number }> = [];
   let motionDataBuffer: MotionData[] = [];
   let motionDataBufferSum = 0;
-  const speedSmoother = createSpeedSmoother(SPEED_BUFFER_SIZE);
   let currentSpeedBand: SpeedBand | null = null;
 
   const resolveBand = (speedKmh: number): SpeedBand => {
@@ -229,7 +226,10 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return;
     }
 
-    const band = resolveBand(speedKmh);
+    const band = currentSpeedBand;
+    if (!band) {
+      return;
+    }
     await checkBrakingAndAcceleration(data, lastLocation, speedKmh, band);
     await checkHarshCornering(data, lastLocation, speedKmh, band);
   };
@@ -251,7 +251,6 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     headingHistory = [];
     motionDataBuffer = [];
     motionDataBufferSum = 0;
-    speedSmoother.reset();
     currentSpeedBand = null;
 
     deps.VehicleMotion.startTracking();
@@ -276,7 +275,6 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     headingHistory = [];
     motionDataBuffer = [];
     motionDataBufferSum = 0;
-    speedSmoother.reset();
     currentSpeedBand = null;
 
     deps.VehicleMotion.removeAllListeners('onMotionUpdate');
@@ -302,13 +300,6 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       speedConfidence = validatedSpeed.confidence;
       speedSource = validatedSpeed.source;
       isSpeedValid = validatedSpeed.isValid;
-
-      if (validatedSpeed.isValid) {
-        const smoothed = speedSmoother.addSample(validatedSpeed.value, validatedSpeed.confidence, validatedSpeed.source);
-        speedMs = smoothed.speedMs;
-        speedConfidence = smoothed.confidence;
-        speedSource = smoothed.source;
-      }
     }
 
     const speedKmh = convertMsToKmh(speedMs);
@@ -316,6 +307,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     if (isSpeedValid) {
       currentSpeedBand = resolveBand(speedKmh);
+    } else {
+      currentSpeedBand = null;
     }
 
     if (isSpeedValid && speedConfidence !== 'low') {
@@ -344,7 +337,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       headingHistory = [];
     }
 
-    lastLocation = { ...location, coords: { ...location.coords, speed: speedMs } };
+    lastLocation = location;
   };
 
   const calculateJourneyScore = async (journeyId: number, distanceKm: number = 0): Promise<number> => {
