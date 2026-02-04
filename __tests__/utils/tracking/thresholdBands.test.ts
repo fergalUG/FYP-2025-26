@@ -27,6 +27,12 @@ describe('thresholdBands', () => {
 
     band = resolveSpeedBand(46, band, 3);
     expect(band).toBe('mid');
+
+    band = resolveSpeedBand(18, band, 3);
+    expect(band).toBe('mid');
+
+    band = resolveSpeedBand(16.9, band, 3);
+    expect(band).toBe('low');
   });
 
   it('applies hysteresis around the 20 km/h boundary with 3 km/h margin', () => {

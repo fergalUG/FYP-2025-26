@@ -312,7 +312,9 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       lastSpeedConfidence = speedConfidence;
       lastSpeedSource = speedSource;
     }
-    lastSpeedUpdateTime = currentTime;
+    if (isSpeedValid) {
+      lastSpeedUpdateTime = currentTime;
+    }
 
     if (heading !== null && heading !== -1 && isSpeedValid && speedKmh >= MIN_SPEED_FOR_HEADING) {
       headingHistory.push({ heading, timestamp: currentTime });
