@@ -1,12 +1,84 @@
-import React from 'react';
-import { View, Text, StyleSheet, ViewStyle, StyleProp } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, ViewStyle, StyleProp, DimensionValue } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
+
 import { useTheme } from '@hooks';
 import type { Event } from '@types';
+import { EventType } from '@types';
+import { DEFAULT_EFFICIENCY_SCORING_CONFIG } from '@utils/scoring/efficiencyScoringConfig';
+import { normalizeJourneyEvents } from '@utils/scoring/normalizeEvents';
+
+interface RoutePoint {
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+}
+
+interface SpeedingSegment {
+  id: string;
+  severity: 'moderate' | 'harsh';
+  coordinates: Array<{ latitude: number; longitude: number }>;
+}
+
+const isValidCoordinate = (latitude: number, longitude: number): boolean => {
+  return Number.isFinite(latitude) && Number.isFinite(longitude);
+};
+
+const isRouteEventType = (type: EventType): boolean => {
+  return type === EventType.LocationUpdate || type === EventType.JourneyStart || type === EventType.JourneyEnd;
+};
+
+const isIncidentType = (type: EventType): boolean => {
+  return type === EventType.HarshBraking || type === EventType.HarshAcceleration || type === EventType.SharpTurn;
+};
+
+const getIncidentLabel = (type: EventType): string => {
+  if (type === EventType.HarshBraking) return 'Harsh Brake';
+  if (type === EventType.HarshAcceleration) return 'Harsh Accel';
+  return 'Sharp Turn';
+};
+
+const getIncidentColor = (type: EventType, theme: ReturnType<typeof useTheme>['theme']): string => {
+  if (type === EventType.HarshBraking) return theme.colors.event.brake;
+  if (type === EventType.HarshAcceleration) return theme.colors.event.accel;
+  return theme.colors.event.corner;
+};
+
+const getSpeedingColor = (severity: SpeedingSegment['severity'], theme: ReturnType<typeof useTheme>['theme']): string => {
+  return severity === 'harsh' ? theme.colors.event.harshSpeeding : theme.colors.event.moderateSpeeding;
+};
+
+const findClosestIndex = (points: RoutePoint[], timestamp: number): number => {
+  let closestIndex = 0;
+  let closestDiff = Number.POSITIVE_INFINITY;
+
+  points.forEach((point, index) => {
+    const diff = Math.abs(point.timestamp - timestamp);
+    if (diff < closestDiff) {
+      closestDiff = diff;
+      closestIndex = index;
+    }
+  });
+
+  return closestIndex;
+};
+
+const buildSpeedingSegment = (points: RoutePoint[], startTimestamp: number, endTimestamp: number): RoutePoint[] => {
+  if (points.length < 2) {
+    return [];
+  }
+
+  const startIndex = findClosestIndex(points, startTimestamp);
+  const endIndex = findClosestIndex(points, endTimestamp);
+  const from = Math.min(startIndex, endIndex);
+  const to = Math.max(startIndex, endIndex);
+
+  return points.slice(from, to + 1);
+};
 
 interface JourneyMapProps {
   events: Event[];
-  height?: number | string;
+  height?: DimensionValue;
   interactive?: boolean;
   style?: StyleProp<ViewStyle>;
 }
@@ -16,9 +88,64 @@ export const JourneyMap = (props: JourneyMapProps) => {
   const { events, height = 300, interactive = true, style } = props;
   const styles = createStyles(theme);
 
+  const routePoints = useMemo<RoutePoint[]>(() => {
+    return events
+      .filter((event) => isRouteEventType(event.type))
+      .filter((event) => isValidCoordinate(event.latitude, event.longitude))
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map((event) => ({
+        latitude: event.latitude,
+        longitude: event.longitude,
+        timestamp: event.timestamp,
+      }));
+  }, [events]);
+
+  const routeCoordinates = useMemo(() => {
+    return routePoints.map((point) => ({ latitude: point.latitude, longitude: point.longitude }));
+  }, [routePoints]);
+
+  const incidentMarkers = useMemo(() => {
+    return events
+      .filter((event) => isIncidentType(event.type))
+      .filter((event) => isValidCoordinate(event.latitude, event.longitude))
+      .map((event) => ({
+        id: event.id,
+        type: event.type,
+        latitude: event.latitude,
+        longitude: event.longitude,
+      }));
+  }, [events]);
+
+  const speedingSegments = useMemo<SpeedingSegment[]>(() => {
+    if (routePoints.length < 2) {
+      return [];
+    }
+
+    const normalized = normalizeJourneyEvents(events, DEFAULT_EFFICIENCY_SCORING_CONFIG);
+    return normalized.speedingEpisodes
+      .map((episode, index) => {
+        const segmentPoints = buildSpeedingSegment(routePoints, episode.startTimestamp, episode.endTimestamp);
+        if (segmentPoints.length < 2) {
+          return null;
+        }
+        return {
+          id: `${episode.startTimestamp}-${index}`,
+          severity: episode.severity,
+          coordinates: segmentPoints.map((point) => ({ latitude: point.latitude, longitude: point.longitude })),
+        };
+      })
+      .filter((segment): segment is SpeedingSegment => Boolean(segment));
+  }, [events, routePoints]);
+
+  const hasModerateSpeeding = speedingSegments.some((segment) => segment.severity === 'moderate');
+  const hasHarshSpeeding = speedingSegments.some((segment) => segment.severity === 'harsh');
+  const hasHarshBraking = incidentMarkers.some((marker) => marker.type === EventType.HarshBraking);
+  const hasHarshAcceleration = incidentMarkers.some((marker) => marker.type === EventType.HarshAcceleration);
+  const hasSharpTurn = incidentMarkers.some((marker) => marker.type === EventType.SharpTurn);
+
   if (events.length === 0) {
     return (
-      <View style={[styles.container, { height: typeof height === 'number' ? height : undefined }, style]}>
+      <View style={[styles.container, { height }, style]}>
         <View style={styles.placeholderContainer}>
           <Text style={styles.placeholderText}>No route data available</Text>
         </View>
@@ -26,25 +153,18 @@ export const JourneyMap = (props: JourneyMapProps) => {
     );
   }
 
-  const startPoint = events[0];
-  const endPoint = events[events.length - 1];
-
-  const routeCoordinates = events
-    .filter((event) => event.latitude && event.longitude)
-    .map((event) => ({
-      latitude: event.latitude,
-      longitude: event.longitude,
-    }));
-
   if (routeCoordinates.length === 0) {
     return (
-      <View style={[styles.container, { height: typeof height === 'number' ? height : undefined }, style]}>
+      <View style={[styles.container, { height }, style]}>
         <View style={styles.placeholderContainer}>
           <Text style={styles.placeholderText}>No valid GPS coordinates</Text>
         </View>
       </View>
     );
   }
+
+  const startPoint = routePoints[0];
+  const endPoint = routePoints[routePoints.length - 1];
 
   const latitudes = routeCoordinates.map((coord) => coord.latitude);
   const longitudes = routeCoordinates.map((coord) => coord.longitude);
@@ -83,17 +203,39 @@ export const JourneyMap = (props: JourneyMapProps) => {
           <Polyline coordinates={routeCoordinates} strokeColor={theme.colors.primary} strokeWidth={4} lineCap="round" lineJoin="round" />
         )}
 
-        <Marker
-          coordinate={{
-            latitude: startPoint.latitude,
-            longitude: startPoint.longitude,
-          }}
-          title="Start"
-          description="Journey started here"
-          pinColor="green"
-        />
+        {speedingSegments.map((segment) => (
+          <Polyline
+            key={segment.id}
+            coordinates={segment.coordinates}
+            strokeColor={getSpeedingColor(segment.severity, theme)}
+            strokeWidth={5}
+            lineCap="round"
+            lineJoin="round"
+          />
+        ))}
 
-        {startPoint.id !== endPoint.id && (
+        {incidentMarkers.map((marker) => (
+          <Marker
+            key={marker.id}
+            coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
+            title={getIncidentLabel(marker.type)}
+            pinColor={getIncidentColor(marker.type, theme)}
+          />
+        ))}
+
+        {startPoint && (
+          <Marker
+            coordinate={{
+              latitude: startPoint.latitude,
+              longitude: startPoint.longitude,
+            }}
+            title="Start"
+            description="Journey started here"
+            pinColor="green"
+          />
+        )}
+
+        {startPoint && endPoint && startPoint.timestamp !== endPoint.timestamp && (
           <Marker
             coordinate={{
               latitude: endPoint.latitude,
@@ -101,10 +243,45 @@ export const JourneyMap = (props: JourneyMapProps) => {
             }}
             title="End"
             description="Journey ended here"
-            pinColor="red"
+            pinColor="blue"
           />
         )}
       </MapView>
+
+      {(incidentMarkers.length > 0 || speedingSegments.length > 0) && (
+        <View style={styles.legend} pointerEvents="none">
+          {hasModerateSpeeding && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendLine, { backgroundColor: theme.colors.event.moderateSpeeding }]} />
+              <Text style={styles.legendText}>Speeding</Text>
+            </View>
+          )}
+          {hasHarshSpeeding && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendLine, { backgroundColor: theme.colors.event.harshSpeeding }]} />
+              <Text style={styles.legendText}>Harsh speeding</Text>
+            </View>
+          )}
+          {hasHarshBraking && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.brake }]} />
+              <Text style={styles.legendText}>Harsh brake</Text>
+            </View>
+          )}
+          {hasHarshAcceleration && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.accel }]} />
+              <Text style={styles.legendText}>Harsh accel</Text>
+            </View>
+          )}
+          {hasSharpTurn && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.corner }]} />
+              <Text style={styles.legendText}>Sharp turn</Text>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 };
@@ -113,6 +290,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
     container: {
       borderRadius: theme.radius.lg,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
       overflow: 'hidden',
       backgroundColor: theme.colors.surface,
       width: '100%',
@@ -132,5 +311,36 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontSize: 16,
       color: theme.colors.textSecondary,
       textAlign: 'center',
+    },
+    legend: {
+      position: 'absolute',
+      right: theme.spacing.sm,
+      top: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      padding: theme.spacing.sm,
+      gap: theme.spacing.xs,
+      opacity: 0.9,
+    },
+    legendItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+    },
+    legendSwatch: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+    },
+    legendLine: {
+      width: 18,
+      height: 4,
+      borderRadius: 2,
+    },
+    legendText: {
+      fontSize: 12,
+      color: theme.colors.onSurface,
     },
   });
