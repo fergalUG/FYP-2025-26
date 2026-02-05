@@ -15,7 +15,7 @@ type ProviderEntry<Props extends Record<string, unknown> = Record<string, unknow
   props?: Props;
 };
 
-//compose but also allowing passing props
+//compose but also allowing passing props (removes the need to have a massive nested return in root)
 //https://stackoverflow.com/questions/51504506/too-many-react-context-providers
 const composeProviders = (providers: ProviderEntry[]) => {
   return ({ children }: { children: React.ReactNode }) =>
@@ -43,6 +43,10 @@ export default function RootLayout() {
     }
 
     JourneyService.initDatabase();
+
+    return () => {
+      LogService.cleanup();
+    };
   }, []);
 
   return (
