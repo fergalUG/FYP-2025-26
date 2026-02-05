@@ -10,6 +10,26 @@ import { LogService } from '@services/LogService';
 import { appHeaderOptions } from '@constants/navigation';
 import { BackgroundServiceProvider, DebugOverlayProvider, ThemeProvider, ToastProvider, useTheme } from '@hooks';
 
+const compose = (providers: React.FC<{ children: React.ReactNode }>[]) =>
+  providers.reduce((Prev, Curr) => ({ children }: { children: React.ReactNode }) => {
+    if (!Prev) return <Curr>{children}</Curr>;
+
+    return (
+      <Prev>
+        <Curr>{children}</Curr>
+      </Prev>
+    );
+  });
+
+const Providers = compose([
+  GestureHandlerRootView,
+  SafeAreaProvider,
+  ThemeProvider,
+  ToastProvider,
+  BackgroundServiceProvider,
+  DebugOverlayProvider,
+]);
+
 export default function RootLayout() {
   useEffect(() => {
     LogService.initSession();
@@ -23,20 +43,25 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <ToastProvider>
-            <BackgroundServiceProvider>
-              <DebugOverlayProvider>
-                <ThemedRootStack />
-              </DebugOverlayProvider>
-            </BackgroundServiceProvider>
-          </ToastProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <Providers>
+      <ThemedRootStack />
+    </Providers>
   );
+  // return (
+  //   <GestureHandlerRootView style={{ flex: 1 }}>
+  //     <SafeAreaProvider>
+  //       <ThemeProvider>
+  //         <ToastProvider>
+  //           <BackgroundServiceProvider>
+  //             <DebugOverlayProvider>
+  //               <ThemedRootStack />
+  //             </DebugOverlayProvider>
+  //           </BackgroundServiceProvider>
+  //         </ToastProvider>
+  //       </ThemeProvider>
+  //     </SafeAreaProvider>
+  //   </GestureHandlerRootView>
+  // );
 }
 
 const ThemedRootStack = () => {
