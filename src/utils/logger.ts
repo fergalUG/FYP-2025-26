@@ -7,6 +7,7 @@ const logColours = {
   efficiencyService: '\x1b[32m', // Green (#00FF00)
   themeService: '\x1b[34m', // Blue (#0000FF)
   settingsService: '\x1b[91m', // Light Red (#FF6347)
+  logService: '\x1b[90m', // Gray (#808080)
   db: '\x1b[37m', // White (#FFFFFF)
   gpsValidation: '\x1b[31m', // Red (#FF0000)
   reset: '\x1b[0m', // Reset
@@ -21,6 +22,7 @@ export const enum LogModule {
   EfficiencyService = 'efficiencyService',
   ThemeService = 'themeService',
   SettingsService = 'settingsService',
+  LogService = 'logService',
   DB = 'db',
   GpsValidation = 'gpsValidation',
 }

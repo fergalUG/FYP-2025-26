@@ -6,11 +6,13 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDatabaseWithMockData } from '@utils/database';
 import { JourneyService } from '@services/JourneyService';
 import { initBackgroundService } from '@services/BackgroundService';
+import { LogService } from '@services/LogService';
 import { appHeaderOptions } from '@constants/navigation';
 import { BackgroundServiceProvider, DebugOverlayProvider, ThemeProvider, useTheme } from '@hooks';
 
 export default function RootLayout() {
   useEffect(() => {
+    LogService.initSession();
     initBackgroundService();
     if (__DEV__) {
       initDatabaseWithMockData();

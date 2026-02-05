@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type { Theme, ThemeMode } from '@theme';
 import { getTheme, lightTheme } from '@theme';
 import * as ThemeService from '@services/ThemeService';
+import { Appearance } from 'react-native';
 
 interface ThemeContextValue {
   theme: Theme;
@@ -37,12 +38,18 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   }, []);
 
   useEffect(() => {
+    Appearance.setColorScheme(mode);
+  }, [mode]);
+
+  useEffect(() => {
     if (isLoaded) {
       ThemeService.saveThemeMode(mode);
     }
   }, [mode, isLoaded]);
 
   const toggleMode = () => setMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
+
+  if (!isLoaded) return null;
 
   return <ThemeContext.Provider value={{ theme, mode, setMode, toggleMode }}>{children}</ThemeContext.Provider>;
 };
