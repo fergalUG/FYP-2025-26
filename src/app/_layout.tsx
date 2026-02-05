@@ -8,7 +8,7 @@ import { JourneyService } from '@services/JourneyService';
 import { initBackgroundService } from '@services/BackgroundService';
 import { LogService } from '@services/LogService';
 import { appHeaderOptions } from '@constants/navigation';
-import { BackgroundServiceProvider, DebugOverlayProvider, ThemeProvider, useTheme } from '@hooks';
+import { BackgroundServiceProvider, DebugOverlayProvider, ThemeProvider, ToastProvider, useTheme } from '@hooks';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -24,15 +24,17 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <BackgroundServiceProvider>
-          <DebugOverlayProvider>
-            <SafeAreaProvider>
-              <ThemedRootStack />
-            </SafeAreaProvider>
-          </DebugOverlayProvider>
-        </BackgroundServiceProvider>
-      </ThemeProvider>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <BackgroundServiceProvider>
+              <DebugOverlayProvider>
+                <ThemedRootStack />
+              </DebugOverlayProvider>
+            </BackgroundServiceProvider>
+          </ToastProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

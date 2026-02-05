@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, Tex
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useDriverProfile, useDebugOverlay, useTheme } from '@hooks';
+import { useToast } from '@hooks/ToastProvider';
 
 import { AppButton } from '@components';
 import { JourneyService } from '@services/JourneyService';
@@ -12,6 +13,7 @@ import { showConfirmAlert, showSuccessAlert } from '@utils/alert';
 export default function Settings() {
   const { theme, mode, toggleMode } = useTheme();
   const { driverName, loading: profileLoading, setDriverName } = useDriverProfile();
+  const { showToast } = useToast();
   const [exporting, setExporting] = useState(false);
   const [exportingLogs, setExportingLogs] = useState(false);
   const [clearingLogs, setClearingLogs] = useState(false);
@@ -58,6 +60,14 @@ export default function Settings() {
 
   const handleDeleteOldLogs = () => {
     showConfirmAlert('Delete old logs?', 'This will remove previous session log files from this device.', executeDeleteOldLogs);
+  };
+
+  const handleToastTest = () => {
+    showToast({
+      title: 'Toast test',
+      message: 'This is how in-app toasts will appear.',
+      variant: 'success',
+    });
   };
 
   const handleStartEditName = () => {
@@ -120,6 +130,7 @@ export default function Settings() {
           )}
         </View>
       </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Settings</Text>
         <View style={styles.card}>
@@ -137,6 +148,7 @@ export default function Settings() {
           </View>
         </View>
       </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Debug</Text>
         <View style={styles.card}>
@@ -152,7 +164,9 @@ export default function Settings() {
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
           </View>
+
           <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />
+
           <Text style={styles.itemTitle}>Export Session Logs</Text>
           <Text style={styles.itemSubtitle}>Download logs recorded since app start.</Text>
           {sessionLogName ? <Text style={styles.logFileName}>Session file: {sessionLogName}</Text> : null}
@@ -202,7 +216,9 @@ export default function Settings() {
               <Text style={styles.exportButtonText}>Delete Old Logs</Text>
             )}
           </AppButton>
+
           <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />
+
           <Text style={styles.itemTitle}>Export Database</Text>
           <Text style={styles.itemSubtitle}>Download a copy of journey data.</Text>
           <AppButton
@@ -218,6 +234,14 @@ export default function Settings() {
             ) : (
               <Text style={styles.exportButtonText}>Export DB</Text>
             )}
+          </AppButton>
+
+          <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />
+
+          <Text style={styles.itemTitle}>Toast Preview</Text>
+          <Text style={styles.itemSubtitle}>Show a sample toast notification.</Text>
+          <AppButton style={styles.exportButton} onPress={handleToastTest}>
+            <Text style={styles.exportButtonText}>Show Toast</Text>
           </AppButton>
         </View>
       </View>
