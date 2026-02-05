@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { Theme, ThemeMode } from '@theme';
 import { getTheme, lightTheme } from '@theme';
 import * as ThemeService from '@services/ThemeService';
-import { Appearance } from 'react-native';
+import { ActivityIndicator, Appearance } from 'react-native';
 
 interface ThemeContextValue {
   theme: Theme;
@@ -49,7 +49,9 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
 
   const toggleMode = () => setMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
 
-  if (!isLoaded) return null;
+  if (!isLoaded) {
+    return <ActivityIndicator color={theme.colors.primary} />;
+  }
 
   return <ThemeContext.Provider value={{ theme, mode, setMode, toggleMode }}>{children}</ThemeContext.Provider>;
 };

@@ -23,4 +23,5 @@ export interface LogServiceController {
   exportSessionLogs: () => Promise<boolean>;
   clearSessionLogs: () => Promise<boolean>;
   deleteOldLogs: () => Promise<number>;
+  cleanup: () => void;
 }

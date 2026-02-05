@@ -49,16 +49,34 @@ const getSpeedingColor = (severity: SpeedingSegment['severity'], theme: ReturnTy
 };
 
 const findClosestIndex = (points: RoutePoint[], timestamp: number): number => {
+  if (points.length === 0) {
+    return 0;
+  }
+
+  // binary search instead of relying on typescript...
+  let left = 0;
+  let right = points.length - 1;
   let closestIndex = 0;
   let closestDiff = Number.POSITIVE_INFINITY;
 
-  points.forEach((point, index) => {
-    const diff = Math.abs(point.timestamp - timestamp);
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    const midTimestamp = points[mid].timestamp;
+    const diff = Math.abs(midTimestamp - timestamp);
+
     if (diff < closestDiff) {
       closestDiff = diff;
-      closestIndex = index;
+      closestIndex = mid;
     }
-  });
+
+    if (midTimestamp < timestamp) {
+      left = mid + 1;
+    } else if (midTimestamp > timestamp) {
+      right = mid - 1;
+    } else {
+      return mid;
+    }
+  }
 
   return closestIndex;
 };

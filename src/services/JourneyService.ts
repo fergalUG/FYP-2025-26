@@ -18,7 +18,13 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
   const listeners: Array<(event: JourneyChangeEvent) => void> = [];
 
   const emitChange = (event: JourneyChangeEvent): void => {
-    listeners.forEach((listener) => listener(event));
+    listeners.forEach((listener) => {
+      try {
+        listener(event);
+      } catch (error) {
+        deps.logger.error('Error in journey listener:', error);
+      }
+    });
   };
 
   const initDatabase = async (): Promise<void> => {

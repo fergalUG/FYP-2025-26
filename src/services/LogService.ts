@@ -51,6 +51,9 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
   };
 
   const flushPendingLines = (): void => {
+    clearTimeout(flushTimeout as ReturnType<typeof setTimeout>);
+    flushTimeout = null;
+
     if (!sessionFile || pendingLines.length === 0 || isFlushing) {
       return;
     }
@@ -74,7 +77,6 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
       return;
     }
     flushTimeout = setTimeout(() => {
-      flushTimeout = null;
       flushPendingLines();
     }, FLUSH_INTERVAL_MS);
   };
@@ -161,6 +163,10 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
     }
 
     try {
+      if (flushTimeout) {
+        clearTimeout(flushTimeout);
+        flushTimeout = null;
+      }
       pendingLines = [];
       sessionFile.write('');
       serviceLogger.info('Session logs cleared');
@@ -205,12 +211,37 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
     }
   };
 
+  const cleanup = (): void => {
+    if (flushTimeout) {
+      clearTimeout(flushTimeout);
+      flushTimeout = null;
+    }
+
+    if (pendingLines.length > 0 && sessionFile) {
+      try {
+        appendToFile(sessionFile, `${pendingLines.join('\n')}\n`);
+        pendingLines = [];
+      } catch (error) {
+        serviceLogger.error('Failed to flush pending logs during cleanup:', error);
+      }
+    }
+
+    if (unsubscribe) {
+      try {
+        unsubscribe();
+      } catch (error) {
+        serviceLogger.error('Failed to unsubscribe log listener during cleanup:', error);
+      }
+    }
+  };
+
   return {
     initSession,
     getSessionFileName,
     exportSessionLogs,
     clearSessionLogs,
     deleteOldLogs,
+    cleanup,
   };
 };
 

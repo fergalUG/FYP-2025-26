@@ -88,7 +88,7 @@ export default function Journeys() {
                       {item.title}
                     </Text>
                     <View style={styles.metaRow}>
-                      <IconChip icon="schedule" text={item.startTime ? new Date(item.startTime).toLocaleDateString() : 'Time'} />
+                      <IconChip icon="calendar-month" text={item.startTime ? new Date(item.startTime).toLocaleDateString() : 'Time'} />
                       <IconChip icon="route" text={`${(item.distanceKm ?? 0).toFixed(2)} km`} />
                     </View>
                   </View>

@@ -10,24 +10,27 @@ import { LogService } from '@services/LogService';
 import { appHeaderOptions } from '@constants/navigation';
 import { BackgroundServiceProvider, DebugOverlayProvider, ThemeProvider, ToastProvider, useTheme } from '@hooks';
 
-const compose = (providers: React.FC<{ children: React.ReactNode }>[]) =>
-  providers.reduce((Prev, Curr) => ({ children }: { children: React.ReactNode }) => {
-    if (!Prev) return <Curr>{children}</Curr>;
+type ProviderEntry<Props extends Record<string, unknown> = Record<string, unknown>> = {
+  Provider: React.ComponentType<{ children: React.ReactNode } & Props>;
+  props?: Props;
+};
 
-    return (
-      <Prev>
-        <Curr>{children}</Curr>
-      </Prev>
-    );
-  });
+//compose but also allowing passing props
+//https://stackoverflow.com/questions/51504506/too-many-react-context-providers
+const composeProviders = (providers: ProviderEntry[]) => {
+  return ({ children }: { children: React.ReactNode }) =>
+    providers.reduceRight<React.ReactNode>((acc, { Provider, props }) => {
+      return <Provider {...props}>{acc}</Provider>;
+    }, children);
+};
 
-const Providers = compose([
-  GestureHandlerRootView,
-  SafeAreaProvider,
-  ThemeProvider,
-  ToastProvider,
-  BackgroundServiceProvider,
-  DebugOverlayProvider,
+const Providers = composeProviders([
+  { Provider: GestureHandlerRootView, props: { style: { flex: 1 } } },
+  { Provider: SafeAreaProvider },
+  { Provider: ThemeProvider },
+  { Provider: ToastProvider },
+  { Provider: BackgroundServiceProvider },
+  { Provider: DebugOverlayProvider },
 ]);
 
 export default function RootLayout() {
@@ -47,21 +50,6 @@ export default function RootLayout() {
       <ThemedRootStack />
     </Providers>
   );
-  // return (
-  //   <GestureHandlerRootView style={{ flex: 1 }}>
-  //     <SafeAreaProvider>
-  //       <ThemeProvider>
-  //         <ToastProvider>
-  //           <BackgroundServiceProvider>
-  //             <DebugOverlayProvider>
-  //               <ThemedRootStack />
-  //             </DebugOverlayProvider>
-  //           </BackgroundServiceProvider>
-  //         </ToastProvider>
-  //       </ThemeProvider>
-  //     </SafeAreaProvider>
-  //   </GestureHandlerRootView>
-  // );
 }
 
 const ThemedRootStack = () => {

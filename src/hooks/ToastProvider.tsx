@@ -111,7 +111,7 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       clearHideTimeout();
-      queueRef.current = [options, ...queueRef.current];
+      queueRef.current.push(options);
       showNextToast();
     },
     [isVisible, showNextToast]
