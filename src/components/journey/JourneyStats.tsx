@@ -13,24 +13,42 @@ interface JourneyStatsProps {
 export const JourneyStats = (props: JourneyStatsProps) => {
   const { theme } = useTheme();
   const { journey } = props;
+  const styles = createStyles(theme);
 
   const stats = journey.stats;
   if (!stats) {
     return (
-      <View style={createStyles(theme).container}>
-        <Text style={createStyles(theme).title}>Journey Statistics</Text>
-        <Text style={createStyles(theme).subtitle}>No statistics available</Text>
+      <View style={styles.container}>
+        <Text style={styles.title}>Efficiency Summary</Text>
+        <Text style={styles.subtitle}>No statistics available</Text>
       </View>
     );
   }
 
   const displayedScore = Math.round(journey.score ?? stats.score);
+  const averageScore = Math.round(stats.avgScore);
 
   const durationMinutes = Math.floor(stats.durationMs / 60000);
   const durationHours = Math.floor(durationMinutes / 60);
   const remainingMinutes = durationMinutes % 60;
 
   const durationText = durationHours > 0 ? `${durationHours}h ${remainingMinutes}m` : `${durationMinutes}m`;
+
+  const totalIncidents = stats.harshBrakingCount + stats.harshAccelerationCount + stats.sharpTurnCount;
+  const totalSpeedingEpisodes = stats.moderateSpeedingEpisodeCount + stats.harshSpeedingEpisodeCount;
+  const summaryParts: string[] = [];
+
+  if (totalIncidents === 0) {
+    summaryParts.push('No harsh events');
+  } else {
+    summaryParts.push(`${totalIncidents} harsh event${totalIncidents === 1 ? '' : 's'}`);
+  }
+
+  if (totalSpeedingEpisodes === 0) {
+    summaryParts.push('no speeding');
+  } else {
+    summaryParts.push(`${totalSpeedingEpisodes} speeding episode${totalSpeedingEpisodes === 1 ? '' : 's'}`);
+  }
 
   const formatSeconds = (seconds: number): string => {
     const rounded = Math.round(seconds);
@@ -42,11 +60,10 @@ export const JourneyStats = (props: JourneyStatsProps) => {
     return s === 0 ? `${m}m` : `${m}m ${s}s`;
   };
 
-  const styles = createStyles(theme);
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Journey Statistics</Text>
+      <Text style={styles.title}>Efficiency Summary</Text>
+      <Text style={styles.subtitleMuted}>{summaryParts.join(', ')}</Text>
 
       <View style={styles.statsGrid}>
         <StatTile
@@ -56,6 +73,7 @@ export const JourneyStats = (props: JourneyStatsProps) => {
           variant="compact"
           style={styles.tile}
         />
+        <StatTile label="Avg Score" value={`${averageScore}/100`} variant="compact" style={styles.tile} />
         <StatTile
           label="Distance"
           value={`${Math.round((journey.distanceKm ?? 0) * 100) / 100} km`}
@@ -67,18 +85,18 @@ export const JourneyStats = (props: JourneyStatsProps) => {
         <StatTile label="Max Speed" value={`${stats.maxSpeed} km/h`} variant="compact" style={styles.tile} />
       </View>
 
-      <Text style={styles.subtitle}>Efficiency Breakdown</Text>
+      <Text style={styles.subtitle}>Driving Events</Text>
 
       <View style={styles.statsGrid}>
-        <StatTile label="Time Avg" value={`${stats.avgScore.toFixed(1)}/100`} variant="compact" style={styles.tile} />
-        <StatTile label="Lowest" value={`${Math.round(stats.minScore)}/100`} variant="compact" style={styles.tile} />
-        <StatTile label="End" value={`${Math.round(stats.endScore)}/100`} variant="compact" style={styles.tile} />
-        <StatTile label="Brakes" value={`${stats.harshBrakingCount}`} variant="compact" style={styles.tile} />
-        <StatTile label="Accel" value={`${stats.harshAccelerationCount}`} variant="compact" style={styles.tile} />
-        <StatTile label="Turns" value={`${stats.sharpTurnCount}`} variant="compact" style={styles.tile} />
+        <StatTile label="Harsh Brakes" value={`${stats.harshBrakingCount}`} variant="compact" style={styles.tile} />
+        <StatTile label="Harsh Accel" value={`${stats.harshAccelerationCount}`} variant="compact" style={styles.tile} />
+        <StatTile label="Sharp Turns" value={`${stats.sharpTurnCount}`} variant="compact" style={styles.tile} />
       </View>
 
-      {(stats.moderateSpeedingEpisodeCount > 0 || stats.harshSpeedingEpisodeCount > 0) && (
+      {(stats.moderateSpeedingEpisodeCount > 0 ||
+        stats.harshSpeedingEpisodeCount > 0 ||
+        stats.moderateSpeedingSeconds > 0 ||
+        stats.harshSpeedingSeconds > 0) && (
         <>
           <Text style={styles.subtitle}>Speeding</Text>
           <View style={styles.statsGrid}>
@@ -115,6 +133,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontSize: 18,
       fontWeight: '600',
       color: theme.colors.onBackground,
+    },
+    subtitleMuted: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      marginTop: -theme.spacing.sm,
     },
     statsGrid: {
       flexDirection: 'row',

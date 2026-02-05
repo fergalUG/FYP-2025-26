@@ -5,7 +5,7 @@ import { db, resetDatabase } from '@/db/client';
 import { journeys, events } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
-import type { Event, EventType, Journey, JourneyServiceController, JourneyServiceDeps, ScoringStats } from '@types';
+import type { Event, EventType, Journey, JourneyServiceController, JourneyServiceDeps, JourneyChangeEvent, ScoringStats } from '@types';
 import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.JourneyService);
@@ -15,6 +15,17 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
   const sharing = deps.Sharing ?? Sharing;
 
   let currentJourneyId: number | null = null;
+  const listeners: Array<(event: JourneyChangeEvent) => void> = [];
+
+  const emitChange = (event: JourneyChangeEvent): void => {
+    listeners.forEach((listener) => {
+      try {
+        listener(event);
+      } catch (error) {
+        deps.logger.error('Error in journey listener:', error);
+      }
+    });
+  };
 
   const initDatabase = async (): Promise<void> => {
     try {
@@ -62,6 +73,7 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
       if (result[0]) {
         currentJourneyId = result[0].id;
         deps.logger.info(`Journey started successfully (${result[0].id}).`);
+        emitChange({ type: 'journey-started', journeyId: result[0].id });
       }
     } catch (error) {
       deps.logger.error('Error starting journey:', error);
@@ -74,6 +86,7 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     }
 
     try {
+      const journeyId = currentJourneyId;
       const endTime = deps.now();
 
       await db
@@ -84,10 +97,11 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
           distanceKm,
           stats: stats,
         })
-        .where(eq(journeys.id, currentJourneyId));
+        .where(eq(journeys.id, journeyId));
 
-      deps.logger.info(`Journey ended successfully (${currentJourneyId}).`);
+      deps.logger.info(`Journey ended successfully (${journeyId}).`);
       currentJourneyId = null;
+      emitChange({ type: 'journey-ended', journeyId });
     } catch (error) {
       deps.logger.error('Error ending journey:', error);
     }
@@ -100,6 +114,10 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     try {
       const result = await db.update(journeys).set(updates).where(eq(journeys.id, id)).returning();
 
+      if (result[0]) {
+        emitChange({ type: 'journey-updated', journeyId: id });
+      }
+
       return result[0];
     } catch (error) {
       logger.error('JourneyService', 'Failed to update journey', error);
@@ -111,6 +129,7 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     try {
       await db.update(journeys).set({ title }).where(eq(journeys.id, journeyId));
       deps.logger.info(`Journey (${journeyId}) title updated to (${title}).`);
+      emitChange({ type: 'journey-updated', journeyId });
       return true;
     } catch (error) {
       deps.logger.error('Error updating journey title:', error);
@@ -165,6 +184,7 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     try {
       await db.delete(journeys).where(eq(journeys.id, journeyId));
       deps.logger.info(`Journey (${journeyId}) deleted successfully.`);
+      emitChange({ type: 'journey-deleted', journeyId });
       return true;
     } catch (error) {
       deps.logger.error('Error deleting journey:', error);
@@ -232,6 +252,13 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     deleteJourney,
     getEventsByJourneyId,
     exportDatabase,
+    addJourneyListener: (listener: (event: JourneyChangeEvent) => void) => {
+      listeners.push(listener);
+      return () => {
+        const index = listeners.indexOf(listener);
+        if (index >= 0) listeners.splice(index, 1);
+      };
+    },
   };
 };
 

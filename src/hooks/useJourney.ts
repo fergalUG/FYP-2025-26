@@ -116,6 +116,14 @@ export const useJourneys = () => {
     fetchJourneys();
   }, [fetchJourneys]);
 
+  useEffect(() => {
+    const unsubscribe = JourneyService.addJourneyListener(() => {
+      fetchJourneys();
+    });
+
+    return unsubscribe;
+  }, [fetchJourneys]);
+
   const deleteJourney = useCallback(async (journeyId: number) => {
     const success = await JourneyService.deleteJourney(journeyId);
     if (success) {

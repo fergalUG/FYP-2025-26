@@ -50,6 +50,15 @@ export interface ThemeColors {
     fair: string;
     poor: string;
   };
+  event: {
+    brake: string;
+    accel: string;
+    corner: string;
+    moderateSpeeding: string;
+    harshSpeeding: string;
+    start: string;
+    end: string;
+  };
 }
 
 export interface Theme {
@@ -87,6 +96,15 @@ export const lightTheme: Theme = {
       fair: '#F2C14E',
       poor: '#F2545B',
     },
+    event: {
+      brake: '#F2545B',
+      accel: '#F29154',
+      corner: '#F2DD54',
+      moderateSpeeding: '#F29154',
+      harshSpeeding: '#F2545B',
+      start: '#339989',
+      end: '#5BB9AD',
+    },
   },
   spacing,
   radius,
@@ -120,6 +138,15 @@ export const darkTheme: Theme = {
       good: '#a3c77c',
       fair: '#F2C14E',
       poor: '#F2545B',
+    },
+    event: {
+      brake: '#F2545B',
+      accel: '#F29154',
+      corner: '#F2DD54',
+      moderateSpeeding: '#F29154',
+      harshSpeeding: '#F2545B',
+      start: '#339989',
+      end: '#5BB9AD',
     },
   },
   spacing,

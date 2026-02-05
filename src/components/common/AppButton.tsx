@@ -54,14 +54,22 @@ export const AppButton = ({ children, onPress, variant = 'primary', disabled = f
         right,
         bottom,
       },
-      innerStyle: rest,
+      innerStyle: {
+        ...rest,
+        ...(width != null ? { width } : null),
+        ...(height != null ? { height } : null),
+        ...(flex != null ? { flex } : null),
+        ...(alignSelf != null ? { alignSelf } : null),
+      },
     };
   }, [style]);
 
   const handlePressIn = (event: GestureResponderEvent) => {
     if (!disabled) {
       Animated.spring(animatedScale, {
-        toValue: 0.95,
+        toValue: 0.97,
+        friction: 6,
+        tension: 120,
         useNativeDriver: true,
       }).start();
     }
@@ -94,9 +102,7 @@ export const AppButton = ({ children, onPress, variant = 'primary', disabled = f
             borderWidth: variant === 'secondary' ? 1 : 0,
           },
           innerStyle,
-          {
-            opacity: disabled ? 0.5 : pressed ? 0.7 : 1,
-          },
+          { opacity: disabled ? 0.5 : pressed ? 0.85 : 1 },
         ]}
       >
         {children}

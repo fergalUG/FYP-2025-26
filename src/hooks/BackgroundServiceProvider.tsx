@@ -1,9 +1,11 @@
-import React, { createContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useEffect, useState, useCallback, ReactNode, useRef } from 'react';
 
 import { singleton as BackgroundService } from '@services/BackgroundService';
 import type { BackgroundServiceController, TrackingState, PermissionState } from '@types';
+import type { TrackingMode } from '@/types/tracking';
 import { AppState, AppStateStatus } from 'react-native';
 import { createLogger, LogModule } from '@utils/logger';
+import { useToast } from '@hooks/ToastProvider';
 
 const logger = createLogger(LogModule.Provider);
 
@@ -19,6 +21,8 @@ export const BackgroundServiceContext = createContext<BackgroundServiceContextTy
 export const BackgroundServiceProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<TrackingState>(BackgroundService.getState());
   const [permissionState, setPermissionState] = useState<PermissionState>('unknown');
+  const { showToast } = useToast();
+  const previousModeRef = useRef<TrackingMode>(state.mode);
 
   const checkPermissions = useCallback(async () => {
     try {
@@ -43,6 +47,24 @@ export const BackgroundServiceProvider = ({ children }: { children: ReactNode })
     checkPermissions();
 
     const unsubscribeService = BackgroundService.addStateListener((newState) => {
+      const previousMode = previousModeRef.current;
+      if (previousMode !== newState.mode) {
+        if (newState.mode === 'ACTIVE') {
+          showToast({
+            title: 'Journey started',
+            message: 'Active tracking is on. Drive safely!',
+            variant: 'success',
+          });
+        } else if (previousMode === 'ACTIVE' && newState.mode === 'PASSIVE') {
+          showToast({
+            title: 'Journey ended',
+            message: 'Your drive summary is ready.',
+            variant: 'info',
+          });
+        }
+      }
+
+      previousModeRef.current = newState.mode;
       setState(newState);
     });
 
@@ -57,7 +79,7 @@ export const BackgroundServiceProvider = ({ children }: { children: ReactNode })
       unsubscribeService();
       subscription.remove();
     };
-  }, [checkPermissions]);
+  }, [checkPermissions, showToast]);
 
   return (
     <BackgroundServiceContext.Provider value={{ service: BackgroundService, state, permissionState, checkPermissions }}>
