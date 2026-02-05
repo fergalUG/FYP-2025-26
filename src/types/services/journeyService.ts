@@ -36,4 +36,12 @@ export interface JourneyServiceController {
   deleteJourney: (journeyId: number) => Promise<boolean>;
   getEventsByJourneyId: (journeyId: number) => Promise<Event[]>;
   exportDatabase: () => Promise<void>;
+  addJourneyListener: (listener: (event: JourneyChangeEvent) => void) => () => void;
+}
+
+export type JourneyChangeType = 'journey-started' | 'journey-ended' | 'journey-updated' | 'journey-deleted';
+
+export interface JourneyChangeEvent {
+  type: JourneyChangeType;
+  journeyId?: number;
 }

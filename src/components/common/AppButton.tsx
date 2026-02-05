@@ -54,7 +54,13 @@ export const AppButton = ({ children, onPress, variant = 'primary', disabled = f
         right,
         bottom,
       },
-      innerStyle: rest,
+      innerStyle: {
+        ...rest,
+        ...(width != null ? { width } : null),
+        ...(height != null ? { height } : null),
+        ...(flex != null ? { flex } : null),
+        ...(alignSelf != null ? { alignSelf } : null),
+      },
     };
   }, [style]);
 
