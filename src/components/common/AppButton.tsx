@@ -44,6 +44,10 @@ export const AppButton = ({ children, onPress, variant = 'primary', disabled = f
         marginBottom,
         marginLeft,
         marginRight,
+        width,
+        height,
+        alignSelf,
+        flex,
         position,
         top,
         left,
@@ -63,7 +67,9 @@ export const AppButton = ({ children, onPress, variant = 'primary', disabled = f
   const handlePressIn = (event: GestureResponderEvent) => {
     if (!disabled) {
       Animated.spring(animatedScale, {
-        toValue: 0.95,
+        toValue: 0.97,
+        friction: 6,
+        tension: 120,
         useNativeDriver: true,
       }).start();
     }
@@ -96,9 +102,7 @@ export const AppButton = ({ children, onPress, variant = 'primary', disabled = f
             borderWidth: variant === 'secondary' ? 1 : 0,
           },
           innerStyle,
-          {
-            opacity: disabled ? 0.5 : pressed ? 0.7 : 1,
-          },
+          { opacity: disabled ? 0.5 : pressed ? 0.85 : 1 },
         ]}
       >
         {children}
