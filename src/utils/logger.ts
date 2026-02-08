@@ -47,11 +47,11 @@ export const addLogListener = (listener: LogListener) => {
   };
 };
 
-const broadcast = (modeule: LogModule, message: string, ...data: any[]) => {
+const broadcast = (module: LogModule, message: string, ...data: any[]) => {
   if (listeners.length === 0) return;
 
   const args = data.map((d) => (typeof d === 'object' ? JSON.stringify(d) : String(d))).join(' ');
-  const line = args ? `[${modeule}] ${message} ${args}` : `[${modeule}] ${message}`;
+  const line = args ? `[${module}] ${message} ${args}` : `[${module}] ${message}`;
 
   listeners.forEach((listener) => listener(line));
 };
