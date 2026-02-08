@@ -1,14 +1,17 @@
 name: Velometry CI/CD Pipeline
 on:
   push:
-    branches: ["*"]
+    branches: ["**"]
   pull_request:
-    branches: ["*"]
+    branches: ["**"]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   test_lint_format:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
