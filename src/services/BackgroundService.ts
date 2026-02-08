@@ -118,7 +118,6 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
   const logStateTransition = (from: string, to: string, reason: string) => {
     deps.logger.info(`State transition: ${from} → ${to} (${reason})`, {
-      timestamp: new Date(deps.now()).toISOString(),
       journeyId: state.currentJourneyId,
     });
   };
@@ -202,7 +201,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
   const startActiveTracking = async (): Promise<void> => {
     if (state.mode === 'ACTIVE' || state.isTransitioning) {
-      deps.logger.info('Already in active tracking mode or transition in progress.');
+      deps.logger.debug('Already in active tracking mode or transition in progress.');
       return;
     }
 
@@ -355,6 +354,13 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
         speedConfidence: smoothed.confidence,
         speedSource: smoothed.source,
       });
+    } else if (!state.currentJourneyId) {
+      deps.logger.debug('Skipping efficiency processing: no current journey id.');
+    } else {
+      deps.logger.debug('Skipping efficiency processing: low speed confidence', {
+        speedMs: smoothed.speedMs,
+        confidence: smoothed.confidence,
+      });
     }
 
     if (isOutlierSeriesActive && !outlierThisUpdate) {
@@ -366,7 +372,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
   const endActiveTracking = async (): Promise<void> => {
     if (state.mode !== 'ACTIVE' || state.currentJourneyId === null || state.isTransitioning) {
-      deps.logger.info('No active journey to end or transition in progress.');
+      deps.logger.debug('No active journey to end or transition in progress.');
       return;
     }
 
@@ -460,6 +466,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     }
 
     if (!data?.locations?.length) {
+      deps.logger.debug('Background location task received with no locations.');
       return;
     }
 
@@ -480,18 +487,23 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
         ...latestLocation,
         coords: { ...latestLocation.coords, speed: calculatedSpeed },
       };
+      deps.logger.debug('Using calculated speed during GPS dropout', {
+        calculatedSpeed,
+      });
     }
 
     const { speed, accuracy } = locationForProcessing.coords;
     const validatedSpeed = validateGpsSpeed(speed, accuracy, DEFAULT_GPS_OPTIONS);
     const speedKmh = convertMsToKmh(validatedSpeed.value);
 
-    deps.logger.info(
+    deps.logger.debug(
       `Location received. Speed: ${speed?.toFixed(3)} m/s (${speedKmh.toFixed(3)} km/h) [${validatedSpeed.confidence}]. Current Mode: ${state.mode}`
     );
 
     if (state.mode === 'ACTIVE' && state.currentJourneyId !== null && !state.isTransitioning) {
       await processActiveLocation(locationForProcessing);
+    } else if (state.mode === 'ACTIVE' && state.currentJourneyId === null) {
+      deps.logger.debug('Skipping active location processing: no current journey id.');
     }
 
     if (state.mode === 'PASSIVE' && validatedSpeed.isValid && validatedSpeed.value >= ACTIVE_SPEED_THRESHOLD && !state.isTransitioning) {
@@ -506,7 +518,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
         if (state.lowSpeedStartTime === null) {
           state.lowSpeedStartTime = now;
-          deps.logger.info(`Low speed or invalid speed detected (${validatedSpeed.reason}), monitoring for timeout...`);
+          deps.logger.debug(`Low speed or invalid speed detected (${validatedSpeed.reason}), monitoring for timeout...`);
           return;
         }
 

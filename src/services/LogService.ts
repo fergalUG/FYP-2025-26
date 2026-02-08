@@ -9,6 +9,7 @@ const logger = createLogger(LogModule.LogService);
 const LOG_DIR_NAME = 'Logs';
 const FLUSH_INTERVAL_MS = 1500;
 const MAX_BUFFER_LINES = 50;
+const MAX_LINES_PER_FILE = 50000;
 
 const encodeText = (text: string): Uint8Array => {
   return new TextEncoder().encode(text);
@@ -30,6 +31,9 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
   const serviceLogger = deps.logger;
 
   let sessionFile: File | null = null;
+  let sessionBaseName: string | null = null;
+  let sessionPart = 1;
+  let currentLineCount = 0;
   let isInitialized = false;
   let unsubscribe: (() => void) | null = null;
 
@@ -45,9 +49,74 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
     return logsDir;
   };
 
-  const buildSessionFileName = (): string => {
+  const buildSessionBaseName = (): string => {
     const timestamp = new Date(deps.now()).toISOString().replace(/[:.]/g, '-');
-    return `VeloMetry_Logs_${timestamp}.txt`;
+    return `VeloMetry_Logs_${timestamp}`;
+  };
+
+  const buildSessionFileName = (baseName: string, part: number): string => {
+    if (part <= 1) {
+      return `${baseName}.txt`;
+    }
+    return `${baseName}_part${part}.txt`;
+  };
+
+  const createSessionFile = (baseName: string, part: number): File => {
+    const logsDir = ensureLogsDirectory();
+    const file = new fileSystem.File(logsDir, buildSessionFileName(baseName, part));
+    file.create({ intermediates: true, overwrite: true });
+    return file;
+  };
+
+  const formatExportLine = (line: string): string => {
+    return `${new Date(deps.now()).toISOString()} ${line}`;
+  };
+
+  const getSessionFiles = (): File[] => {
+    if (!sessionBaseName) {
+      return [];
+    }
+    const baseName = sessionBaseName;
+    const logsDir = ensureLogsDirectory();
+    const items = logsDir.list();
+    const files = items.filter((item): item is File => item instanceof fileSystem.File && !!item.name && item.name.startsWith(baseName));
+    const resolvePart = (name: string | null): number => {
+      if (!name) {
+        return 1;
+      }
+      const match = name.match(/_part(\d+)\.txt$/);
+      return match ? Number(match[1]) : 1;
+    };
+    return files.sort((a, b) => resolvePart(a.name) - resolvePart(b.name));
+  };
+
+  const rotateSessionFile = (): void => {
+    if (!sessionBaseName) {
+      return;
+    }
+    sessionPart += 1;
+    sessionFile = createSessionFile(sessionBaseName, sessionPart);
+    currentLineCount = 0;
+  };
+
+  const appendLinesWithRotation = (lines: string[]): void => {
+    if (!sessionFile || !sessionBaseName) {
+      return;
+    }
+
+    let index = 0;
+    while (index < lines.length) {
+      const remainingCapacity = MAX_LINES_PER_FILE - currentLineCount;
+      if (remainingCapacity <= 0) {
+        rotateSessionFile();
+        continue;
+      }
+
+      const chunk = lines.slice(index, index + remainingCapacity);
+      appendToFile(sessionFile, `${chunk.join('\n')}\n`);
+      currentLineCount += chunk.length;
+      index += chunk.length;
+    }
   };
 
   const flushPendingLines = (): void => {
@@ -63,7 +132,7 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
     isFlushing = true;
 
     try {
-      appendToFile(sessionFile, `${lines.join('\n')}\n`);
+      appendLinesWithRotation(lines);
     } finally {
       isFlushing = false;
       if (pendingLines.length > 0) {
@@ -86,14 +155,13 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
       return;
     }
 
-    const logsDir = ensureLogsDirectory();
-    const fileName = buildSessionFileName();
-    const file = new fileSystem.File(logsDir, fileName);
-    file.create({ intermediates: true, overwrite: true });
-    sessionFile = file;
+    sessionBaseName = buildSessionBaseName();
+    sessionPart = 1;
+    currentLineCount = 0;
+    sessionFile = createSessionFile(sessionBaseName, sessionPart);
 
     unsubscribe = addLogListener((line) => {
-      pendingLines.push(line);
+      pendingLines.push(formatExportLine(line));
 
       if (pendingLines.length >= MAX_BUFFER_LINES) {
         flushPendingLines();
@@ -132,21 +200,34 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
         cacheDir.create({ intermediates: true });
       }
 
-      const exportFileName = sessionFile.name || `VeloMetry_Logs_${new Date(deps.now()).toISOString()}.txt`;
-      const exportFile = new fileSystem.File(cacheDir, exportFileName);
-      if (exportFile.exists) {
-        exportFile.delete();
+      const sessionFiles = getSessionFiles();
+      if (sessionFiles.length === 0) {
+        serviceLogger.warn('No session log files found to export');
+        return false;
       }
 
-      sessionFile.copy(exportFile);
-
       if (await sharing.isAvailableAsync()) {
-        await sharing.shareAsync(exportFile.uri, {
-          mimeType: 'text/plain',
-          dialogTitle: 'Export VeloMetry Logs',
-        });
-        serviceLogger.info('Session logs exported successfully');
-        return true;
+        let exportCount = 0;
+        for (let index = 0; index < sessionFiles.length; index += 1) {
+          const sessionLog = sessionFiles[index];
+          const exportFileName = sessionLog.name || `VeloMetry_Logs_${new Date(deps.now()).toISOString()}.txt`;
+          const exportFile = new fileSystem.File(cacheDir, exportFileName);
+          if (exportFile.exists) {
+            exportFile.delete();
+          }
+
+          sessionLog.copy(exportFile);
+
+          await sharing.shareAsync(exportFile.uri, {
+            mimeType: 'text/plain',
+            dialogTitle:
+              sessionFiles.length > 1 ? `Export VeloMetry Logs (part ${index + 1}/${sessionFiles.length})` : 'Export VeloMetry Logs',
+          });
+          exportCount += 1;
+        }
+
+        serviceLogger.info(`Session logs exported successfully (${exportCount} file${exportCount === 1 ? '' : 's'})`);
+        return exportCount > 0;
       }
 
       serviceLogger.warn('Sharing is not available on this device');
@@ -168,7 +249,23 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
         flushTimeout = null;
       }
       pendingLines = [];
-      sessionFile.write('');
+      const sessionFiles = getSessionFiles();
+      if (sessionFiles.length === 0) {
+        sessionFile.write('');
+      } else {
+        sessionFiles.forEach((file, index) => {
+          if (index === 0) {
+            file.write('');
+            return;
+          }
+          file.delete();
+        });
+      }
+      sessionPart = 1;
+      currentLineCount = 0;
+      if (sessionBaseName) {
+        sessionFile = createSessionFile(sessionBaseName, sessionPart);
+      }
       serviceLogger.info('Session logs cleared');
       return true;
     } catch (error) {
@@ -182,7 +279,11 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
       initSession();
     }
 
-    const currentName = sessionFile?.name ?? null;
+    const currentNames = new Set(
+      getSessionFiles()
+        .map((file) => file.name)
+        .filter(Boolean)
+    );
     const logsDir = ensureLogsDirectory();
 
     try {
@@ -194,7 +295,7 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
           continue;
         }
         const fileName = item.name;
-        if (!fileName || fileName === currentName) {
+        if (!fileName || currentNames.has(fileName)) {
           continue;
         }
         item.delete();
@@ -219,7 +320,7 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
 
     if (pendingLines.length > 0 && sessionFile) {
       try {
-        appendToFile(sessionFile, `${pendingLines.join('\n')}\n`);
+        appendLinesWithRotation(pendingLines);
         pendingLines = [];
       } catch (error) {
         serviceLogger.error('Failed to flush pending logs during cleanup:', error);

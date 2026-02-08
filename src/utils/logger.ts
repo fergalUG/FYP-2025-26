@@ -13,6 +13,14 @@ const logColours = {
   reset: '\x1b[0m', // Reset
 };
 
+let debugEnabled = false;
+
+export const setDebugEnabled = (enabled: boolean) => {
+  debugEnabled = enabled;
+};
+
+export const isDebugEnabled = () => debugEnabled;
+
 export const enum LogModule {
   Provider = 'provider',
   Component = 'component',
@@ -39,38 +47,43 @@ export const addLogListener = (listener: LogListener) => {
   };
 };
 
-const broadcast = (modeule: LogModule, message: string, ...data: any[]) => {
+const broadcast = (module: LogModule, message: string, ...data: any[]) => {
   if (listeners.length === 0) return;
 
   const args = data.map((d) => (typeof d === 'object' ? JSON.stringify(d) : String(d))).join(' ');
-
-  const timestamp = new Date().toLocaleTimeString().split(' ')[0];
-  const line = `${timestamp} [${modeule}] ${message} ${args}`;
+  const line = args ? `[${module}] ${message} ${args}` : `[${module}] ${message}`;
 
   listeners.forEach((listener) => listener(line));
 };
 
 const info = (module: LogModule, message: string, ...data: any[]) => {
   const colour = logColours[module] || logColours.reset;
-  console.log(`${colour}[${module}] ${message}`, ...data, logColours.reset);
+  const timestamp = new Date().toISOString();
+  console.log(`${colour}${timestamp} [${module}] ${message}`, ...data, logColours.reset);
   broadcast(module, message, ...data);
 };
 
 const error = (module: LogModule, message: string, ...data: any[]) => {
   const colour = logColours[module] || logColours.reset;
-  console.error(`${colour}[${module}] ${message}`, ...data, logColours.reset);
+  const timestamp = new Date().toISOString();
+  console.error(`${colour}${timestamp} [${module}] ${message}`, ...data, logColours.reset);
   broadcast(module, message, ...data);
 };
 
 const warn = (module: LogModule, message: string, ...data: any[]) => {
   const colour = logColours[module] || logColours.reset;
-  console.warn(`${colour}[${module}] ${message}`, ...data, logColours.reset);
+  const timestamp = new Date().toISOString();
+  console.warn(`${colour}${timestamp} [${module}] ${message}`, ...data, logColours.reset);
   broadcast(module, message, ...data);
 };
 
 const debug = (module: LogModule, message: string, ...data: any[]) => {
+  if (!debugEnabled) {
+    return;
+  }
   const colour = logColours[module] || logColours.reset;
-  console.debug(`${colour}[${module}] ${message}`, ...data, logColours.reset);
+  const timestamp = new Date().toISOString();
+  console.debug(`${colour}${timestamp} [${module}] ${message}`, ...data, logColours.reset);
   broadcast(module, message, ...data);
 };
 

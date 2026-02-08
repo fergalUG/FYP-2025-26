@@ -5,7 +5,8 @@ import { db, resetDatabase } from '@/db/client';
 import { journeys, events } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
-import type { Event, EventType, Journey, JourneyServiceController, JourneyServiceDeps, JourneyChangeEvent, ScoringStats } from '@types';
+import { EventType } from '@types';
+import type { Event, Journey, JourneyServiceController, JourneyServiceDeps, JourneyChangeEvent, ScoringStats } from '@types';
 import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.JourneyService);
@@ -15,6 +16,7 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
   const sharing = deps.Sharing ?? Sharing;
 
   let currentJourneyId: number | null = null;
+  let lastNoJourneyLogTime = 0;
   const listeners: Array<(event: JourneyChangeEvent) => void> = [];
 
   const emitChange = (event: JourneyChangeEvent): void => {
@@ -61,6 +63,8 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
       const journeyDate = date.toISOString().split('T')[0];
       const title = `Journey on ${journeyDate} at ${date.toLocaleTimeString()}`;
 
+      deps.logger.debug('Starting journey', { journeyDate, title });
+
       const result = await db
         .insert(journeys)
         .values({
@@ -88,6 +92,8 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     try {
       const journeyId = currentJourneyId;
       const endTime = deps.now();
+
+      deps.logger.debug('Ending journey', { journeyId, finalScore, distanceKm });
 
       await db
         .update(journeys)
@@ -139,11 +145,20 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
 
   const logEvent = async (eventType: EventType, latitude: number, longitude: number, speed: number): Promise<void> => {
     if (!currentJourneyId) {
+      const now = deps.now();
+      if (eventType !== EventType.LocationUpdate || now - lastNoJourneyLogTime >= 5000) {
+        deps.logger.debug('Skipping event log: no active journey', { eventType, speed });
+        lastNoJourneyLogTime = now;
+      }
       return;
     }
 
     try {
       const timestamp = deps.now();
+
+      if (eventType !== EventType.LocationUpdate) {
+        deps.logger.debug('Logging journey event', { eventType, speed });
+      }
 
       await db.insert(events).values({
         journeyId: currentJourneyId,
