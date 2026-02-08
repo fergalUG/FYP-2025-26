@@ -185,6 +185,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     resetStopGoCandidates();
+    stopGoPhase = 'unknown';
   };
 
   const resolveBand = (speedKmh: number): SpeedBand => {

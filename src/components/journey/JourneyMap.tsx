@@ -306,7 +306,7 @@ export const JourneyMap = (props: JourneyMapProps) => {
           {hasStopAndGo && (
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.stopAndGo }]} />
-              <Text style={styles.legendText}>Stop & go</Text>
+              <Text style={styles.legendText}>Stop & Go</Text>
             </View>
           )}
         </View>
