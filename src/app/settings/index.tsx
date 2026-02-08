@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-import { useDriverProfile, useDebugOverlay, useTheme } from '@hooks';
+import { useDebugLogs, useDebugOverlay, useDriverProfile, useTheme } from '@hooks';
 import { useToast } from '@hooks/ToastProvider';
 
 import { AppButton } from '@components';
@@ -24,7 +24,8 @@ export default function Settings() {
   const styles = createStyles(theme);
 
   //debug stuff
-  const { isEnabled: isDebugEnabled, toggleOverlay } = useDebugOverlay();
+  const { isEnabled: isDebugOverlayEnabled, toggleOverlay } = useDebugOverlay();
+  const { isEnabled: isDebugLogsEnabled, toggleDebugLogs } = useDebugLogs();
 
   useEffect(() => {
     setSessionLogName(LogService.getSessionFileName());
@@ -158,18 +159,21 @@ export default function Settings() {
               <Text style={styles.itemSubtitle}>Show logs on screen.</Text>
             </View>
             <Switch
-              value={isDebugEnabled}
+              value={isDebugOverlayEnabled}
               onValueChange={toggleOverlay}
               trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
+          </View>
+
+          <View style={styles.rowBetween}>
             <View style={styles.rowText}>
               <Text style={styles.itemTitle}>Toggle Debug Logs</Text>
-              <Text style={styles.itemSubtitle}>Enable 'DEBUG' level logs</Text>
+              <Text style={styles.itemSubtitle}>Enable 'DEBUG' level logs.</Text>
             </View>
             <Switch
-              value={isDebugEnabled}
-              onValueChange={toggleOverlay}
+              value={isDebugLogsEnabled}
+              onValueChange={toggleDebugLogs}
               trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />

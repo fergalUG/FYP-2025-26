@@ -10,6 +10,7 @@ const logger = createLogger(LogModule.SettingsService);
 
 const DRIVER_NAME_KEY = 'driverName';
 const DEBUG_OVERLAY_KEY = 'debugOverlay';
+const DEBUG_LOGS_KEY = 'debugLogs';
 
 export const getDriverName = async (): Promise<string> => {
   try {
@@ -62,6 +63,7 @@ export const getDebugOverlay = async (): Promise<boolean> => {
 export const setDebugOverlay = async (enabled: boolean): Promise<boolean> => {
   const input = String(enabled);
   try {
+    logger.debug('Saving debug overlay setting:', enabled);
     await db
       .insert(settings)
       .values({ key: DEBUG_OVERLAY_KEY, value: input })
@@ -69,6 +71,34 @@ export const setDebugOverlay = async (enabled: boolean): Promise<boolean> => {
     return true;
   } catch (error) {
     logger.warn('Failed to save debug overlay setting:', error);
+    return false;
+  }
+};
+
+export const getDebugLogsEnabled = async (): Promise<boolean> => {
+  try {
+    const result = await db.select().from(settings).where(eq(settings.key, DEBUG_LOGS_KEY));
+    if (result.length > 0 && result[0].value) {
+      return result[0].value === 'true';
+    }
+    return false;
+  } catch (error) {
+    logger.warn('Failed to load debug logs setting:', error);
+    return false;
+  }
+};
+
+export const setDebugLogsEnabled = async (enabled: boolean): Promise<boolean> => {
+  const input = String(enabled);
+  try {
+    logger.debug('Saving debug logs setting:', enabled);
+    await db
+      .insert(settings)
+      .values({ key: DEBUG_LOGS_KEY, value: input })
+      .onConflictDoUpdate({ target: settings.key, set: { value: input } });
+    return true;
+  } catch (error) {
+    logger.warn('Failed to save debug logs setting:', error);
     return false;
   }
 };
