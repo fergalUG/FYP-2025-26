@@ -21,6 +21,7 @@ export interface NormalizedJourneyEvents {
   harshBrakingCount: number;
   harshAccelerationCount: number;
   sharpTurnCount: number;
+  stopAndGoCount: number;
 
   moderateSpeedingEpisodeCount: number;
   harshSpeedingEpisodeCount: number;
@@ -29,7 +30,9 @@ export interface NormalizedJourneyEvents {
 }
 
 const isDiscreteIncidentType = (type: EventType): boolean => {
-  return type === EventType.HarshBraking || type === EventType.HarshAcceleration || type === EventType.SharpTurn;
+  return (
+    type === EventType.HarshBraking || type === EventType.HarshAcceleration || type === EventType.SharpTurn || type === EventType.StopAndGo
+  );
 };
 
 const isSpeedingSampleType = (type: EventType): boolean => {
@@ -104,10 +107,12 @@ export const normalizeJourneyEvents = (events: Event[], config: EfficiencyScorin
   let harshBrakingCount = 0;
   let harshAccelerationCount = 0;
   let sharpTurnCount = 0;
+  let stopAndGoCount = 0;
   for (const incident of incidents) {
     if (incident.type === EventType.HarshBraking) harshBrakingCount += 1;
     if (incident.type === EventType.HarshAcceleration) harshAccelerationCount += 1;
     if (incident.type === EventType.SharpTurn) sharpTurnCount += 1;
+    if (incident.type === EventType.StopAndGo) stopAndGoCount += 1;
   }
 
   let moderateSpeedingEpisodeCount = 0;
@@ -133,6 +138,7 @@ export const normalizeJourneyEvents = (events: Event[], config: EfficiencyScorin
     harshBrakingCount,
     harshAccelerationCount,
     sharpTurnCount,
+    stopAndGoCount,
 
     moderateSpeedingEpisodeCount,
     harshSpeedingEpisodeCount,

@@ -56,6 +56,7 @@ export interface ThemeColors {
     corner: string;
     moderateSpeeding: string;
     harshSpeeding: string;
+    stopAndGo: string;
     start: string;
     end: string;
   };
@@ -102,6 +103,7 @@ export const lightTheme: Theme = {
       corner: '#F2DD54',
       moderateSpeeding: '#F29154',
       harshSpeeding: '#F2545B',
+      stopAndGo: '#5C7CFA',
       start: '#339989',
       end: '#5BB9AD',
     },
@@ -145,6 +147,7 @@ export const darkTheme: Theme = {
       corner: '#F2DD54',
       moderateSpeeding: '#F29154',
       harshSpeeding: '#F2545B',
+      stopAndGo: '#748FFC',
       start: '#339989',
       end: '#5BB9AD',
     },

@@ -172,6 +172,47 @@ describe('EfficiencyService', () => {
 
       expect(mockJourneyService.logEvent).not.toHaveBeenCalled();
     });
+
+    it('detects stop and go cycles', async () => {
+      const svc = createService();
+      svc.startTracking();
+
+      const buildLocationForSpeed = (speedKmh: number) => ({
+        ...mockLocation,
+        coords: {
+          ...mockLocation.coords,
+          speed: speedKmh / 3.6,
+        },
+      });
+
+      const processAt = async (timeMs: number, speedKmh: number) => {
+        nowMs = timeMs;
+        const location = buildLocationForSpeed(speedKmh);
+        await svc.processLocation(location, buildOptions(location));
+      };
+
+      await processAt(0, 0);
+      await processAt(5000, 0);
+      await processAt(6000, 20);
+      await processAt(11000, 20);
+
+      await processAt(12000, 0);
+      await processAt(17000, 0);
+      await processAt(18000, 20);
+      await processAt(23000, 20);
+
+      await processAt(24000, 0);
+      await processAt(29000, 0);
+      await processAt(30000, 20);
+      await processAt(35000, 20);
+
+      expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
+        EventType.StopAndGo,
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Number)
+      );
+    });
   });
 
   describe('calculateJourneyScore', () => {
@@ -231,6 +272,7 @@ describe('EfficiencyService', () => {
         harshBrakingCount: 0,
         harshAccelerationCount: 0,
         sharpTurnCount: 0,
+        stopAndGoCount: 0,
 
         moderateSpeedingEpisodeCount: 0,
         harshSpeedingEpisodeCount: 0,
@@ -263,6 +305,7 @@ describe('EfficiencyService', () => {
       expect(stats?.harshBrakingCount).toBe(1);
       expect(stats?.harshAccelerationCount).toBe(1);
       expect(stats?.sharpTurnCount).toBe(0);
+      expect(stats?.stopAndGoCount).toBe(0);
       expect(stats?.moderateSpeedingEpisodeCount).toBe(1);
       expect(stats?.harshSpeedingEpisodeCount).toBe(1);
       expect(stats?.moderateSpeedingSeconds).toBe(10);

@@ -30,4 +30,5 @@ export enum EventType {
   SharpTurn = 'sharp_turn',
   ModerateSpeeding = 'moderate_speeding',
   HarshSpeeding = 'harsh_speeding',
+  StopAndGo = 'stop_and_go',
 }

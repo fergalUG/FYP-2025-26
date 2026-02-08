@@ -28,11 +28,13 @@ const baseConfig: EfficiencyScoringConfig = {
     [EventType.SharpTurn]: 6,
     [EventType.ModerateSpeeding]: 4,
     [EventType.HarshSpeeding]: 8,
+    [EventType.StopAndGo]: 5,
   },
   cooldownMs: {
     [EventType.HarshBraking]: 4000,
     [EventType.HarshAcceleration]: 4000,
     [EventType.SharpTurn]: 5000,
+    [EventType.StopAndGo]: 30000,
   },
   speedingEpisodeGapMs: 25 * 1000,
   speedingDrainPointsPerSecond: {

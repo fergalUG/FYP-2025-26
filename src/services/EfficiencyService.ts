@@ -28,14 +28,23 @@ import type { SpeedBand } from '@/types/tracking';
 const logger = createLogger(LogModule.EfficiencyService);
 
 // TODO: Map the speed thresholds to actual speed limits using a Maps API
-const SPEEDING_THRESHOLD_HIGH = 120; // km/h (these are placeholders for now)
-const SPEEDING_THRESHOLD_MEDIUM = 100; // km/h
+const SPEEDING_THRESHOLD_HIGH_KMH = 120;
+const SPEEDING_THRESHOLD_MEDIUM_KMH = 100;
 
-const MIN_SPEED_FOR_EVENTS = 10; // km/h
-const MIN_SPEED_FOR_HEADING = 15; // km/h - minimum speed for reliable GPS heading
-const HEADING_LOOKBACK_TIME = 2000; // ms - look back this far for heading changes
-const CORNERING_EVENT_COOLDOWN_MS = 5000; // ms - prevent multiple events for the same turn
-const SUSTAINED_FORCE_DURATION_MS = 500; // ms - force must be sustained for this long
+const MIN_SPEED_FOR_EVENTS_KMH = 10;
+const MIN_SPEED_FOR_HEADING_KMH = 15;
+const HEADING_LOOKBACK_TIME_MS = 2000;
+const CORNERING_EVENT_COOLDOWN_MS = 5000;
+const SUSTAINED_FORCE_DURATION_MS = 500;
+
+// stop and go detection constants
+const STOP_GO_STOP_SPEED_KMH = 3;
+const STOP_GO_GO_SPEED_KMH = 12;
+const STOP_GO_STOP_DWELL_MS = 5000;
+const STOP_GO_GO_DWELL_MS = 5000;
+const STOP_GO_WINDOW_MS = 120000;
+const STOP_GO_MIN_CYCLES = 3;
+const STOP_GO_EVENT_COOLDOWN_MS = 30000;
 
 const MOTION_BUFFER_SIZE = 25; // 500ms at 50Hz polling rate on sensors
 const HEADING_HISTORY_SIZE = 5;
@@ -57,6 +66,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let currentSpeedBand: SpeedBand | null = null;
   let lastDebugSummaryTime = 0;
   let lastDebugEnabled = false;
+  let stopGoPhase: 'moving' | 'stopped' | 'unknown' = 'unknown';
+  let stopGoStopCandidateStart: number | null = null;
+  let stopGoGoCandidateStart: number | null = null;
+  let stopGoCycleTimestamps: number[] = [];
+  let lastStopGoEventTime = 0;
 
   const buildDebugSummary = () => ({
     motionUpdates: 0,
@@ -104,6 +118,19 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     debugSummary = buildDebugSummary();
   };
 
+  const resetStopGoCandidates = () => {
+    stopGoStopCandidateStart = null;
+    stopGoGoCandidateStart = null;
+  };
+
+  const resetStopGoState = () => {
+    stopGoPhase = 'unknown';
+    stopGoStopCandidateStart = null;
+    stopGoGoCandidateStart = null;
+    stopGoCycleTimestamps = [];
+    lastStopGoEventTime = 0;
+  };
+
   const emitDebugSummary = (now: number) => {
     if (!isDebugEnabled()) {
       return;
@@ -116,6 +143,50 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     resetDebugSummary();
   };
 
+  const handleStopAndGo = async (speedKmh: number, now: number, latitude: number, longitude: number): Promise<void> => {
+    if (speedKmh <= STOP_GO_STOP_SPEED_KMH) {
+      stopGoGoCandidateStart = null;
+
+      if (stopGoPhase !== 'stopped') {
+        if (stopGoStopCandidateStart === null) {
+          stopGoStopCandidateStart = now;
+        } else if (now - stopGoStopCandidateStart >= STOP_GO_STOP_DWELL_MS) {
+          stopGoPhase = 'stopped';
+          stopGoStopCandidateStart = null;
+        }
+      }
+      return;
+    }
+
+    if (speedKmh >= STOP_GO_GO_SPEED_KMH) {
+      stopGoStopCandidateStart = null;
+
+      if (stopGoPhase !== 'moving') {
+        if (stopGoGoCandidateStart === null) {
+          stopGoGoCandidateStart = now;
+        } else if (now - stopGoGoCandidateStart >= STOP_GO_GO_DWELL_MS) {
+          if (stopGoPhase === 'stopped') {
+            stopGoCycleTimestamps.push(now);
+            stopGoCycleTimestamps = stopGoCycleTimestamps.filter((ts) => now - ts <= STOP_GO_WINDOW_MS);
+
+            if (stopGoCycleTimestamps.length >= STOP_GO_MIN_CYCLES && now - lastStopGoEventTime >= STOP_GO_EVENT_COOLDOWN_MS) {
+              await deps.JourneyService.logEvent(EventType.StopAndGo, latitude, longitude, speedKmh);
+              deps.logger.info(`stop_and_go detected: ${stopGoCycleTimestamps.length} cycles in ${STOP_GO_WINDOW_MS / 1000}s`);
+              lastStopGoEventTime = now;
+              stopGoCycleTimestamps = [];
+            }
+          }
+
+          stopGoPhase = 'moving';
+          stopGoGoCandidateStart = null;
+        }
+      }
+      return;
+    }
+
+    resetStopGoCandidates();
+  };
+
   const resolveBand = (speedKmh: number): SpeedBand => {
     currentSpeedBand = resolveSpeedBand(speedKmh, currentSpeedBand, 3);
     return currentSpeedBand;
@@ -124,9 +195,9 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   const checkSpeeding = async (latitude: number, longitude: number, speedKmh: number): Promise<void> => {
     let eventType: EventType | null = null;
 
-    if (speedKmh > SPEEDING_THRESHOLD_HIGH) {
+    if (speedKmh > SPEEDING_THRESHOLD_HIGH_KMH) {
       eventType = EventType.HarshSpeeding;
-    } else if (speedKmh > SPEEDING_THRESHOLD_MEDIUM) {
+    } else if (speedKmh > SPEEDING_THRESHOLD_MEDIUM_KMH) {
       eventType = EventType.ModerateSpeeding;
     }
 
@@ -141,7 +212,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return 0;
     }
 
-    headingHistory = headingHistory.filter((h) => now - h.timestamp < HEADING_LOOKBACK_TIME);
+    headingHistory = headingHistory.filter((h) => now - h.timestamp < HEADING_LOOKBACK_TIME_MS);
     if (headingHistory.length < 2) {
       return 0;
     }
@@ -288,7 +359,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       }
     }
 
-    if (speedKmh >= MIN_SPEED_FOR_HEADING && headingHistory.length >= 2) {
+    if (speedKmh >= MIN_SPEED_FOR_HEADING_KMH && headingHistory.length >= 2) {
       const headingChange = calculateMaxHeadingChange(currentTime);
       const headingThreshold = getCorneringHeadingThreshold(band);
       if (debugEnabled) {
@@ -371,7 +442,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     const speedKmh = convertMsToKmh(speedMs);
-    if (speedKmh <= MIN_SPEED_FOR_EVENTS) {
+    if (speedKmh <= MIN_SPEED_FOR_EVENTS_KMH) {
       if (debugEnabled) {
         debugSummary.skipped.speedTooLow += 1;
         emitDebugSummary(deps.now());
@@ -415,6 +486,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
+    resetStopGoState();
 
     deps.VehicleMotion.startTracking();
     deps.VehicleMotion.addListener('onMotionUpdate', handleMotionUpdate);
@@ -442,6 +514,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
+    resetStopGoState();
 
     deps.VehicleMotion.removeAllListeners('onMotionUpdate');
     deps.VehicleMotion.stopTracking();
@@ -465,12 +538,16 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     currentSpeedBand = isSpeedValid ? resolveBand(speedKmh) : null;
 
     if (isSpeedValid && speedConfidence !== 'low') {
+      await handleStopAndGo(speedKmh, currentTime, latitude, longitude);
       await checkSpeeding(latitude, longitude, speedKmh);
     } else if (isSpeedValid && speedConfidence === 'low') {
+      resetStopGoCandidates();
       deps.logger.debug('Skipping speeding check due to low speed confidence', {
         speedKmh: speedKmh.toFixed(1),
         speedConfidence,
       });
+    } else {
+      resetStopGoCandidates();
     }
 
     if (isSpeedValid) {
@@ -487,13 +564,13 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       lastSpeedUpdateTime = currentTime;
     }
 
-    if (heading !== null && heading !== -1 && isSpeedValid && speedKmh >= MIN_SPEED_FOR_HEADING) {
+    if (heading !== null && heading !== -1 && isSpeedValid && speedKmh >= MIN_SPEED_FOR_HEADING_KMH) {
       headingHistory.push({ heading, timestamp: currentTime });
-      headingHistory = headingHistory.filter((h) => currentTime - h.timestamp < HEADING_LOOKBACK_TIME);
+      headingHistory = headingHistory.filter((h) => currentTime - h.timestamp < HEADING_LOOKBACK_TIME_MS);
       if (headingHistory.length > HEADING_HISTORY_SIZE) {
         headingHistory.shift();
       }
-    } else if (!isSpeedValid || speedKmh < MIN_SPEED_FOR_HEADING) {
+    } else if (!isSpeedValid || speedKmh < MIN_SPEED_FOR_HEADING_KMH) {
       headingHistory = [];
     }
 

@@ -10,6 +10,7 @@ export interface ScoringStats {
   harshBrakingCount: number;
   harshAccelerationCount: number;
   sharpTurnCount: number;
+  stopAndGoCount: number;
 
   moderateSpeedingEpisodeCount: number;
   harshSpeedingEpisodeCount: number;

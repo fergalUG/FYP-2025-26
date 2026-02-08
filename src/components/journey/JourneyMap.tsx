@@ -29,18 +29,22 @@ const isRouteEventType = (type: EventType): boolean => {
 };
 
 const isIncidentType = (type: EventType): boolean => {
-  return type === EventType.HarshBraking || type === EventType.HarshAcceleration || type === EventType.SharpTurn;
+  return (
+    type === EventType.HarshBraking || type === EventType.HarshAcceleration || type === EventType.SharpTurn || type === EventType.StopAndGo
+  );
 };
 
 const getIncidentLabel = (type: EventType): string => {
   if (type === EventType.HarshBraking) return 'Harsh Brake';
   if (type === EventType.HarshAcceleration) return 'Harsh Accel';
+  if (type === EventType.StopAndGo) return 'Stop & Go';
   return 'Sharp Turn';
 };
 
 const getIncidentColor = (type: EventType, theme: ReturnType<typeof useTheme>['theme']): string => {
   if (type === EventType.HarshBraking) return theme.colors.event.brake;
   if (type === EventType.HarshAcceleration) return theme.colors.event.accel;
+  if (type === EventType.StopAndGo) return theme.colors.event.stopAndGo;
   return theme.colors.event.corner;
 };
 
@@ -160,6 +164,7 @@ export const JourneyMap = (props: JourneyMapProps) => {
   const hasHarshBraking = incidentMarkers.some((marker) => marker.type === EventType.HarshBraking);
   const hasHarshAcceleration = incidentMarkers.some((marker) => marker.type === EventType.HarshAcceleration);
   const hasSharpTurn = incidentMarkers.some((marker) => marker.type === EventType.SharpTurn);
+  const hasStopAndGo = incidentMarkers.some((marker) => marker.type === EventType.StopAndGo);
 
   if (events.length === 0) {
     return (
@@ -249,7 +254,7 @@ export const JourneyMap = (props: JourneyMapProps) => {
             }}
             title="Start"
             description="Journey started here"
-            pinColor="green"
+            pinColor={theme.colors.event.start}
           />
         )}
 
@@ -261,7 +266,7 @@ export const JourneyMap = (props: JourneyMapProps) => {
             }}
             title="End"
             description="Journey ended here"
-            pinColor="blue"
+            pinColor={theme.colors.event.end}
           />
         )}
       </MapView>
@@ -296,6 +301,12 @@ export const JourneyMap = (props: JourneyMapProps) => {
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.corner }]} />
               <Text style={styles.legendText}>Sharp turn</Text>
+            </View>
+          )}
+          {hasStopAndGo && (
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.stopAndGo }]} />
+              <Text style={styles.legendText}>Stop & go</Text>
             </View>
           )}
         </View>
