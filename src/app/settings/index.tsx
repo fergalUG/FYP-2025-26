@@ -163,6 +163,16 @@ export default function Settings() {
               trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
+            <View style={styles.rowText}>
+              <Text style={styles.itemTitle}>Toggle Debug Logs</Text>
+              <Text style={styles.itemSubtitle}>Enable 'DEBUG' level logs</Text>
+            </View>
+            <Switch
+              value={isDebugEnabled}
+              onValueChange={toggleOverlay}
+              trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
+              thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
+            />
           </View>
 
           <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />

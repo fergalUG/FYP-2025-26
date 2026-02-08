@@ -7,8 +7,6 @@
       "@/*": ["*"],
       "@components": ["components"],
       "@components/*": ["components/*"],
-      "@screens": ["screens"],
-      "@screens/*": ["screens/*"],
       "@utils": ["utils"],
       "@utils/*": ["utils/*"],
       "@services": ["services"],
