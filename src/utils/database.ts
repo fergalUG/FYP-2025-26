@@ -131,7 +131,7 @@ const createMockStats = (
   score: number,
   durationMs: number,
   distanceKm: number,
-  incidents: { harshBraking?: number; harshAccel?: number; speeding?: number } = {}
+  incidents: { harshBraking?: number; harshAccel?: number; speeding?: number; stopAndGo?: number } = {}
 ): ScoringStats => {
   const avgSpeed = distanceKm / (durationMs / 3600000);
 
@@ -146,6 +146,7 @@ const createMockStats = (
     harshBrakingCount: incidents.harshBraking ?? 0,
     harshAccelerationCount: incidents.harshAccel ?? 0,
     sharpTurnCount: 0,
+    stopAndGoCount: incidents.stopAndGo ?? 0,
 
     moderateSpeedingEpisodeCount: incidents.speeding ?? 0,
     harshSpeedingEpisodeCount: 0,

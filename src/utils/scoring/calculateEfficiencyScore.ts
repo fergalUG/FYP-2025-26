@@ -49,6 +49,7 @@ export const calculateEfficiencyScore = (
       harshBrakingCount: 0,
       harshAccelerationCount: 0,
       sharpTurnCount: 0,
+      stopAndGoCount: 0,
 
       moderateSpeedingEpisodeCount: 0,
       harshSpeedingEpisodeCount: 0,
@@ -107,6 +108,7 @@ export const calculateEfficiencyScore = (
     harshBrakingCount: normalized.harshBrakingCount,
     harshAccelerationCount: normalized.harshAccelerationCount,
     sharpTurnCount: normalized.sharpTurnCount,
+    stopAndGoCount: normalized.stopAndGoCount,
 
     moderateSpeedingEpisodeCount: normalized.moderateSpeedingEpisodeCount,
     harshSpeedingEpisodeCount: normalized.harshSpeedingEpisodeCount,

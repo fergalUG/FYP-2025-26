@@ -34,14 +34,21 @@ export const JourneyStats = (props: JourneyStatsProps) => {
 
   const durationText = durationHours > 0 ? `${durationHours}h ${remainingMinutes}m` : `${durationMinutes}m`;
 
-  const totalIncidents = stats.harshBrakingCount + stats.harshAccelerationCount + stats.sharpTurnCount;
+  const harshIncidentCount = stats.harshBrakingCount + stats.harshAccelerationCount + stats.sharpTurnCount;
+  const stopAndGoCount = stats.stopAndGoCount ?? 0;
   const totalSpeedingEpisodes = stats.moderateSpeedingEpisodeCount + stats.harshSpeedingEpisodeCount;
   const summaryParts: string[] = [];
 
-  if (totalIncidents === 0) {
+  if (harshIncidentCount === 0) {
     summaryParts.push('No harsh events');
   } else {
-    summaryParts.push(`${totalIncidents} harsh event${totalIncidents === 1 ? '' : 's'}`);
+    summaryParts.push(`${harshIncidentCount} harsh event${harshIncidentCount === 1 ? '' : 's'}`);
+  }
+
+  if (stopAndGoCount === 0) {
+    summaryParts.push('no stop & go');
+  } else {
+    summaryParts.push(`${stopAndGoCount} stop & go event${stopAndGoCount === 1 ? '' : 's'}`);
   }
 
   if (totalSpeedingEpisodes === 0) {
@@ -91,6 +98,7 @@ export const JourneyStats = (props: JourneyStatsProps) => {
         <StatTile label="Harsh Brakes" value={`${stats.harshBrakingCount}`} variant="compact" style={styles.tile} />
         <StatTile label="Harsh Accel" value={`${stats.harshAccelerationCount}`} variant="compact" style={styles.tile} />
         <StatTile label="Sharp Turns" value={`${stats.sharpTurnCount}`} variant="compact" style={styles.tile} />
+        <StatTile label="Stop & Go" value={`${stopAndGoCount}`} variant="compact" style={styles.tile} />
       </View>
 
       {(stats.moderateSpeedingEpisodeCount > 0 ||

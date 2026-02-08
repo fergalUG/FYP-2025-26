@@ -28,11 +28,13 @@ const baseConfig: EfficiencyScoringConfig = {
     [EventType.SharpTurn]: 6,
     [EventType.ModerateSpeeding]: 4,
     [EventType.HarshSpeeding]: 8,
+    [EventType.StopAndGo]: 5,
   },
   cooldownMs: {
     [EventType.HarshBraking]: 4000,
     [EventType.HarshAcceleration]: 4000,
     [EventType.SharpTurn]: 5000,
+    [EventType.StopAndGo]: 30000,
   },
   speedingEpisodeGapMs: 25 * 1000,
   speedingDrainPointsPerSecond: {
@@ -73,6 +75,42 @@ describe('calculateEfficiencyScore', () => {
     const b = calculateEfficiencyScore(twoBrakes, 0, baseConfig);
     expect(b.stats.harshBrakingCount).toBe(1);
     expect(b.score).toBe(a.score);
+  });
+
+  it('counts stop-and-go incidents and respects cooldown', () => {
+    const baseEvents = [
+      makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
+      makeEvent({ id: 2, timestamp: 600000, type: EventType.JourneyEnd }),
+    ];
+    const oneStopAndGo = [
+      makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
+      makeEvent({ id: 2, timestamp: 10000, type: EventType.StopAndGo }),
+      makeEvent({ id: 3, timestamp: 600000, type: EventType.JourneyEnd }),
+    ];
+    const debouncedStopAndGo = [
+      makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
+      makeEvent({ id: 2, timestamp: 10000, type: EventType.StopAndGo }),
+      makeEvent({ id: 3, timestamp: 20000, type: EventType.StopAndGo }),
+      makeEvent({ id: 4, timestamp: 600000, type: EventType.JourneyEnd }),
+    ];
+    const twoStopAndGo = [
+      makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
+      makeEvent({ id: 2, timestamp: 10000, type: EventType.StopAndGo }),
+      makeEvent({ id: 3, timestamp: 45000, type: EventType.StopAndGo }),
+      makeEvent({ id: 4, timestamp: 600000, type: EventType.JourneyEnd }),
+    ];
+
+    const base = calculateEfficiencyScore(baseEvents, 0, baseConfig);
+    const one = calculateEfficiencyScore(oneStopAndGo, 0, baseConfig);
+    const debounced = calculateEfficiencyScore(debouncedStopAndGo, 0, baseConfig);
+    const two = calculateEfficiencyScore(twoStopAndGo, 0, baseConfig);
+
+    expect(one.stats.stopAndGoCount).toBe(1);
+    expect(debounced.stats.stopAndGoCount).toBe(1);
+    expect(two.stats.stopAndGoCount).toBe(2);
+    expect(one.score).toBeLessThan(base.score);
+    expect(debounced.score).toBe(one.score);
+    expect(two.score).toBeLessThan(one.score);
   });
 
   it('groups speeding samples into episodes and applies drain', () => {
