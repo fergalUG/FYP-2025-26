@@ -103,8 +103,6 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
   let gpsDropoutState: GpsDropoutState = {
     isInDropout: false,
     dropoutStartTime: null,
-    lastKnownLocation: null,
-    lastKnownSpeed: 0,
   };
   let lastHealthIssuesKey: string | null = null;
   let isOutlierSeriesActive = false;
@@ -209,72 +207,106 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     state.isTransitioning = true;
 
     try {
-      state.mode = 'ACTIVE';
       state.totalDistance = 0;
       state.lastLocation = null;
       state.lowSpeedStartTime = null;
       state.startLocationLabel = null;
       state.lastValidSpeed = 0;
       state.consecutiveInvalidSpeeds = 0;
-      state.lastStateChange = deps.now();
       speedSmoother.reset();
 
       await deps.JourneyService.startJourney();
       state.currentJourneyId = deps.JourneyService.getCurrentJourneyId();
-
-      logStateTransition(previousMode, 'ACTIVE', `Journey ${state.currentJourneyId} started`);
-
-      try {
-        const location = await deps.Location.getCurrentPositionAsync({
-          accuracy: deps.Location.Accuracy.BestForNavigation,
-        });
-        await deps.JourneyService.logEvent(EventType.JourneyStart, location.coords.latitude, location.coords.longitude, 0);
-        state.lastLocation = location;
-        state.startLocationLabel = await getLocationLabel(location.coords.latitude, location.coords.longitude);
-      } catch (error) {
-        deps.logger.error('Could not get initial location:', error);
-      }
-
-      deps.EfficiencyService.startTracking();
-
-      const started = await withRetry(
-        async () => {
-          await deps.Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
-            accuracy: deps.Location.Accuracy.BestForNavigation,
-            distanceInterval: 0,
-            showsBackgroundLocationIndicator: true,
-            activityType: deps.Location.ActivityType.AutomotiveNavigation,
-            pausesUpdatesAutomatically: false,
-          });
-          return true;
-        },
-        {
-          maxRetries: RETRY_MAX_ATTEMPTS,
-          baseDelayMs: RETRY_BASE_DELAY_MS,
-          maxDelayMs: RETRY_MAX_DELAY_MS,
-          onRetry: (attempt, error) => {
-            deps.logger.warn(`Retrying active tracking start (attempt ${attempt})`, error);
-          },
-        }
-      );
-
-      if (!started) {
-        deps.logger.error('Failed to start active tracking after retries. Ending journey.');
-        state.isTransitioning = false;
-        await endActiveTracking();
+      if (state.currentJourneyId === null) {
+        deps.logger.error('Failed to enter active tracking: journey start did not return an id.');
         return;
       }
 
-      // await deps.Notifications.scheduleNotificationAsync({
-      //   content: {
-      //     title: 'Driving Detected',
-      //     body: 'Active tracking has started. Drive safely!',
-      //   },
-      //   trigger: null,
-      // });
+      let startedMotionTracking = false;
+      try {
+        try {
+          const location = await deps.Location.getCurrentPositionAsync({
+            accuracy: deps.Location.Accuracy.BestForNavigation,
+          });
+          await deps.JourneyService.logEvent(EventType.JourneyStart, location.coords.latitude, location.coords.longitude, 0);
+          state.lastLocation = location;
+          state.startLocationLabel = await getLocationLabel(location.coords.latitude, location.coords.longitude);
+        } catch (error) {
+          deps.logger.error('Could not get initial location:', error);
+        }
 
-      emitStateChange();
-      deps.logger.info('Active tracking started.');
+        deps.EfficiencyService.startTracking();
+        startedMotionTracking = true;
+
+        const started = await withRetry(
+          async () => {
+            await deps.Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
+              accuracy: deps.Location.Accuracy.BestForNavigation,
+              distanceInterval: 0,
+              showsBackgroundLocationIndicator: true,
+              activityType: deps.Location.ActivityType.AutomotiveNavigation,
+              pausesUpdatesAutomatically: false,
+            });
+            return true;
+          },
+          {
+            maxRetries: RETRY_MAX_ATTEMPTS,
+            baseDelayMs: RETRY_BASE_DELAY_MS,
+            maxDelayMs: RETRY_MAX_DELAY_MS,
+            onRetry: (attempt, error) => {
+              deps.logger.warn(`Retrying active tracking start (attempt ${attempt})`, error);
+            },
+          }
+        );
+
+        if (!started) {
+          deps.logger.error('Failed to start active tracking after retries. Rolling back active journey start.');
+          if (startedMotionTracking) {
+            deps.EfficiencyService.stopTracking();
+          }
+          await deps.JourneyService.endJourney(100, 0, null);
+          state.currentJourneyId = null;
+          state.totalDistance = 0;
+          state.lastLocation = null;
+          state.startLocationLabel = null;
+          state.lowSpeedStartTime = null;
+          state.lastValidSpeed = 0;
+          state.consecutiveInvalidSpeeds = 0;
+          speedSmoother.reset();
+          await startPassiveTracking();
+          return;
+        }
+
+        state.mode = 'ACTIVE';
+        state.lastStateChange = deps.now();
+        logStateTransition(previousMode, 'ACTIVE', `Journey ${state.currentJourneyId} started`);
+
+        // await deps.Notifications.scheduleNotificationAsync({
+        //   content: {
+        //     title: 'Driving Detected',
+        //     body: 'Active tracking has started. Drive safely!',
+        //   },
+        //   trigger: null,
+        // });
+
+        emitStateChange();
+        deps.logger.info('Active tracking started.');
+      } catch (error) {
+        deps.logger.error('Unexpected error while starting active tracking:', error);
+        if (startedMotionTracking) {
+          deps.EfficiencyService.stopTracking();
+        }
+        await deps.JourneyService.endJourney(100, 0, null);
+        state.currentJourneyId = null;
+        state.totalDistance = 0;
+        state.lastLocation = null;
+        state.startLocationLabel = null;
+        state.lowSpeedStartTime = null;
+        state.lastValidSpeed = 0;
+        state.consecutiveInvalidSpeeds = 0;
+        speedSmoother.reset();
+        await startPassiveTracking();
+      }
     } finally {
       state.isTransitioning = false;
     }
@@ -413,6 +445,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       //   trigger: null,
       // });
 
+      state.mode = 'PASSIVE';
       state.currentJourneyId = null;
       state.totalDistance = 0;
       state.lastLocation = null;
@@ -423,7 +456,6 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       state.lastStateChange = deps.now();
       speedSmoother.reset();
 
-      emitStateChange();
       await startPassiveTracking();
     } finally {
       state.isTransitioning = false;
@@ -451,10 +483,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       typeof deps.TaskManager.isTaskDefined === 'function' ? deps.TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK) : false;
 
     if (!isDefined) {
-      deps.logger.warn('Background location task is not defined in TaskManager. Registering now.');
-      deps.TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
-        await controller.handleLocationTask({ data, error });
-      });
+      deps.logger.warn('Background location task is not defined in TaskManager.');
     }
 
     isTaskRegistered = true;
@@ -650,8 +679,10 @@ export const __internal = {
   PASSIVE_TIMEOUT_MS,
 };
 
-TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
-  if (singleton) {
-    await singleton.handleLocationTask({ data, error });
-  }
-});
+if (!(typeof TaskManager.isTaskDefined === 'function' && TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK))) {
+  TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
+    if (singleton) {
+      await singleton.handleLocationTask({ data, error });
+    }
+  });
+}

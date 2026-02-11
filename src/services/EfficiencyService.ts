@@ -354,12 +354,12 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return;
     }
 
-    await deps.JourneyService.logEvent(eventType, location.coords.latitude, location.coords.longitude, speedKmh);
     if (eventType === EventType.HarshBraking) {
       lastBrakingEventTime = currentTime;
     } else if (eventType === EventType.HarshAcceleration) {
       lastAccelerationEventTime = currentTime;
     }
+    await deps.JourneyService.logEvent(eventType, location.coords.latitude, location.coords.longitude, speedKmh);
     deps.logger.info(
       `${eventType} detected: ${horizontalForce.toFixed(2)}g horizontal force, speed change: ${speedChangeRate.toFixed(1)} km/h/s`
     );
