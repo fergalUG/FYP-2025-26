@@ -265,6 +265,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
             deps.EfficiencyService.stopTracking();
           }
           await deps.JourneyService.endJourney(100, 0, null);
+          await deps.JourneyService.deleteJourney(state.currentJourneyId);
           state.currentJourneyId = null;
           state.totalDistance = 0;
           state.lastLocation = null;
@@ -297,7 +298,10 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
           deps.EfficiencyService.stopTracking();
         }
         await deps.JourneyService.endJourney(100, 0, null);
-        state.currentJourneyId = null;
+        if (state.currentJourneyId) {
+          await deps.JourneyService.deleteJourney(state.currentJourneyId);
+          state.currentJourneyId = null;
+        }
         state.totalDistance = 0;
         state.lastLocation = null;
         state.startLocationLabel = null;

@@ -302,32 +302,6 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       eventType = EventType.HarshAcceleration;
     }
 
-    if (debugEnabled) {
-      if (speedChangeRate < 0) {
-        debugSummary.braking.samples += 1;
-        if (speedChangeRate < brakeSpeedChangeThreshold) {
-          if (horizontalForce >= brakeForceThreshold) {
-            debugSummary.braking.triggered += 1;
-          } else {
-            debugSummary.braking.rejectedForce += 1;
-          }
-        } else {
-          debugSummary.braking.rejectedRate += 1;
-        }
-      } else if (speedChangeRate > 0) {
-        debugSummary.acceleration.samples += 1;
-        if (speedChangeRate > accelSpeedChangeThreshold) {
-          if (horizontalForce >= accelForceThreshold) {
-            debugSummary.acceleration.triggered += 1;
-          } else {
-            debugSummary.acceleration.rejectedForce += 1;
-          }
-        } else {
-          debugSummary.acceleration.rejectedRate += 1;
-        }
-      }
-    }
-
     if (!eventType) {
       return;
     }
@@ -352,6 +326,32 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
         debugSummary.acceleration.rejectedCooldown += 1;
       }
       return;
+    }
+
+    if (debugEnabled) {
+      if (speedChangeRate < 0) {
+        debugSummary.braking.samples += 1;
+        if (speedChangeRate < brakeSpeedChangeThreshold) {
+          if (horizontalForce >= brakeForceThreshold) {
+            debugSummary.braking.triggered += 1;
+          } else {
+            debugSummary.braking.rejectedForce += 1;
+          }
+        } else {
+          debugSummary.braking.rejectedRate += 1;
+        }
+      } else if (speedChangeRate > 0) {
+        debugSummary.acceleration.samples += 1;
+        if (speedChangeRate > accelSpeedChangeThreshold) {
+          if (horizontalForce >= accelForceThreshold) {
+            debugSummary.acceleration.triggered += 1;
+          } else {
+            debugSummary.acceleration.rejectedForce += 1;
+          }
+        } else {
+          debugSummary.acceleration.rejectedRate += 1;
+        }
+      }
     }
 
     if (eventType === EventType.HarshBraking) {
