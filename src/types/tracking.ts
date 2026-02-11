@@ -1,4 +1,3 @@
-import type * as Location from 'expo-location';
 import type { SpeedConfidence, SpeedSource } from '@utils/gpsValidation';
 
 export type ServiceState = 'stopped' | 'passive' | 'active';
@@ -39,8 +38,6 @@ export interface SmoothedSpeed {
 export interface GpsDropoutState {
   isInDropout: boolean;
   dropoutStartTime: number | null;
-  lastKnownLocation: Location.LocationObject | null;
-  lastKnownSpeed: number;
 }
 
 export interface ServiceHealth {

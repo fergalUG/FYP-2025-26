@@ -20,8 +20,6 @@ describe('handleGpsDropout', () => {
   const baseState: GpsDropoutState = {
     isInDropout: false,
     dropoutStartTime: null,
-    lastKnownLocation: null,
-    lastKnownSpeed: 0,
   };
 
   it('does not enter dropout on first location', () => {

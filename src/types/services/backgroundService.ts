@@ -29,7 +29,10 @@ export interface BackgroundServiceDeps {
   Location: typeof Location;
   // Notifications: typeof Notifications;
   TaskManager: typeof TaskManager;
-  JourneyService: Pick<JourneyServiceController, 'startJourney' | 'getCurrentJourneyId' | 'logEvent' | 'updateJourneyTitle' | 'endJourney'>;
+  JourneyService: Pick<
+    JourneyServiceController,
+    'startJourney' | 'getCurrentJourneyId' | 'logEvent' | 'updateJourneyTitle' | 'endJourney' | 'deleteJourney'
+  >;
   EfficiencyService: Pick<
     EfficiencyServiceController,
     'startTracking' | 'stopTracking' | 'processLocation' | 'calculateJourneyScore' | 'getJourneyEfficiencyStats'

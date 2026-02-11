@@ -376,6 +376,30 @@ describe('EfficiencyService', () => {
       );
     });
 
+    it('applies cooldown for repeated harsh acceleration motion updates', async () => {
+      const svc = createService();
+      svc.startTracking();
+
+      const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
+
+      nowMs = 0;
+      const firstLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 8 } };
+      await svc.processLocation(firstLocation, buildOptions(firstLocation));
+      nowMs = 1000;
+      const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 12 } };
+      await svc.processLocation(secondLocation, buildOptions(secondLocation));
+
+      nowMs = 1100;
+      await motionListener({ ...mockMotionData, horizontalMagnitude: 0.5 });
+      nowMs = 1200;
+      await motionListener({ ...mockMotionData, horizontalMagnitude: 0.5 });
+
+      const harshAccelerationCalls = (mockJourneyService.logEvent as jest.Mock).mock.calls.filter(
+        (call) => call[0] === EventType.HarshAcceleration
+      );
+      expect(harshAccelerationCalls).toHaveLength(1);
+    });
+
     it('does not detect events below speed threshold', async () => {
       const svc = createService();
       svc.startTracking();

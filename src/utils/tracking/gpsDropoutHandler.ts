@@ -23,8 +23,6 @@ export const handleGpsDropout = (
       updatedState: {
         isInDropout: false,
         dropoutStartTime: null,
-        lastKnownLocation: currentLocation,
-        lastKnownSpeed: currentLocation.coords.speed ?? 0,
       },
       dropoutDurationMs: null,
     };
@@ -39,8 +37,6 @@ export const handleGpsDropout = (
       updatedState: {
         isInDropout: false,
         dropoutStartTime: null,
-        lastKnownLocation: currentLocation,
-        lastKnownSpeed: currentLocation.coords.speed ?? state.lastKnownSpeed,
       },
       dropoutDurationMs: null,
     };
@@ -56,8 +52,6 @@ export const handleGpsDropout = (
     updatedState: {
       isInDropout: !shouldEndJourney,
       dropoutStartTime,
-      lastKnownLocation: lastLocation,
-      lastKnownSpeed: state.lastKnownSpeed,
     },
     dropoutDurationMs,
   };
