@@ -221,8 +221,8 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
         deps.logger.error('Failed to enter active tracking: journey start did not return an id.');
         return;
       }
+      const journeyId = state.currentJourneyId;
 
-      let startedMotionTracking = false;
       try {
         try {
           const location = await deps.Location.getCurrentPositionAsync({
@@ -236,7 +236,6 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
         }
 
         deps.EfficiencyService.startTracking();
-        startedMotionTracking = true;
 
         const started = await withRetry(
           async () => {
@@ -261,11 +260,9 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
         if (!started) {
           deps.logger.error('Failed to start active tracking after retries. Rolling back active journey start.');
-          if (startedMotionTracking) {
-            deps.EfficiencyService.stopTracking();
-          }
+          deps.EfficiencyService.stopTracking();
           await deps.JourneyService.endJourney(100, 0, null);
-          await deps.JourneyService.deleteJourney(state.currentJourneyId);
+          await deps.JourneyService.deleteJourney(journeyId);
           state.currentJourneyId = null;
           state.totalDistance = 0;
           state.lastLocation = null;
@@ -280,7 +277,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
         state.mode = 'ACTIVE';
         state.lastStateChange = deps.now();
-        logStateTransition(previousMode, 'ACTIVE', `Journey ${state.currentJourneyId} started`);
+        logStateTransition(previousMode, 'ACTIVE', `Journey ${journeyId} started`);
 
         // await deps.Notifications.scheduleNotificationAsync({
         //   content: {
@@ -294,14 +291,10 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
         deps.logger.info('Active tracking started.');
       } catch (error) {
         deps.logger.error('Unexpected error while starting active tracking:', error);
-        if (startedMotionTracking) {
-          deps.EfficiencyService.stopTracking();
-        }
+        deps.EfficiencyService.stopTracking();
         await deps.JourneyService.endJourney(100, 0, null);
-        if (state.currentJourneyId) {
-          await deps.JourneyService.deleteJourney(state.currentJourneyId);
-          state.currentJourneyId = null;
-        }
+        await deps.JourneyService.deleteJourney(journeyId);
+        state.currentJourneyId = null;
         state.totalDistance = 0;
         state.lastLocation = null;
         state.startLocationLabel = null;
@@ -487,7 +480,10 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       typeof deps.TaskManager.isTaskDefined === 'function' ? deps.TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK) : false;
 
     if (!isDefined) {
-      deps.logger.warn('Background location task is not defined in TaskManager.');
+      deps.logger.warn('Background location task is not defined in TaskManager. Registering now.');
+      deps.TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
+        await controller.handleLocationTask({ data, error });
+      });
     }
 
     isTaskRegistered = true;
@@ -682,11 +678,3 @@ export const __internal = {
   PASSIVE_SPEED_THRESHOLD,
   PASSIVE_TIMEOUT_MS,
 };
-
-if (!(typeof TaskManager.isTaskDefined === 'function' && TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK))) {
-  TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
-    if (singleton) {
-      await singleton.handleLocationTask({ data, error });
-    }
-  });
-}
