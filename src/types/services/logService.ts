@@ -17,9 +17,19 @@ export interface LogServiceDeps {
   };
 }
 
+export interface LogFileInfo {
+  name: string;
+  size: number | null;
+  modificationTime: number | null;
+  isCurrentSession: boolean;
+}
+
 export interface LogServiceController {
   initSession: () => void;
   getSessionFileName: () => string | null;
+  listLogFiles: () => LogFileInfo[];
+  exportLogFile: (fileName: string) => Promise<boolean>;
+  exportAllLogs: () => Promise<boolean>;
   exportSessionLogs: () => Promise<boolean>;
   clearSessionLogs: () => Promise<boolean>;
   deleteOldLogs: () => Promise<number>;
