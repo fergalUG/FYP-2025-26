@@ -18,7 +18,7 @@ const DebugLogsContext = createContext<DebugLogsContextType>({
 export const useDebugLogs = () => useContext(DebugLogsContext);
 
 export const DebugLogsProvider = ({ children }: { children: React.ReactNode }) => {
-  const [isEnabled, setIsEnabled] = useState(false);
+  const [isEnabled, setIsEnabled] = useState(true);
 
   useEffect(() => {
     let isMounted = true;

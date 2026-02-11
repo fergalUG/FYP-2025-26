@@ -1,7 +1,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
-import type { LogServiceController, LogServiceDeps } from '@types';
+import type { LogFileInfo, LogServiceController, LogServiceDeps } from '@types';
 import { addLogListener, createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.LogService);
@@ -72,6 +72,25 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
     return `${new Date(deps.now()).toISOString()} ${line}`;
   };
 
+  const appendFileBytes = (source: File, destination: File): void => {
+    const sourceHandle = source.open();
+    const destinationHandle = destination.open();
+    try {
+      const sourceSize = sourceHandle.size ?? 0;
+      sourceHandle.offset = 0;
+      destinationHandle.offset = destinationHandle.size ?? 0;
+      const chunkSize = 64 * 1024;
+      while ((sourceHandle.offset ?? 0) < sourceSize) {
+        const remaining = sourceSize - (sourceHandle.offset ?? 0);
+        const chunk = sourceHandle.readBytes(Math.min(chunkSize, remaining));
+        destinationHandle.writeBytes(chunk);
+      }
+    } finally {
+      sourceHandle.close();
+      destinationHandle.close();
+    }
+  };
+
   const getSessionFiles = (): File[] => {
     if (!sessionBaseName) {
       return [];
@@ -88,6 +107,121 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
       return match ? Number(match[1]) : 1;
     };
     return files.sort((a, b) => resolvePart(a.name) - resolvePart(b.name));
+  };
+
+  const listLogFiles = (): LogFileInfo[] => {
+    const logsDir = ensureLogsDirectory();
+    const items = logsDir.list();
+    const currentBaseName = sessionBaseName;
+
+    return items
+      .filter((item): item is File => item instanceof fileSystem.File)
+      .map((file) => {
+        const info = file.info();
+        const name = file.name ?? file.uri.split('/').pop() ?? 'unknown';
+        return {
+          name,
+          size: info.size ?? null,
+          modificationTime: info.modificationTime ?? null,
+          isCurrentSession: currentBaseName ? name.startsWith(currentBaseName) : false,
+        };
+      })
+      .sort((a, b) => (b.modificationTime ?? 0) - (a.modificationTime ?? 0));
+  };
+
+  const exportLogFile = async (fileName: string): Promise<boolean> => {
+    if (!fileName || fileName.includes('/') || fileName.includes('\\') || fileName.includes('..')) {
+      serviceLogger.warn('Invalid log file name requested for export', { fileName });
+      return false;
+    }
+
+    try {
+      const logsDir = ensureLogsDirectory();
+      const logFile = new fileSystem.File(logsDir, fileName);
+      if (!logFile.exists) {
+        serviceLogger.warn('Log file not found for export', { fileName });
+        return false;
+      }
+
+      const cacheDir = new fileSystem.Directory(fileSystem.Paths.cache, LOG_DIR_NAME);
+      if (!cacheDir.exists) {
+        cacheDir.create({ intermediates: true });
+      }
+
+      const exportFile = new fileSystem.File(cacheDir, fileName);
+      if (exportFile.exists) {
+        exportFile.delete();
+      }
+      logFile.copy(exportFile);
+
+      if (await sharing.isAvailableAsync()) {
+        await sharing.shareAsync(exportFile.uri, {
+          mimeType: 'text/plain',
+          dialogTitle: `Export VeloMetry Logs (${fileName})`,
+        });
+        serviceLogger.info('Log file exported successfully', { fileName });
+        return true;
+      }
+
+      serviceLogger.warn('Sharing is not available on this device');
+      return false;
+    } catch (error) {
+      serviceLogger.error('Error exporting log file:', error);
+      return false;
+    }
+  };
+
+  const exportAllLogs = async (): Promise<boolean> => {
+    try {
+      const logsDir = ensureLogsDirectory();
+      const items = logsDir.list();
+      const files = items.filter((item): item is File => item instanceof fileSystem.File);
+
+      if (files.length === 0) {
+        serviceLogger.warn('No log files found to export');
+        return false;
+      }
+
+      const filesWithInfo = files.map((file) => ({
+        file,
+        info: file.info(),
+      }));
+
+      filesWithInfo.sort((a, b) => (a.info.modificationTime ?? 0) - (b.info.modificationTime ?? 0));
+
+      const cacheDir = new fileSystem.Directory(fileSystem.Paths.cache, LOG_DIR_NAME);
+      if (!cacheDir.exists) {
+        cacheDir.create({ intermediates: true });
+      }
+
+      const exportFileName = `VeloMetry_Logs_All_${new Date(deps.now()).toISOString().replace(/[:.]/g, '-')}.txt`;
+      const exportFile = new fileSystem.File(cacheDir, exportFileName);
+      if (exportFile.exists) {
+        exportFile.delete();
+      }
+      exportFile.create({ intermediates: true, overwrite: true });
+
+      filesWithInfo.forEach(({ file }) => {
+        const name = file.name ?? file.uri.split('/').pop() ?? 'unknown';
+        appendToFile(exportFile, `\n\n--- ${name} ---\n`);
+        appendFileBytes(file, exportFile);
+      });
+
+      if (await sharing.isAvailableAsync()) {
+        await sharing.shareAsync(exportFile.uri, {
+          mimeType: 'text/plain',
+          dialogTitle: 'Export All VeloMetry Logs',
+        });
+        serviceLogger.info(`All logs exported successfully (${filesWithInfo.length} file${filesWithInfo.length === 1 ? '' : 's'})`);
+        return true;
+      }
+
+      serviceLogger.warn('Sharing is not available on this device');
+      return false;
+    } catch (error) {
+      serviceLogger.error('Error exporting all logs:', error);
+      return false;
+    }
   };
 
   const rotateSessionFile = (): void => {
@@ -207,27 +341,25 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
       }
 
       if (await sharing.isAvailableAsync()) {
-        let exportCount = 0;
-        for (let index = 0; index < sessionFiles.length; index += 1) {
-          const sessionLog = sessionFiles[index];
-          const exportFileName = sessionLog.name || `VeloMetry_Logs_${new Date(deps.now()).toISOString()}.txt`;
-          const exportFile = new fileSystem.File(cacheDir, exportFileName);
-          if (exportFile.exists) {
-            exportFile.delete();
-          }
-
-          sessionLog.copy(exportFile);
-
-          await sharing.shareAsync(exportFile.uri, {
-            mimeType: 'text/plain',
-            dialogTitle:
-              sessionFiles.length > 1 ? `Export VeloMetry Logs (part ${index + 1}/${sessionFiles.length})` : 'Export VeloMetry Logs',
-          });
-          exportCount += 1;
+        const baseName = sessionBaseName ?? `VeloMetry_Logs_${new Date(deps.now()).toISOString().replace(/[:.]/g, '-')}`;
+        const exportFileName = `${baseName}_combined.txt`;
+        const exportFile = new fileSystem.File(cacheDir, exportFileName);
+        if (exportFile.exists) {
+          exportFile.delete();
         }
+        exportFile.create({ intermediates: true, overwrite: true });
 
-        serviceLogger.info(`Session logs exported successfully (${exportCount} file${exportCount === 1 ? '' : 's'})`);
-        return exportCount > 0;
+        sessionFiles.forEach((sessionLog) => {
+          appendFileBytes(sessionLog, exportFile);
+        });
+
+        await sharing.shareAsync(exportFile.uri, {
+          mimeType: 'text/plain',
+          dialogTitle: 'Export VeloMetry Logs',
+        });
+
+        serviceLogger.info(`Session logs exported successfully (${sessionFiles.length} part${sessionFiles.length === 1 ? '' : 's'})`);
+        return true;
       }
 
       serviceLogger.warn('Sharing is not available on this device');
@@ -339,6 +471,9 @@ export const createLogServiceController = (deps: LogServiceDeps): LogServiceCont
   return {
     initSession,
     getSessionFileName,
+    listLogFiles,
+    exportLogFile,
+    exportAllLogs,
     exportSessionLogs,
     clearSessionLogs,
     deleteOldLogs,

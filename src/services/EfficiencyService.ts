@@ -102,13 +102,22 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       rejectedHeading: 0,
       triggered: 0,
     },
+    stopAndGo: {
+      phase: 'unknown' as 'moving' | 'stopped' | 'unknown',
+      cycleCount: 0,
+      lastEventTime: 0,
+      timeSinceLastEvent: 0,
+      stopCandidateStart: 0,
+      goCandidateStart: 0,
+      triggered: 0,
+    },
     last: {
       speedKmh: null as number | null,
       speedChangeRate: null as number | null,
       horizontalForce: null as number | null,
       avgHorizontalForce: null as number | null,
       headingChange: null as number | null,
-      band: null as SpeedBand | null,
+      speedBand: null as SpeedBand | null,
     },
   });
 
@@ -144,6 +153,15 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   };
 
   const handleStopAndGo = async (speedKmh: number, now: number, latitude: number, longitude: number): Promise<void> => {
+    if (isDebugEnabled()) {
+      debugSummary.stopAndGo.phase = stopGoPhase;
+      debugSummary.stopAndGo.cycleCount = stopGoCycleTimestamps.length;
+      debugSummary.stopAndGo.lastEventTime = lastStopGoEventTime;
+      debugSummary.stopAndGo.timeSinceLastEvent = lastStopGoEventTime ? now - lastStopGoEventTime : 0;
+      debugSummary.stopAndGo.stopCandidateStart = stopGoStopCandidateStart ?? 0;
+      debugSummary.stopAndGo.goCandidateStart = stopGoGoCandidateStart ?? 0;
+    }
+
     if (speedKmh <= STOP_GO_STOP_SPEED_KMH) {
       stopGoGoCandidateStart = null;
 
@@ -174,6 +192,9 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
               deps.logger.info(`stop_and_go detected: ${stopGoCycleTimestamps.length} cycles in ${STOP_GO_WINDOW_MS / 1000}s`);
               lastStopGoEventTime = now;
               stopGoCycleTimestamps = [];
+              if (isDebugEnabled()) {
+                debugSummary.stopAndGo.triggered += 1;
+              }
             }
           }
 
@@ -256,7 +277,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       debugSummary.last.speedKmh = speedKmh;
       debugSummary.last.speedChangeRate = speedChangeRate;
       debugSummary.last.horizontalForce = horizontalForce;
-      debugSummary.last.band = band;
+      debugSummary.last.speedBand = band;
     }
 
     let eventType: EventType | null = null;
@@ -367,7 +388,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
         debugSummary.cornering.samples += 1;
         debugSummary.last.avgHorizontalForce = avgHorizontalForce;
         debugSummary.last.headingChange = headingChange;
-        debugSummary.last.band = band;
+        debugSummary.last.speedBand = band;
       }
       if (headingChange < headingThreshold) {
         deps.logger.debug(

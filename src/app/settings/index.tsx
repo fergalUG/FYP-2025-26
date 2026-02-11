@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
@@ -16,9 +16,13 @@ export default function Settings() {
   const { showToast } = useToast();
   const [exporting, setExporting] = useState(false);
   const [exportingLogs, setExportingLogs] = useState(false);
+  const [exportingLogFile, setExportingLogFile] = useState<string | null>(null);
+  const [exportingAllLogs, setExportingAllLogs] = useState(false);
   const [clearingLogs, setClearingLogs] = useState(false);
   const [deletingLogs, setDeletingLogs] = useState(false);
   const [sessionLogName, setSessionLogName] = useState<string | null>(null);
+  const [logFiles, setLogFiles] = useState<ReturnType<typeof LogService.listLogFiles>>([]);
+  const [loadingLogFiles, setLoadingLogFiles] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState('');
   const styles = createStyles(theme);
@@ -29,7 +33,25 @@ export default function Settings() {
 
   useEffect(() => {
     setSessionLogName(LogService.getSessionFileName());
+    setLogFiles(LogService.listLogFiles());
   }, []);
+
+  const loadLogFiles = async () => {
+    setLoadingLogFiles(true);
+    try {
+      setLogFiles(LogService.listLogFiles());
+    } finally {
+      setLoadingLogFiles(false);
+    }
+  };
+
+  const formattedLogFiles = useMemo(() => {
+    return logFiles.map((file) => ({
+      ...file,
+      sizeLabel: formatBytes(file.size),
+      timeLabel: file.modificationTime ? new Date(file.modificationTime).toLocaleString() : 'Unknown time',
+    }));
+  }, [logFiles]);
 
   const handleExportDatabase = async () => {
     setExporting(true);
@@ -41,18 +63,27 @@ export default function Settings() {
     setExportingLogs(true);
     await LogService.exportSessionLogs();
     setExportingLogs(false);
+    loadLogFiles();
+  };
+
+  const handleExportAllLogs = async () => {
+    setExportingAllLogs(true);
+    await LogService.exportAllLogs();
+    setExportingAllLogs(false);
   };
 
   const handleClearLogs = async () => {
     setClearingLogs(true);
     await LogService.clearSessionLogs();
     setClearingLogs(false);
+    loadLogFiles();
   };
 
   const executeDeleteOldLogs = async () => {
     setDeletingLogs(true);
     const deletedCount = await LogService.deleteOldLogs();
     setDeletingLogs(false);
+    loadLogFiles();
     showSuccessAlert(
       'Old logs deleted',
       deletedCount > 0 ? `Deleted ${deletedCount} old log file${deletedCount === 1 ? '' : 's'}.` : 'No old log files found.'
@@ -86,6 +117,12 @@ export default function Settings() {
     if (success) {
       setIsEditingName(false);
     }
+  };
+
+  const handleExportLogFile = async (fileName: string) => {
+    setExportingLogFile(fileName);
+    await LogService.exportLogFile(fileName);
+    setExportingLogFile(null);
   };
 
   return (
@@ -198,6 +235,22 @@ export default function Settings() {
               <Text style={styles.exportButtonText}>Export Logs</Text>
             )}
           </AppButton>
+          <Text style={styles.itemTitle}>Export All Logs</Text>
+          <Text style={styles.itemSubtitle}>Combine every saved log file (all sessions) into one export.</Text>
+          <AppButton
+            style={[styles.exportButton, exportingAllLogs && styles.exportButtonDisabled]}
+            onPress={handleExportAllLogs}
+            disabled={exportingAllLogs}
+          >
+            {exportingAllLogs ? (
+              <View style={styles.exportingRow}>
+                <ActivityIndicator size="small" color={theme.colors.background} />
+                <Text style={styles.exportButtonText}>Exporting...</Text>
+              </View>
+            ) : (
+              <Text style={styles.exportButtonText}>Export All Logs</Text>
+            )}
+          </AppButton>
           <Text style={styles.itemTitle}>Clear Session Logs</Text>
           <Text style={styles.itemSubtitle}>Remove current session log content without deleting the file.</Text>
           <AppButton
@@ -231,6 +284,41 @@ export default function Settings() {
             )}
           </AppButton>
 
+          <View style={styles.rowBetween}>
+            <View style={styles.rowText}>
+              <Text style={styles.itemTitle}>Stored Log Files</Text>
+              <Text style={styles.itemSubtitle}>Export any previous session file.</Text>
+            </View>
+            <Pressable style={styles.refreshButton} onPress={loadLogFiles} disabled={loadingLogFiles}>
+              <Text style={styles.refreshButtonText}>{loadingLogFiles ? 'Loading...' : 'Refresh'}</Text>
+            </Pressable>
+          </View>
+
+          {formattedLogFiles.length === 0 ? (
+            <Text style={styles.emptyText}>No log files found.</Text>
+          ) : (
+            formattedLogFiles.map((file) => (
+              <View key={file.name} style={styles.logFileRow}>
+                <View style={styles.logFileMeta}>
+                  <Text style={styles.logFileNameText}>
+                    {file.name}
+                    {file.isCurrentSession ? ' (current)' : ''}
+                  </Text>
+                  <Text style={styles.logFileDetails}>
+                    {file.sizeLabel} • {file.timeLabel}
+                  </Text>
+                </View>
+                <Pressable
+                  style={[styles.exportChip, exportingLogFile === file.name && styles.exportChipDisabled]}
+                  onPress={() => handleExportLogFile(file.name)}
+                  disabled={exportingLogFile === file.name}
+                >
+                  <Text style={styles.exportChipText}>{exportingLogFile === file.name ? 'Exporting...' : 'Export'}</Text>
+                </Pressable>
+              </View>
+            ))
+          )}
+
           <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />
 
           <Text style={styles.itemTitle}>Export Database</Text>
@@ -262,6 +350,16 @@ export default function Settings() {
     </ScrollView>
   );
 }
+
+const formatBytes = (value: number | null): string => {
+  if (!value || value <= 0) {
+    return '0 B';
+  }
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  const size = value / Math.pow(1024, index);
+  return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[index]}`;
+};
 
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
@@ -393,6 +491,59 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     rowText: {
       flex: 1,
       gap: 4,
+    },
+    refreshButton: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 6,
+      borderRadius: theme.radius.sm,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      backgroundColor: theme.colors.background,
+    },
+    refreshButtonText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.colors.onBackground,
+    },
+    logFileRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+    },
+    logFileMeta: {
+      flex: 1,
+      gap: 2,
+    },
+    logFileNameText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.colors.onSurface,
+    },
+    logFileDetails: {
+      fontSize: 12,
+      color: theme.colors.onSurface,
+      opacity: 0.6,
+    },
+    exportChip: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 6,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.colors.primary,
+    },
+    exportChipDisabled: {
+      opacity: 0.6,
+    },
+    exportChipText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.colors.background,
+    },
+    emptyText: {
+      fontSize: 12,
+      color: theme.colors.onSurface,
+      opacity: 0.6,
     },
     exportButton: {
       paddingHorizontal: theme.spacing.lg,
