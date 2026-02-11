@@ -348,19 +348,20 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     const speedKmh = convertMsToKmh(smoothed.speedMs);
     await deps.JourneyService.logEvent(EventType.LocationUpdate, latitude, longitude, speedKmh);
 
-    if (state.currentJourneyId && smoothed.confidence !== 'low') {
+    if (state.currentJourneyId) {
       await deps.EfficiencyService.processLocation(location, {
         speedMs: smoothed.speedMs,
         speedConfidence: smoothed.confidence,
         speedSource: smoothed.source,
       });
+      if (smoothed.confidence === 'low') {
+        deps.logger.debug('Processed location with low speed confidence', {
+          speedMs: smoothed.speedMs,
+          confidence: smoothed.confidence,
+        });
+      }
     } else if (!state.currentJourneyId) {
       deps.logger.debug('Skipping efficiency processing: no current journey id.');
-    } else {
-      deps.logger.debug('Skipping efficiency processing: low speed confidence', {
-        speedMs: smoothed.speedMs,
-        confidence: smoothed.confidence,
-      });
     }
 
     if (isOutlierSeriesActive && !outlierThisUpdate) {

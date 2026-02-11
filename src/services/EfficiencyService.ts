@@ -36,12 +36,13 @@ const MIN_SPEED_FOR_HEADING_KMH = 15;
 const HEADING_LOOKBACK_TIME_MS = 2000;
 const CORNERING_EVENT_COOLDOWN_MS = 5000;
 const SUSTAINED_FORCE_DURATION_MS = 500;
+const HARSH_EVENT_COOLDOWN_MS = 4000;
 
 // stop and go detection constants
-const STOP_GO_STOP_SPEED_KMH = 3;
-const STOP_GO_GO_SPEED_KMH = 12;
-const STOP_GO_STOP_DWELL_MS = 5000;
-const STOP_GO_GO_DWELL_MS = 5000;
+const STOP_GO_STOP_SPEED_KMH = 4;
+const STOP_GO_GO_SPEED_KMH = 10;
+const STOP_GO_STOP_DWELL_MS = 4000;
+const STOP_GO_GO_DWELL_MS = 4000;
 const STOP_GO_WINDOW_MS = 120000;
 const STOP_GO_MIN_CYCLES = 3;
 const STOP_GO_EVENT_COOLDOWN_MS = 30000;
@@ -56,12 +57,14 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
   //gps
   let lastLocation: Location.LocationObject | null = null;
-  let lastSpeedKmh = 0;
-  let lastSpeedUpdateTime = 0;
+  let lastLocationProcessedAtMs: number | null = null;
   let lastSpeedMs: number | null = null;
+  let lastLocationSpeedChangeRateKmhPerSec: number | null = null;
 
   // cornering
   let lastCornerEventTime = 0;
+  let lastBrakingEventTime: number | null = null;
+  let lastAccelerationEventTime: number | null = null;
   let highForceStartTime: number | null = null;
   let headingHistory: Array<{ heading: number; timestamp: number }> = [];
 
@@ -98,12 +101,14 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       samples: 0,
       rejectedRate: 0,
       rejectedForce: 0,
+      rejectedCooldown: 0,
       triggered: 0,
     },
     acceleration: {
       samples: 0,
       rejectedRate: 0,
       rejectedForce: 0,
+      rejectedCooldown: 0,
       triggered: 0,
     },
     cornering: {
@@ -272,14 +277,10 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   ): Promise<void> => {
     const horizontalForce = data.horizontalMagnitude;
     const currentTime = deps.now();
-    const timeDeltaSeconds = (currentTime - lastSpeedUpdateTime) / 1000;
-
-    if (timeDeltaSeconds < 0.1) {
+    const speedChangeRate = lastLocationSpeedChangeRateKmhPerSec;
+    if (speedChangeRate === null || !Number.isFinite(speedChangeRate)) {
       return;
     }
-
-    const speedChange = speedKmh - lastSpeedKmh;
-    const speedChangeRate = speedChange / timeDeltaSeconds;
 
     const brakeForceThreshold = getBrakingForceThreshold(band);
     const brakeSpeedChangeThreshold = getBrakingSpeedChangeThreshold(band);
@@ -331,7 +332,34 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return;
     }
 
+    if (
+      eventType === EventType.HarshBraking &&
+      lastBrakingEventTime !== null &&
+      currentTime - lastBrakingEventTime < HARSH_EVENT_COOLDOWN_MS
+    ) {
+      if (debugEnabled) {
+        debugSummary.braking.rejectedCooldown += 1;
+      }
+      return;
+    }
+
+    if (
+      eventType === EventType.HarshAcceleration &&
+      lastAccelerationEventTime !== null &&
+      currentTime - lastAccelerationEventTime < HARSH_EVENT_COOLDOWN_MS
+    ) {
+      if (debugEnabled) {
+        debugSummary.acceleration.rejectedCooldown += 1;
+      }
+      return;
+    }
+
     await deps.JourneyService.logEvent(eventType, location.coords.latitude, location.coords.longitude, speedKmh);
+    if (eventType === EventType.HarshBraking) {
+      lastBrakingEventTime = currentTime;
+    } else if (eventType === EventType.HarshAcceleration) {
+      lastAccelerationEventTime = currentTime;
+    }
     deps.logger.info(
       `${eventType} detected: ${horizontalForce.toFixed(2)}g horizontal force, speed change: ${speedChangeRate.toFixed(1)} km/h/s`
     );
@@ -381,17 +409,12 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return;
     }
 
-    const timeDeltaSeconds = (currentTime - lastSpeedUpdateTime) / 1000;
-
-    if (timeDeltaSeconds >= 0.1) {
-      const speedChange = speedKmh - lastSpeedKmh;
-      const speedChangeRate = Math.abs(speedChange / timeDeltaSeconds);
-      if (speedChangeRate > 10) {
-        if (debugEnabled) {
-          debugSummary.cornering.rejectedSpeedChange += 1;
-        }
-        return;
+    const speedChangeRate = lastLocationSpeedChangeRateKmhPerSec !== null ? Math.abs(lastLocationSpeedChangeRateKmhPerSec) : null;
+    if (speedChangeRate !== null && speedChangeRate > 10) {
+      if (debugEnabled) {
+        debugSummary.cornering.rejectedSpeedChange += 1;
       }
+      return;
     }
 
     if (speedKmh >= MIN_SPEED_FOR_HEADING_KMH && headingHistory.length >= 2) {
@@ -507,12 +530,14 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     isTracking = true;
     lastLocation = null;
-    lastSpeedKmh = 0;
-    lastSpeedUpdateTime = 0;
+    lastLocationProcessedAtMs = null;
     lastSpeedMs = null;
+    lastLocationSpeedChangeRateKmhPerSec = null;
     lastSpeedConfidence = 'none';
     lastSpeedSource = 'none';
     lastCornerEventTime = 0;
+    lastBrakingEventTime = null;
+    lastAccelerationEventTime = null;
     highForceStartTime = null;
     headingHistory = [];
     motionDataBuffer = [];
@@ -535,12 +560,14 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     isTracking = false;
     lastLocation = null;
-    lastSpeedKmh = 0;
-    lastSpeedUpdateTime = 0;
+    lastLocationProcessedAtMs = null;
     lastSpeedMs = null;
+    lastLocationSpeedChangeRateKmhPerSec = null;
     lastSpeedConfidence = 'none';
     lastSpeedSource = 'none';
     lastCornerEventTime = 0;
+    lastBrakingEventTime = null;
+    lastAccelerationEventTime = null;
     highForceStartTime = null;
     headingHistory = [];
     motionDataBuffer = [];
@@ -572,31 +599,44 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     currentSpeedBand = isSpeedValid ? resolveBand(speedKmh) : null;
 
-    if (isSpeedValid && speedConfidence !== 'low') {
+    const previousSpeedKmh = typeof lastSpeedMs === 'number' && Number.isFinite(lastSpeedMs) ? convertMsToKmh(lastSpeedMs) : null;
+    const previousLocationTimestamp = lastLocation?.timestamp ?? null;
+    const previousProcessedAtMs = lastLocationProcessedAtMs;
+    if (isSpeedValid && previousSpeedKmh !== null && previousLocationTimestamp !== null) {
+      let locationDeltaSeconds = (location.timestamp - previousLocationTimestamp) / 1000;
+      if (locationDeltaSeconds <= 0.1 && previousProcessedAtMs !== null) {
+        const wallClockDeltaSeconds = (currentTime - previousProcessedAtMs) / 1000;
+        if (wallClockDeltaSeconds > locationDeltaSeconds) {
+          locationDeltaSeconds = wallClockDeltaSeconds;
+        }
+      }
+      if (locationDeltaSeconds > 0.1) {
+        lastLocationSpeedChangeRateKmhPerSec = (speedKmh - previousSpeedKmh) / locationDeltaSeconds;
+      } else {
+        lastLocationSpeedChangeRateKmhPerSec = null;
+      }
+    } else {
+      lastLocationSpeedChangeRateKmhPerSec = null;
+    }
+
+    if (isSpeedValid) {
       await handleStopAndGo(speedKmh, currentTime, latitude, longitude);
-      await checkSpeeding(latitude, longitude, speedKmh);
-    } else if (isSpeedValid && speedConfidence === 'low') {
-      resetStopGoCandidates();
-      deps.logger.debug('Skipping speeding check due to low speed confidence', {
-        speedKmh: speedKmh.toFixed(1),
-        speedConfidence,
-      });
+      if (speedConfidence !== 'low') {
+        await checkSpeeding(latitude, longitude, speedKmh);
+      } else {
+        deps.logger.debug('Skipping speeding check due to low speed confidence', {
+          speedKmh: speedKmh.toFixed(1),
+          speedConfidence,
+        });
+      }
     } else {
       resetStopGoCandidates();
     }
 
     if (isSpeedValid) {
-      if (typeof lastSpeedMs === 'number' && Number.isFinite(lastSpeedMs)) {
-        lastSpeedKmh = convertMsToKmh(lastSpeedMs);
-      } else {
-        lastSpeedKmh = speedKmh;
-      }
       lastSpeedMs = speedMs;
       lastSpeedConfidence = speedConfidence;
       lastSpeedSource = speedSource;
-    }
-    if (isSpeedValid) {
-      lastSpeedUpdateTime = currentTime;
     }
 
     if (heading !== null && heading !== -1 && isSpeedValid && speedKmh >= MIN_SPEED_FOR_HEADING_KMH) {
@@ -609,6 +649,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       headingHistory = [];
     }
 
+    lastLocationProcessedAtMs = currentTime;
     lastLocation = location;
   };
 
