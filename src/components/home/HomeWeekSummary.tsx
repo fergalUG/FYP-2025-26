@@ -1,20 +1,27 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@hooks';
 import { getScoreColor } from '@utils/score';
 import { StatTile } from '@components/common/StatTile';
+import { Journey } from '@types';
 
 interface HomeWeekSummaryProps {
-  weeklyAverage: number | null;
-  driveCount: number;
-  distanceKm: number;
+  weekJourneys: Journey[];
 }
 
 export const HomeWeekSummary = (props: HomeWeekSummaryProps) => {
-  const { weeklyAverage, driveCount, distanceKm } = props;
+  const { weekJourneys } = props;
   const { theme } = useTheme();
   const styles = createStyles(theme);
+
+  const weeklyAverage = useMemo(
+    () => (weekJourneys.length > 0 ? Math.round(weekJourneys.reduce((sum, j) => sum + (j.score ?? 0), 0) / weekJourneys.length) : null),
+    [weekJourneys]
+  );
+
+  const driveCount = useMemo(() => weekJourneys.length, [weekJourneys]);
+  const distanceKm = useMemo(() => weekJourneys.reduce((sum, j) => sum + (j.distanceKm ?? 0), 0), [weekJourneys]);
 
   return (
     <View style={styles.sectionCard}>

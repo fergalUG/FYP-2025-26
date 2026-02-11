@@ -51,21 +51,34 @@ const HEADING_HISTORY_SIZE = 5;
 const DEBUG_SUMMARY_INTERVAL_MS = 1000;
 
 export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): EfficiencyServiceController => {
+  //tracking
   let isTracking = false;
+
+  //gps
   let lastLocation: Location.LocationObject | null = null;
   let lastSpeedKmh = 0;
   let lastSpeedUpdateTime = 0;
   let lastSpeedMs: number | null = null;
-  let lastSpeedConfidence: SpeedConfidence = 'none';
-  let lastSpeedSource: SpeedSource = 'none';
+
+  // cornering
   let lastCornerEventTime = 0;
   let highForceStartTime: number | null = null;
   let headingHistory: Array<{ heading: number; timestamp: number }> = [];
+
+  //validation
+  let lastSpeedConfidence: SpeedConfidence = 'none';
+  let lastSpeedSource: SpeedSource = 'none';
+  let currentSpeedBand: SpeedBand | null = null;
+
+  //motion
   let motionDataBuffer: MotionData[] = [];
   let motionDataBufferSum = 0;
-  let currentSpeedBand: SpeedBand | null = null;
+
+  //debug
   let lastDebugSummaryTime = 0;
   let lastDebugEnabled = false;
+
+  //stop and go
   let stopGoPhase: 'moving' | 'stopped' | 'unknown' = 'unknown';
   let stopGoStopCandidateStart: number | null = null;
   let stopGoGoCandidateStart: number | null = null;

@@ -46,18 +46,9 @@ export default function Page() {
 
   const lastJourney = completedJourneys[0] ?? null;
 
-  const totalDistanceKm = useMemo(() => {
-    return completedJourneys.reduce((sum, journey) => sum + (journey.distanceKm ?? 0), 0);
-  }, [completedJourneys]);
-
-  const weeklyAverage = useMemo(() => {
+  const weekJouneys = useMemo(() => {
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const recent = completedJourneys.filter((j) => typeof j.startTime === 'number' && j.startTime >= weekAgo);
-    if (recent.length === 0) {
-      return null;
-    }
-    const avg = recent.reduce((sum, j) => sum + (j.score ?? 0), 0) / recent.length;
-    return Math.round(avg);
+    return completedJourneys.filter((j) => typeof j.startTime === 'number' && j.startTime >= weekAgo);
   }, [completedJourneys]);
 
   const trackingEnabled = backgroundService.permissionState === 'granted' && backgroundService.serviceState !== 'stopped';
@@ -77,7 +68,7 @@ export default function Page() {
         onPressJourneys={() => router.push('/journeys')}
       />
 
-      <HomeWeekSummary weeklyAverage={weeklyAverage} driveCount={completedJourneys.length} distanceKm={totalDistanceKm} />
+      <HomeWeekSummary weekJourneys={weekJouneys} />
 
       <HomeLastDriveCard
         lastJourney={lastJourney}
