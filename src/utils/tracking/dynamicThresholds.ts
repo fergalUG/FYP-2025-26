@@ -3,26 +3,26 @@ import type { SpeedBand } from '@/types/tracking';
 export const getBrakingForceThreshold = (band: SpeedBand): number => {
   switch (band) {
     case 'low':
-      return 0.45;
+      return 0.34;
     case 'mid':
-      return 0.4;
+      return 0.32;
     case 'high':
-      return 0.35;
-    case 'very_high':
       return 0.3;
+    case 'very_high':
+      return 0.28;
   }
 };
 
 export const getBrakingSpeedChangeThreshold = (band: SpeedBand): number => {
   switch (band) {
     case 'low':
-      return -22;
-    case 'mid':
-      return -18;
-    case 'high':
       return -14;
-    case 'very_high':
+    case 'mid':
       return -12;
+    case 'high':
+      return -10;
+    case 'very_high':
+      return -8;
   }
 };
 

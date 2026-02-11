@@ -10,17 +10,17 @@ import {
 describe('dynamicThresholds', () => {
   describe('band mappings', () => {
     it('returns expected braking force thresholds per band', () => {
-      expect(getBrakingForceThreshold('low')).toBe(0.45);
-      expect(getBrakingForceThreshold('mid')).toBe(0.4);
-      expect(getBrakingForceThreshold('high')).toBe(0.35);
-      expect(getBrakingForceThreshold('very_high')).toBe(0.3);
+      expect(getBrakingForceThreshold('low')).toBe(0.34);
+      expect(getBrakingForceThreshold('mid')).toBe(0.32);
+      expect(getBrakingForceThreshold('high')).toBe(0.3);
+      expect(getBrakingForceThreshold('very_high')).toBe(0.28);
     });
 
     it('returns expected braking speed change thresholds per band', () => {
-      expect(getBrakingSpeedChangeThreshold('low')).toBe(-22);
-      expect(getBrakingSpeedChangeThreshold('mid')).toBe(-18);
-      expect(getBrakingSpeedChangeThreshold('high')).toBe(-14);
-      expect(getBrakingSpeedChangeThreshold('very_high')).toBe(-12);
+      expect(getBrakingSpeedChangeThreshold('low')).toBe(-14);
+      expect(getBrakingSpeedChangeThreshold('mid')).toBe(-12);
+      expect(getBrakingSpeedChangeThreshold('high')).toBe(-10);
+      expect(getBrakingSpeedChangeThreshold('very_high')).toBe(-8);
     });
 
     it('returns expected acceleration force thresholds per band', () => {
