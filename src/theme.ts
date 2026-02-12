@@ -54,6 +54,7 @@ export interface ThemeColors {
     brake: string;
     accel: string;
     corner: string;
+    lightSpeeding: string;
     moderateSpeeding: string;
     harshSpeeding: string;
     stopAndGo: string;
@@ -101,6 +102,7 @@ export const lightTheme: Theme = {
       brake: '#F2545B',
       accel: '#F29154',
       corner: '#F2DD54',
+      lightSpeeding: '#F2DD54',
       moderateSpeeding: '#F29154',
       harshSpeeding: '#F2545B',
       stopAndGo: '#5C7CFA',
@@ -145,6 +147,7 @@ export const darkTheme: Theme = {
       brake: '#F2545B',
       accel: '#F29154',
       corner: '#F2DD54',
+      lightSpeeding: '#F2DD54',
       moderateSpeeding: '#F29154',
       harshSpeeding: '#F2545B',
       stopAndGo: '#748FFC',

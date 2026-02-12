@@ -98,7 +98,6 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       samples: 0,
       rejectedCooldown: 0,
       rejectedForce: 0,
-      rejectedSustain: 0,
       rejectedSpeedChange: 0,
       rejectedHeading: 0,
       triggered: 0,

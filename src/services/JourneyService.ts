@@ -47,21 +47,6 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
       if (!check) {
         logger.info('Tables not found, initializing database...');
         await resetDatabase();
-      } else {
-        const eventsSchemaCheck = await db
-          .select({
-            id: events.id,
-            family: events.family,
-            severity: events.severity,
-            metadata: events.metadata,
-          })
-          .from(events)
-          .limit(1)
-          .catch(() => null);
-        if (eventsSchemaCheck === null) {
-          logger.info('Events table schema changed. Resetting local database for development.');
-          await resetDatabase();
-        }
       }
       deps.logger.info('Database initialized successfully.');
     } catch (error) {
