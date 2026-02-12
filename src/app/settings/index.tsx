@@ -7,6 +7,7 @@ import { useToast } from '@hooks/ToastProvider';
 
 import { AppButton } from '@components';
 import { JourneyService } from '@services/JourneyService';
+import { useBackgroundService } from '@hooks';
 import { LogService } from '@services/LogService';
 import { showConfirmAlert, showSuccessAlert } from '@utils/alert';
 
@@ -30,6 +31,10 @@ export default function Settings() {
   //debug stuff
   const { isEnabled: isDebugOverlayEnabled, toggleOverlay } = useDebugOverlay();
   const { isEnabled: isDebugLogsEnabled, toggleDebugLogs } = useDebugLogs();
+
+  const backgroundService = useBackgroundService();
+  const [startingManualTracking, setStartingManualTracking] = useState(false);
+  const [stoppingManualTracking, setStoppingManualTracking] = useState(false);
 
   useEffect(() => {
     setSessionLogName(LogService.getSessionFileName());
@@ -100,6 +105,36 @@ export default function Settings() {
       message: 'This is how in-app toasts will appear.',
       variant: 'success',
     });
+  };
+
+  const handleManualStartActiveTracking = async () => {
+    setStartingManualTracking(true);
+    try {
+      await backgroundService.manualStartActiveTracking();
+    } catch (error) {
+      showToast({
+        title: 'Error',
+        message: 'Failed to start active tracking: ' + (error instanceof Error ? error.message : String(error)),
+        variant: 'error',
+      });
+    } finally {
+      setStartingManualTracking(false);
+    }
+  };
+
+  const handleManualStopActiveTracking = async () => {
+    setStoppingManualTracking(true);
+    try {
+      await backgroundService.manualStopActiveTracking();
+    } catch (error) {
+      showToast({
+        title: 'Error',
+        message: 'Failed to stop active tracking: ' + (error instanceof Error ? error.message : String(error)),
+        variant: 'error',
+      });
+    } finally {
+      setStoppingManualTracking(false);
+    }
   };
 
   const handleStartEditName = () => {
@@ -215,6 +250,42 @@ export default function Settings() {
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
           </View>
+
+          <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />
+
+          <Text style={styles.itemTitle}>Start active tracking</Text>
+          <Text style={styles.itemSubtitle}>Manually start active tracking.</Text>
+          <AppButton
+            style={[styles.exportButton, startingManualTracking && styles.exportButtonDisabled]}
+            onPress={handleManualStartActiveTracking}
+            disabled={startingManualTracking}
+          >
+            {startingManualTracking ? (
+              <View style={styles.exportingRow}>
+                <ActivityIndicator size="small" color={theme.colors.background} />
+                <Text style={styles.exportButtonText}>Starting...</Text>
+              </View>
+            ) : (
+              <Text style={styles.exportButtonText}>Start Active Tracking</Text>
+            )}
+          </AppButton>
+
+          <Text style={styles.itemTitle}>Stop active tracking</Text>
+          <Text style={styles.itemSubtitle}>Manually stop active tracking.</Text>
+          <AppButton
+            style={[styles.exportButton, stoppingManualTracking && styles.exportButtonDisabled]}
+            onPress={handleManualStopActiveTracking}
+            disabled={stoppingManualTracking}
+          >
+            {stoppingManualTracking ? (
+              <View style={styles.exportingRow}>
+                <ActivityIndicator size="small" color={theme.colors.background} />
+                <Text style={styles.exportButtonText}>Stopping...</Text>
+              </View>
+            ) : (
+              <Text style={styles.exportButtonText}>Stop Active Tracking</Text>
+            )}
+          </AppButton>
 
           <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />
 
