@@ -218,6 +218,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     },
     journeyDate: {
       fontSize: 14,
+      alignSelf: 'center',
       color: theme.colors.textSecondary,
     },
     headerMetaRow: {
