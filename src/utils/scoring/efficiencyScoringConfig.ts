@@ -1,6 +1,7 @@
-import { EventType } from '@types';
+import type { DrivingEventFamily, EventSeverity } from '@types';
 
-export type SpeedingSeverity = 'moderate' | 'harsh';
+export type SpeedingSeverity = EventSeverity;
+export type IncidentFamily = Exclude<DrivingEventFamily, 'speeding'> | 'stop_and_go';
 
 export interface EfficiencyScoringConfig {
   minScore: number; // 0
@@ -9,8 +10,11 @@ export interface EfficiencyScoringConfig {
 
   shortJourneyPriorMs: number; // time before start to ensure short journeys get reasonable scores
 
-  dropPoints: Partial<Record<EventType, number>>; // points to drop per event
-  cooldownMs: Partial<Record<EventType, number>>; // cooldown between events of the same type
+  dropPoints: {
+    driving: Record<DrivingEventFamily, Record<EventSeverity, number>>;
+    stopAndGo: number;
+  };
+  incidentCooldownMs: Record<IncidentFamily, number>;
 
   speedingEpisodeGapMs: number; // max gap between speeding samples to consider them part of the same episode
   speedingDrainPointsPerSecond: Record<SpeedingSeverity, number>; // points drained per second of speeding
@@ -28,23 +32,41 @@ export const DEFAULT_EFFICIENCY_SCORING_CONFIG: EfficiencyScoringConfig = {
   shortJourneyPriorMs: 5 * 60 * 1000,
 
   dropPoints: {
-    [EventType.HarshBraking]: 8,
-    [EventType.HarshAcceleration]: 6,
-    [EventType.SharpTurn]: 6,
-    [EventType.ModerateSpeeding]: 4,
-    [EventType.HarshSpeeding]: 8,
-    [EventType.StopAndGo]: 5,
+    driving: {
+      braking: {
+        light: 2,
+        moderate: 5,
+        harsh: 8,
+      },
+      acceleration: {
+        light: 2,
+        moderate: 4,
+        harsh: 6,
+      },
+      cornering: {
+        light: 2,
+        moderate: 4,
+        harsh: 6,
+      },
+      speeding: {
+        light: 1,
+        moderate: 4,
+        harsh: 8,
+      },
+    },
+    stopAndGo: 5,
   },
 
-  cooldownMs: {
-    [EventType.HarshBraking]: 4000,
-    [EventType.HarshAcceleration]: 4000,
-    [EventType.SharpTurn]: 5000,
-    [EventType.StopAndGo]: 30000,
+  incidentCooldownMs: {
+    braking: 4000,
+    acceleration: 4000,
+    cornering: 5000,
+    stop_and_go: 30000,
   },
 
   speedingEpisodeGapMs: 25 * 1000,
   speedingDrainPointsPerSecond: {
+    light: 0.01,
     moderate: 0.02,
     harsh: 0.05,
   },

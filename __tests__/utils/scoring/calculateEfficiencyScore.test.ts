@@ -13,6 +13,9 @@ const makeEvent = (partial: Partial<Event> & Pick<Event, 'timestamp' | 'type'>):
     latitude: partial.latitude ?? 0,
     longitude: partial.longitude ?? 0,
     speed: partial.speed ?? 0,
+    family: partial.family ?? null,
+    severity: partial.severity ?? null,
+    metadata: partial.metadata ?? null,
   };
 };
 
@@ -23,21 +26,23 @@ const baseConfig: EfficiencyScoringConfig = {
   shortJourneyPriorMs: 0,
 
   dropPoints: {
-    [EventType.HarshBraking]: 8,
-    [EventType.HarshAcceleration]: 6,
-    [EventType.SharpTurn]: 6,
-    [EventType.ModerateSpeeding]: 4,
-    [EventType.HarshSpeeding]: 8,
-    [EventType.StopAndGo]: 5,
+    driving: {
+      braking: { light: 2, moderate: 5, harsh: 8 },
+      acceleration: { light: 2, moderate: 4, harsh: 6 },
+      cornering: { light: 2, moderate: 4, harsh: 6 },
+      speeding: { light: 1, moderate: 4, harsh: 8 },
+    },
+    stopAndGo: 5,
   },
-  cooldownMs: {
-    [EventType.HarshBraking]: 4000,
-    [EventType.HarshAcceleration]: 4000,
-    [EventType.SharpTurn]: 5000,
-    [EventType.StopAndGo]: 30000,
+  incidentCooldownMs: {
+    braking: 4000,
+    acceleration: 4000,
+    cornering: 5000,
+    stop_and_go: 30000,
   },
   speedingEpisodeGapMs: 25 * 1000,
   speedingDrainPointsPerSecond: {
+    light: 0.01,
     moderate: 0.02,
     harsh: 0.05,
   },
@@ -54,7 +59,7 @@ describe('calculateEfficiencyScore', () => {
   it('applies a drop then recovers (time-average score)', () => {
     const events = [
       makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
-      makeEvent({ id: 2, timestamp: 0, type: EventType.HarshBraking }),
+      makeEvent({ id: 2, timestamp: 0, type: EventType.DrivingEvent, family: 'braking', severity: 'harsh' }),
       makeEvent({ id: 3, timestamp: 600000, type: EventType.JourneyEnd }),
     ];
 
@@ -66,10 +71,14 @@ describe('calculateEfficiencyScore', () => {
   it('de-bounces repeated incidents within cooldown', () => {
     const oneBrake = [
       makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
-      makeEvent({ id: 2, timestamp: 0, type: EventType.HarshBraking }),
+      makeEvent({ id: 2, timestamp: 0, type: EventType.DrivingEvent, family: 'braking', severity: 'harsh' }),
       makeEvent({ id: 3, timestamp: 600000, type: EventType.JourneyEnd }),
     ];
-    const twoBrakes = [...oneBrake.slice(0, 2), makeEvent({ id: 4, timestamp: 2000, type: EventType.HarshBraking }), oneBrake[2]];
+    const twoBrakes = [
+      ...oneBrake.slice(0, 2),
+      makeEvent({ id: 4, timestamp: 2000, type: EventType.DrivingEvent, family: 'braking', severity: 'harsh' }),
+      oneBrake[2],
+    ];
 
     const a = calculateEfficiencyScore(oneBrake, 0, baseConfig);
     const b = calculateEfficiencyScore(twoBrakes, 0, baseConfig);
@@ -116,9 +125,9 @@ describe('calculateEfficiencyScore', () => {
   it('groups speeding samples into episodes and applies drain', () => {
     const events = [
       makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
-      makeEvent({ id: 2, timestamp: 100000, type: EventType.ModerateSpeeding }),
-      makeEvent({ id: 3, timestamp: 110000, type: EventType.ModerateSpeeding }),
-      makeEvent({ id: 4, timestamp: 120000, type: EventType.ModerateSpeeding }),
+      makeEvent({ id: 2, timestamp: 100000, type: EventType.DrivingEvent, family: 'speeding', severity: 'moderate' }),
+      makeEvent({ id: 3, timestamp: 110000, type: EventType.DrivingEvent, family: 'speeding', severity: 'moderate' }),
+      makeEvent({ id: 4, timestamp: 120000, type: EventType.DrivingEvent, family: 'speeding', severity: 'moderate' }),
       makeEvent({ id: 5, timestamp: 300000, type: EventType.JourneyEnd }),
     ];
 
@@ -126,7 +135,7 @@ describe('calculateEfficiencyScore', () => {
 
     const noDrainConfig: EfficiencyScoringConfig = {
       ...baseConfig,
-      speedingDrainPointsPerSecond: { moderate: 0, harsh: 0 },
+      speedingDrainPointsPerSecond: { light: 0, moderate: 0, harsh: 0 },
     };
     const withoutDrain = calculateEfficiencyScore(events, 0, noDrainConfig);
 
@@ -138,14 +147,14 @@ describe('calculateEfficiencyScore', () => {
   it('penalizes clustered events more than spaced events (burst multiplier)', () => {
     const clustered = [
       makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
-      makeEvent({ id: 2, timestamp: 0, type: EventType.HarshBraking }),
-      makeEvent({ id: 3, timestamp: 10000, type: EventType.SharpTurn }),
+      makeEvent({ id: 2, timestamp: 0, type: EventType.DrivingEvent, family: 'braking', severity: 'harsh' }),
+      makeEvent({ id: 3, timestamp: 10000, type: EventType.DrivingEvent, family: 'cornering', severity: 'harsh' }),
       makeEvent({ id: 4, timestamp: 600000, type: EventType.JourneyEnd }),
     ];
     const spaced = [
       makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
-      makeEvent({ id: 2, timestamp: 0, type: EventType.HarshBraking }),
-      makeEvent({ id: 3, timestamp: 180000, type: EventType.SharpTurn }),
+      makeEvent({ id: 2, timestamp: 0, type: EventType.DrivingEvent, family: 'braking', severity: 'harsh' }),
+      makeEvent({ id: 3, timestamp: 180000, type: EventType.DrivingEvent, family: 'cornering', severity: 'harsh' }),
       makeEvent({ id: 4, timestamp: 600000, type: EventType.JourneyEnd }),
     ];
 

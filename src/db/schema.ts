@@ -1,6 +1,6 @@
 import { sqliteTable, integer, text, real } from 'drizzle-orm/sqlite-core';
 
-import type { ScoringStats, EventType } from '@types';
+import type { DrivingEventFamily, EventMetadata, EventSeverity, ScoringStats, EventType } from '@types';
 
 export const journeys = sqliteTable('journeys', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -23,6 +23,9 @@ export const events = sqliteTable('events', {
   latitude: real('latitude').notNull(),
   longitude: real('longitude').notNull(),
   speed: real('speed').notNull(),
+  family: text('family').$type<DrivingEventFamily | null>(),
+  severity: text('severity').$type<EventSeverity | null>(),
+  metadata: text('metadata', { mode: 'json' }).$type<EventMetadata | null>(),
 });
 
 export const settings = sqliteTable('settings', {

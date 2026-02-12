@@ -6,7 +6,15 @@ import { journeys, events } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
 import { EventType } from '@types';
-import type { Event, Journey, JourneyServiceController, JourneyServiceDeps, JourneyChangeEvent, ScoringStats } from '@types';
+import type {
+  Event,
+  Journey,
+  JourneyServiceController,
+  JourneyServiceDeps,
+  JourneyChangeEvent,
+  ScoringStats,
+  EventLogDetails,
+} from '@types';
 import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.JourneyService);
@@ -39,6 +47,21 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
       if (!check) {
         logger.info('Tables not found, initializing database...');
         await resetDatabase();
+      } else {
+        const eventsSchemaCheck = await db
+          .select({
+            id: events.id,
+            family: events.family,
+            severity: events.severity,
+            metadata: events.metadata,
+          })
+          .from(events)
+          .limit(1)
+          .catch(() => null);
+        if (eventsSchemaCheck === null) {
+          logger.info('Events table schema changed. Resetting local database for development.');
+          await resetDatabase();
+        }
       }
       deps.logger.info('Database initialized successfully.');
     } catch (error) {
@@ -143,11 +166,17 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     }
   };
 
-  const logEvent = async (eventType: EventType, latitude: number, longitude: number, speed: number): Promise<void> => {
+  const logEvent = async (
+    eventType: EventType,
+    latitude: number,
+    longitude: number,
+    speed: number,
+    details?: EventLogDetails
+  ): Promise<void> => {
     if (!currentJourneyId) {
       const now = deps.now();
       if (eventType !== EventType.LocationUpdate || now - lastNoJourneyLogTime >= 5000) {
-        deps.logger.debug('Skipping event log: no active journey', { eventType, speed });
+        deps.logger.debug('Skipping event log: no active journey', { eventType, speed, ...details });
         lastNoJourneyLogTime = now;
       }
       return;
@@ -167,6 +196,9 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
         latitude,
         longitude,
         speed,
+        family: details?.family ?? null,
+        severity: details?.severity ?? null,
+        metadata: details?.metadata ?? null,
       });
     } catch (error) {
       deps.logger.error('Error logging event:', error);

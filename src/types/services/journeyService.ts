@@ -2,7 +2,7 @@ import type * as SQL from 'expo-sqlite';
 import type { Directory, File, Paths } from 'expo-file-system';
 import type * as Sharing from 'expo-sharing';
 
-import type { Event, EventType, Journey } from '@/types/db';
+import type { DrivingEventFamily, Event, EventMetadata, EventSeverity, EventType, Journey } from '@/types/db';
 import type { ScoringStats } from '@/types/scoring';
 import type { createLogger } from '@utils/logger';
 
@@ -30,13 +30,19 @@ export interface JourneyServiceController {
   endJourney: (finalScore: number, distanceKm?: number, stats?: ScoringStats | null) => Promise<void>;
   updateJourney: (id: number, updates: Partial<Journey>) => Promise<Journey | undefined>;
   updateJourneyTitle: (journeyId: number, title: string) => Promise<boolean>;
-  logEvent: (type: EventType, latitude: number, longitude: number, speed: number) => Promise<void>;
+  logEvent: (type: EventType, latitude: number, longitude: number, speed: number, details?: EventLogDetails) => Promise<void>;
   getJourneyById: (id: number) => Promise<Journey | null>;
   getAllJourneys: () => Promise<Journey[]>;
   deleteJourney: (journeyId: number) => Promise<boolean>;
   getEventsByJourneyId: (journeyId: number) => Promise<Event[]>;
   exportDatabase: () => Promise<void>;
   addJourneyListener: (listener: (event: JourneyChangeEvent) => void) => () => void;
+}
+
+export interface EventLogDetails {
+  family?: DrivingEventFamily | null;
+  severity?: EventSeverity | null;
+  metadata?: EventMetadata | null;
 }
 
 export type JourneyChangeType = 'journey-started' | 'journey-ended' | 'journey-updated' | 'journey-deleted';

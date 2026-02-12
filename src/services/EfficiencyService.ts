@@ -2,6 +2,7 @@ import type * as Location from 'expo-location';
 
 import VehicleMotion from '@modules/vehicle-motion';
 import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
+import { createAccelerationDetector, createBrakingDetector, createCorneringDetector, createSpeedingDetector } from '@services/detectors';
 
 import {
   EventType,
@@ -14,29 +15,14 @@ import { JourneyService } from '@services/JourneyService';
 import { createLogger, isDebugEnabled, LogModule } from '@utils/logger';
 import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
 import { convertMsToKmh, type SpeedConfidence, type SpeedSource } from '@utils/gpsValidation';
-import {
-  getAccelerationForceThreshold,
-  getAccelerationSpeedChangeThreshold,
-  getBrakingForceThreshold,
-  getBrakingSpeedChangeThreshold,
-  getCorneringForceThreshold,
-  getCorneringHeadingThreshold,
-} from '@utils/tracking/dynamicThresholds';
 import { resolveSpeedBand } from '@utils/tracking/thresholdBands';
 import type { SpeedBand } from '@/types/tracking';
 
 const logger = createLogger(LogModule.EfficiencyService);
 
-// TODO: Map the speed thresholds to actual speed limits using a Maps API
-const SPEEDING_THRESHOLD_HIGH_KMH = 120;
-const SPEEDING_THRESHOLD_MEDIUM_KMH = 100;
-
 const MIN_SPEED_FOR_EVENTS_KMH = 10;
 const MIN_SPEED_FOR_HEADING_KMH = 15;
 const HEADING_LOOKBACK_TIME_MS = 2000;
-const CORNERING_EVENT_COOLDOWN_MS = 5000;
-const SUSTAINED_FORCE_DURATION_MS = 500;
-const HARSH_EVENT_COOLDOWN_MS = 4000;
 
 // stop and go detection constants
 const STOP_GO_STOP_SPEED_KMH = 4;
@@ -47,7 +33,6 @@ const STOP_GO_WINDOW_MS = 120000;
 const STOP_GO_MIN_CYCLES = 3;
 const STOP_GO_EVENT_COOLDOWN_MS = 30000;
 
-const MOTION_BUFFER_SIZE = 25; // 500ms at 50Hz polling rate on sensors
 const HEADING_HISTORY_SIZE = 5;
 const DEBUG_SUMMARY_INTERVAL_MS = 1000;
 
@@ -63,20 +48,12 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let lastLocationSpeedChangeRateKmhPerSec: number | null = null;
 
   // cornering
-  let lastCornerEventTime = 0;
-  let lastBrakingEventTime: number | null = null;
-  let lastAccelerationEventTime: number | null = null;
-  let highForceStartTime: number | null = null;
   let headingHistory: Array<{ heading: number; timestamp: number }> = [];
 
   //validation
   let lastSpeedConfidence: SpeedConfidence = 'none';
   let lastSpeedSource: SpeedSource = 'none';
   let currentSpeedBand: SpeedBand | null = null;
-
-  //motion
-  let motionDataBuffer: MotionData[] = [];
-  let motionDataBufferSum = 0;
 
   //debug
   let lastDebugSummaryTime = 0;
@@ -88,6 +65,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let stopGoGoCandidateStart: number | null = null;
   let stopGoCycleTimestamps: number[] = [];
   let lastStopGoEventTime = 0;
+
+  const brakingDetector = createBrakingDetector();
+  const accelerationDetector = createAccelerationDetector();
+  const corneringDetector = createCorneringDetector();
+  const speedingDetector = createSpeedingDetector();
 
   const buildDebugSummary = () => ({
     motionUpdates: 0,
@@ -233,19 +215,33 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     return currentSpeedBand;
   };
 
-  const checkSpeeding = async (latitude: number, longitude: number, speedKmh: number): Promise<void> => {
-    let eventType: EventType | null = null;
+  const logDrivingEvent = async (
+    family: 'braking' | 'acceleration' | 'cornering' | 'speeding',
+    severity: 'light' | 'moderate' | 'harsh',
+    location: Location.LocationObject,
+    speedKmh: number,
+    metadata?: Record<string, string | number | boolean>
+  ): Promise<void> => {
+    await deps.JourneyService.logEvent(EventType.DrivingEvent, location.coords.latitude, location.coords.longitude, speedKmh, {
+      family,
+      severity,
+      metadata: metadata ?? null,
+    });
+    deps.logger.info(`${family} detected (${severity})`, {
+      speedKmh: Number(speedKmh.toFixed(2)),
+      ...(metadata ?? {}),
+    });
+  };
 
-    if (speedKmh > SPEEDING_THRESHOLD_HIGH_KMH) {
-      eventType = EventType.HarshSpeeding;
-    } else if (speedKmh > SPEEDING_THRESHOLD_MEDIUM_KMH) {
-      eventType = EventType.ModerateSpeeding;
+  const checkSpeeding = async (location: Location.LocationObject, speedKmh: number): Promise<void> => {
+    const severity = speedingDetector.detect(speedKmh);
+    if (!severity) {
+      return;
     }
 
-    if (eventType) {
-      await deps.JourneyService.logEvent(eventType, latitude, longitude, speedKmh);
-      deps.logger.info(`${eventType} detected: ${speedKmh.toFixed(1)} km/h`);
-    }
+    await logDrivingEvent('speeding', severity, location, speedKmh, {
+      speedKmh: Number(speedKmh.toFixed(2)),
+    });
   };
 
   const calculateMaxHeadingChange = (now: number): number => {
@@ -283,11 +279,6 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return;
     }
 
-    const brakeForceThreshold = getBrakingForceThreshold(band);
-    const brakeSpeedChangeThreshold = getBrakingSpeedChangeThreshold(band);
-    const accelForceThreshold = getAccelerationForceThreshold(band);
-    const accelSpeedChangeThreshold = getAccelerationSpeedChangeThreshold(band);
-
     if (debugEnabled) {
       debugSummary.last.speedKmh = speedKmh;
       debugSummary.last.speedChangeRate = speedChangeRate;
@@ -295,87 +286,71 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       debugSummary.last.speedBand = band;
     }
 
-    const brakeRateExceeded = speedChangeRate < brakeSpeedChangeThreshold;
-    const brakeForceExceeded = horizontalForce >= brakeForceThreshold;
-    const accelRateExceeded = speedChangeRate > accelSpeedChangeThreshold;
-    const accelForceExceeded = horizontalForce >= accelForceThreshold;
+    const context = {
+      nowMs: currentTime,
+      speedKmh,
+      speedBand: band,
+      speedChangeRateKmhPerSec: speedChangeRate,
+      horizontalForceG: horizontalForce,
+    };
 
-    if (debugEnabled) {
-      if (speedChangeRate < 0) {
+    if (speedChangeRate < 0) {
+      if (debugEnabled) {
         debugSummary.braking.samples += 1;
-        if (brakeRateExceeded) {
-          if (!brakeForceExceeded) {
+      }
+      const brakingResult = brakingDetector.detect(context);
+      if (!brakingResult.detected || !brakingResult.severity) {
+        if (debugEnabled) {
+          if (brakingResult.reason === 'rate') {
+            debugSummary.braking.rejectedRate += 1;
+          } else if (brakingResult.reason === 'force') {
             debugSummary.braking.rejectedForce += 1;
+          } else if (brakingResult.reason === 'cooldown') {
+            debugSummary.braking.rejectedCooldown += 1;
           }
-        } else {
-          debugSummary.braking.rejectedRate += 1;
         }
-      } else if (speedChangeRate > 0) {
-        debugSummary.acceleration.samples += 1;
-        if (accelRateExceeded) {
-          if (!accelForceExceeded) {
-            debugSummary.acceleration.rejectedForce += 1;
-          }
-        } else {
-          debugSummary.acceleration.rejectedRate += 1;
-        }
+        return;
       }
-    }
 
-    let eventType: EventType | null = null;
-
-    if (brakeRateExceeded && brakeForceExceeded) {
-      eventType = EventType.HarshBraking;
-    } else if (accelRateExceeded && accelForceExceeded) {
-      eventType = EventType.HarshAcceleration;
-    }
-
-    if (!eventType) {
-      return;
-    }
-
-    if (
-      eventType === EventType.HarshBraking &&
-      lastBrakingEventTime !== null &&
-      currentTime - lastBrakingEventTime < HARSH_EVENT_COOLDOWN_MS
-    ) {
       if (debugEnabled) {
-        debugSummary.braking.rejectedCooldown += 1;
-      }
-      return;
-    }
-
-    if (
-      eventType === EventType.HarshAcceleration &&
-      lastAccelerationEventTime !== null &&
-      currentTime - lastAccelerationEventTime < HARSH_EVENT_COOLDOWN_MS
-    ) {
-      if (debugEnabled) {
-        debugSummary.acceleration.rejectedCooldown += 1;
-      }
-      return;
-    }
-
-    if (debugEnabled) {
-      if (eventType === EventType.HarshBraking) {
         debugSummary.braking.triggered += 1;
-      } else if (eventType === EventType.HarshAcceleration) {
+      }
+      await logDrivingEvent('braking', brakingResult.severity, location, speedKmh, {
+        speedBand: band,
+        ...(brakingResult.metadata ?? {}),
+      });
+      return;
+    }
+
+    if (speedChangeRate > 0) {
+      if (debugEnabled) {
+        debugSummary.acceleration.samples += 1;
+      }
+      const accelerationResult = accelerationDetector.detect(context);
+      if (!accelerationResult.detected || !accelerationResult.severity) {
+        if (debugEnabled) {
+          if (accelerationResult.reason === 'rate') {
+            debugSummary.acceleration.rejectedRate += 1;
+          } else if (accelerationResult.reason === 'force') {
+            debugSummary.acceleration.rejectedForce += 1;
+          } else if (accelerationResult.reason === 'cooldown') {
+            debugSummary.acceleration.rejectedCooldown += 1;
+          }
+        }
+        return;
+      }
+
+      if (debugEnabled) {
         debugSummary.acceleration.triggered += 1;
       }
+      await logDrivingEvent('acceleration', accelerationResult.severity, location, speedKmh, {
+        speedBand: band,
+        ...(accelerationResult.metadata ?? {}),
+      });
     }
-
-    if (eventType === EventType.HarshBraking) {
-      lastBrakingEventTime = currentTime;
-    } else if (eventType === EventType.HarshAcceleration) {
-      lastAccelerationEventTime = currentTime;
-    }
-    await deps.JourneyService.logEvent(eventType, location.coords.latitude, location.coords.longitude, speedKmh);
-    deps.logger.info(
-      `${eventType} detected: ${horizontalForce.toFixed(2)}g horizontal force, speed change: ${speedChangeRate.toFixed(1)} km/h/s`
-    );
   };
 
-  const checkHarshCornering = async (
+  const checkCornering = async (
     data: MotionData,
     location: Location.LocationObject,
     speedKmh: number,
@@ -383,84 +358,52 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     debugEnabled: boolean
   ): Promise<void> => {
     const currentTime = deps.now();
-
-    if (currentTime - lastCornerEventTime < CORNERING_EVENT_COOLDOWN_MS) {
-      if (debugEnabled) {
-        debugSummary.cornering.rejectedCooldown += 1;
-      }
+    const speedChangeRate = lastLocationSpeedChangeRateKmhPerSec;
+    if (speedChangeRate === null || !Number.isFinite(speedChangeRate)) {
       return;
     }
 
-    const avgHorizontalForce = motionDataBuffer.length > 0 ? motionDataBufferSum / motionDataBuffer.length : data.horizontalMagnitude;
+    const headingChange =
+      speedKmh >= MIN_SPEED_FOR_HEADING_KMH && headingHistory.length >= 2 ? calculateMaxHeadingChange(currentTime) : null;
+    const corneringResult = corneringDetector.detect({
+      nowMs: currentTime,
+      speedKmh,
+      speedBand: band,
+      speedChangeRateKmhPerSec: speedChangeRate,
+      horizontalForceG: data.horizontalMagnitude,
+      headingChangeDeg: headingChange,
+    });
 
-    const corneringForceThreshold = getCorneringForceThreshold(band);
-
-    if (avgHorizontalForce >= corneringForceThreshold) {
-      if (highForceStartTime === null) {
-        highForceStartTime = currentTime;
-        if (debugEnabled) {
-          debugSummary.cornering.rejectedSustain += 1;
-        }
-        return;
-      }
-
-      const duration = currentTime - highForceStartTime;
-      if (duration < SUSTAINED_FORCE_DURATION_MS) {
-        if (debugEnabled) {
-          debugSummary.cornering.rejectedSustain += 1;
-        }
-        return;
-      }
-    } else {
-      highForceStartTime = null;
-      if (debugEnabled) {
-        debugSummary.cornering.rejectedForce += 1;
-      }
-      return;
+    if (debugEnabled) {
+      debugSummary.cornering.samples += 1;
+      debugSummary.last.avgHorizontalForce = data.horizontalMagnitude;
+      debugSummary.last.headingChange = headingChange;
+      debugSummary.last.speedBand = band;
     }
 
-    const speedChangeRate = lastLocationSpeedChangeRateKmhPerSec !== null ? Math.abs(lastLocationSpeedChangeRateKmhPerSec) : null;
-    if (speedChangeRate !== null && speedChangeRate > 10) {
+    if (!corneringResult.detected || !corneringResult.severity) {
       if (debugEnabled) {
-        debugSummary.cornering.rejectedSpeedChange += 1;
-      }
-      return;
-    }
-
-    if (speedKmh >= MIN_SPEED_FOR_HEADING_KMH && headingHistory.length >= 2) {
-      const headingChange = calculateMaxHeadingChange(currentTime);
-      const headingThreshold = getCorneringHeadingThreshold(band);
-      if (debugEnabled) {
-        debugSummary.cornering.samples += 1;
-        debugSummary.last.avgHorizontalForce = avgHorizontalForce;
-        debugSummary.last.headingChange = headingChange;
-        debugSummary.last.speedBand = band;
-      }
-      if (headingChange < headingThreshold) {
-        deps.logger.debug(
-          `Filtered harsh_cornering: Sustained force (${avgHorizontalForce.toFixed(2)}g) but only ${headingChange.toFixed(
-            1
-          )}° heading change`
-        );
-        if (debugEnabled) {
+        if (corneringResult.reason === 'force') {
+          debugSummary.cornering.rejectedForce += 1;
+        } else if (corneringResult.reason === 'heading' || corneringResult.reason === 'missing_heading') {
           debugSummary.cornering.rejectedHeading += 1;
+        } else if (corneringResult.reason === 'speed_change') {
+          debugSummary.cornering.rejectedSpeedChange += 1;
+        } else if (corneringResult.reason === 'cooldown') {
+          debugSummary.cornering.rejectedCooldown += 1;
         }
-        return;
-      }
-
-      lastCornerEventTime = currentTime;
-      highForceStartTime = null;
-      await deps.JourneyService.logEvent(EventType.SharpTurn, location.coords.latitude, location.coords.longitude, speedKmh);
-      deps.logger.info(
-        `harsh_cornering detected: ${avgHorizontalForce.toFixed(2)}g sustained force, ${headingChange.toFixed(
-          1
-        )}° turn, speed: ${speedKmh.toFixed(1)} km/h`
-      );
-      if (debugEnabled) {
-        debugSummary.cornering.triggered += 1;
       }
       return;
     }
+
+    if (debugEnabled) {
+      debugSummary.cornering.triggered += 1;
+    }
+
+    await logDrivingEvent('cornering', corneringResult.severity, location, speedKmh, {
+      speedBand: band,
+      ...(corneringResult.metadata ?? {}),
+    });
   };
 
   const handleMotionUpdate = async (data: MotionData): Promise<void> => {
@@ -490,16 +433,6 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return;
     }
 
-    motionDataBuffer.push(data);
-    motionDataBufferSum += data.horizontalMagnitude;
-
-    if (motionDataBuffer.length > MOTION_BUFFER_SIZE) {
-      const removed = motionDataBuffer.shift();
-      if (removed) {
-        motionDataBufferSum -= removed.horizontalMagnitude;
-      }
-    }
-
     const speedMs = lastSpeedMs;
     if (speedMs === null || lastSpeedSource === 'none' || lastSpeedConfidence === 'low' || lastSpeedConfidence === 'none') {
       if (debugEnabled) {
@@ -527,7 +460,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       return;
     }
     await checkBrakingAndAcceleration(data, lastLocation, speedKmh, band, debugEnabled);
-    await checkHarshCornering(data, lastLocation, speedKmh, band, debugEnabled);
+    await checkCornering(data, lastLocation, speedKmh, band, debugEnabled);
     if (debugEnabled) {
       emitDebugSummary(deps.now());
     }
@@ -546,14 +479,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastLocationSpeedChangeRateKmhPerSec = null;
     lastSpeedConfidence = 'none';
     lastSpeedSource = 'none';
-    lastCornerEventTime = 0;
-    lastBrakingEventTime = null;
-    lastAccelerationEventTime = null;
-    highForceStartTime = null;
     headingHistory = [];
-    motionDataBuffer = [];
-    motionDataBufferSum = 0;
     currentSpeedBand = null;
+    brakingDetector.reset();
+    accelerationDetector.reset();
+    corneringDetector.reset();
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
@@ -577,14 +507,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastLocationSpeedChangeRateKmhPerSec = null;
     lastSpeedConfidence = 'none';
     lastSpeedSource = 'none';
-    lastCornerEventTime = 0;
-    lastBrakingEventTime = null;
-    lastAccelerationEventTime = null;
-    highForceStartTime = null;
     headingHistory = [];
-    motionDataBuffer = [];
-    motionDataBufferSum = 0;
     currentSpeedBand = null;
+    brakingDetector.reset();
+    accelerationDetector.reset();
+    corneringDetector.reset();
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
@@ -638,7 +565,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     if (isSpeedValid) {
       await handleStopAndGo(speedKmh, currentTime, latitude, longitude);
       if (speedConfidence !== 'low') {
-        await checkSpeeding(latitude, longitude, speedKmh);
+        await checkSpeeding(location, speedKmh);
       } else {
         deps.logger.debug('Skipping speeding check due to low speed confidence', {
           speedKmh: speedKmh.toFixed(1),

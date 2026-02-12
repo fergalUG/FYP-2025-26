@@ -144,12 +144,20 @@ const createMockStats = (
     minScore: Math.max(0, score - 10),
 
     harshBrakingCount: incidents.harshBraking ?? 0,
+    moderateBrakingCount: 0,
+    lightBrakingCount: 0,
     harshAccelerationCount: incidents.harshAccel ?? 0,
+    moderateAccelerationCount: 0,
+    lightAccelerationCount: 0,
     sharpTurnCount: 0,
+    moderateTurnCount: 0,
+    lightTurnCount: 0,
     stopAndGoCount: incidents.stopAndGo ?? 0,
 
+    lightSpeedingEpisodeCount: 0,
     moderateSpeedingEpisodeCount: incidents.speeding ?? 0,
     harshSpeedingEpisodeCount: 0,
+    lightSpeedingSeconds: 0,
     moderateSpeedingSeconds: (incidents.speeding ?? 0) * 15,
     harshSpeedingSeconds: 0,
 

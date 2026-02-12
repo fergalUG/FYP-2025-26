@@ -16,7 +16,7 @@ interface RoutePoint {
 
 interface SpeedingSegment {
   id: string;
-  severity: 'moderate' | 'harsh';
+  severity: 'light' | 'moderate' | 'harsh';
   coordinates: Array<{ latitude: number; longitude: number }>;
 }
 
@@ -28,23 +28,38 @@ const isRouteEventType = (type: EventType): boolean => {
   return type === EventType.LocationUpdate || type === EventType.JourneyStart || type === EventType.JourneyEnd;
 };
 
-const isIncidentType = (type: EventType): boolean => {
-  return (
-    type === EventType.HarshBraking || type === EventType.HarshAcceleration || type === EventType.SharpTurn || type === EventType.StopAndGo
-  );
+const resolveEventFamily = (event: Event): 'braking' | 'acceleration' | 'cornering' | 'speeding' | null => {
+  if (event.type === EventType.DrivingEvent) {
+    if (event.family === 'braking' || event.family === 'acceleration' || event.family === 'cornering' || event.family === 'speeding') {
+      return event.family;
+    }
+  }
+  return null;
 };
 
-const getIncidentLabel = (type: EventType): string => {
-  if (type === EventType.HarshBraking) return 'Harsh Brake';
-  if (type === EventType.HarshAcceleration) return 'Harsh Accel';
-  if (type === EventType.StopAndGo) return 'Stop & Go';
-  return 'Sharp Turn';
+const isIncidentType = (event: Event): boolean => {
+  if (event.type === EventType.StopAndGo) {
+    return true;
+  }
+  const family = resolveEventFamily(event);
+  return family === 'braking' || family === 'acceleration' || family === 'cornering';
 };
 
-const getIncidentColor = (type: EventType, theme: ReturnType<typeof useTheme>['theme']): string => {
-  if (type === EventType.HarshBraking) return theme.colors.event.brake;
-  if (type === EventType.HarshAcceleration) return theme.colors.event.accel;
-  if (type === EventType.StopAndGo) return theme.colors.event.stopAndGo;
+const getIncidentLabel = (event: Event): string => {
+  if (event.type === EventType.StopAndGo) return 'Stop & Go';
+
+  const family = resolveEventFamily(event);
+  if (family === 'braking') return 'Braking';
+  if (family === 'acceleration') return 'Acceleration';
+  if (family === 'cornering') return 'Cornering';
+  return 'Driving Event';
+};
+
+const getIncidentColor = (event: Event, theme: ReturnType<typeof useTheme>['theme']): string => {
+  if (event.type === EventType.StopAndGo) return theme.colors.event.stopAndGo;
+  const family = resolveEventFamily(event);
+  if (family === 'braking') return theme.colors.event.brake;
+  if (family === 'acceleration') return theme.colors.event.accel;
   return theme.colors.event.corner;
 };
 
@@ -128,11 +143,13 @@ export const JourneyMap = (props: JourneyMapProps) => {
 
   const incidentMarkers = useMemo(() => {
     return events
-      .filter((event) => isIncidentType(event.type))
+      .filter((event) => isIncidentType(event))
       .filter((event) => isValidCoordinate(event.latitude, event.longitude))
       .map((event) => ({
         id: event.id,
-        type: event.type,
+        event,
+        family: resolveEventFamily(event),
+        severity: event.severity,
         latitude: event.latitude,
         longitude: event.longitude,
       }));
@@ -159,12 +176,12 @@ export const JourneyMap = (props: JourneyMapProps) => {
       .filter((segment): segment is SpeedingSegment => Boolean(segment));
   }, [events, routePoints]);
 
-  const hasModerateSpeeding = speedingSegments.some((segment) => segment.severity === 'moderate');
+  const hasModerateSpeeding = speedingSegments.some((segment) => segment.severity === 'moderate' || segment.severity === 'light');
   const hasHarshSpeeding = speedingSegments.some((segment) => segment.severity === 'harsh');
-  const hasHarshBraking = incidentMarkers.some((marker) => marker.type === EventType.HarshBraking);
-  const hasHarshAcceleration = incidentMarkers.some((marker) => marker.type === EventType.HarshAcceleration);
-  const hasSharpTurn = incidentMarkers.some((marker) => marker.type === EventType.SharpTurn);
-  const hasStopAndGo = incidentMarkers.some((marker) => marker.type === EventType.StopAndGo);
+  const hasBraking = incidentMarkers.some((marker) => marker.family === 'braking');
+  const hasAcceleration = incidentMarkers.some((marker) => marker.family === 'acceleration');
+  const hasCornering = incidentMarkers.some((marker) => marker.family === 'cornering');
+  const hasStopAndGo = incidentMarkers.some((marker) => marker.event.type === EventType.StopAndGo);
 
   if (events.length === 0) {
     return (
@@ -241,8 +258,8 @@ export const JourneyMap = (props: JourneyMapProps) => {
           <Marker
             key={marker.id}
             coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
-            title={getIncidentLabel(marker.type)}
-            pinColor={getIncidentColor(marker.type, theme)}
+            title={getIncidentLabel(marker.event)}
+            pinColor={getIncidentColor(marker.event, theme)}
           />
         ))}
 
@@ -285,22 +302,22 @@ export const JourneyMap = (props: JourneyMapProps) => {
               <Text style={styles.legendText}>Harsh speeding</Text>
             </View>
           )}
-          {hasHarshBraking && (
+          {hasBraking && (
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.brake }]} />
-              <Text style={styles.legendText}>Harsh brake</Text>
+              <Text style={styles.legendText}>Braking</Text>
             </View>
           )}
-          {hasHarshAcceleration && (
+          {hasAcceleration && (
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.accel }]} />
-              <Text style={styles.legendText}>Harsh accel</Text>
+              <Text style={styles.legendText}>Acceleration</Text>
             </View>
           )}
-          {hasSharpTurn && (
+          {hasCornering && (
             <View style={styles.legendItem}>
               <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.corner }]} />
-              <Text style={styles.legendText}>Sharp turn</Text>
+              <Text style={styles.legendText}>Cornering</Text>
             </View>
           )}
           {hasStopAndGo && (

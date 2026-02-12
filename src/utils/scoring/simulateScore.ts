@@ -1,10 +1,11 @@
-import type { EventType } from '@types';
+import type { DrivingEventFamily, EventSeverity } from '@types';
 
 import type { EfficiencyScoringConfig, SpeedingSeverity } from '@utils/scoring/efficiencyScoringConfig';
 import type { SpeedingEpisode } from '@utils/scoring/normalizeEvents';
 
 export interface PenaltyAction {
-  type: EventType;
+  family: DrivingEventFamily | 'stop_and_go';
+  severity?: EventSeverity;
   timestamp: number;
 }
 
@@ -19,6 +20,16 @@ const clamp = (value: number, min: number, max: number): number => Math.max(min,
 
 const getDrainPointsPerMs = (severity: SpeedingSeverity, config: EfficiencyScoringConfig): number => {
   return config.speedingDrainPointsPerSecond[severity] / 1000;
+};
+
+const getSpeedingMaxSeverity = (episodes: SpeedingEpisode[]): SpeedingSeverity => {
+  if (episodes.some((episode) => episode.severity === 'harsh')) {
+    return 'harsh';
+  }
+  if (episodes.some((episode) => episode.severity === 'moderate')) {
+    return 'moderate';
+  }
+  return 'light';
 };
 
 const integrateSegment = (s0: number, dtMs: number, drainPointsPerMs: number, config: EfficiencyScoringConfig): number => {
@@ -115,7 +126,7 @@ export const simulateScoreTimeline = (args: {
 
     const starting = episodeStartsByTimestamp.get(ts);
     if (starting && starting.length > 0) {
-      const maxSeverity: SpeedingSeverity = starting.some((e) => e.severity === 'harsh') ? 'harsh' : 'moderate';
+      const maxSeverity = getSpeedingMaxSeverity(starting);
       drainPointsPerMs = getDrainPointsPerMs(maxSeverity, config);
     }
 
@@ -125,7 +136,12 @@ export const simulateScoreTimeline = (args: {
     }
 
     for (const action of actions) {
-      const drop = config.dropPoints[action.type] ?? 0;
+      const drop =
+        action.family === 'stop_and_go'
+          ? config.dropPoints.stopAndGo
+          : action.severity
+            ? config.dropPoints.driving[action.family][action.severity]
+            : 0;
       if (drop <= 0) {
         continue;
       }
@@ -143,7 +159,6 @@ export const simulateScoreTimeline = (args: {
     }
   };
 
-  // Apply any actions at the start timestamp before integrating.
   applyTimepoint(startTimestamp);
   minScore = Math.min(minScore, score);
 

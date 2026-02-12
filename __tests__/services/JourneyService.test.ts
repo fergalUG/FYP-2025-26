@@ -147,12 +147,15 @@ describe('JourneyService', () => {
       const chain = mockQuery();
       (db.insert as jest.Mock).mockReturnValue(chain);
 
-      const type = EventType.HarshBraking;
+      const type = EventType.DrivingEvent;
       const lat = 53.0;
       const lng = -6.0;
       const speed = 45;
 
-      await JourneyService.logEvent(type, lat, lng, speed);
+      await JourneyService.logEvent(type, lat, lng, speed, {
+        family: 'braking',
+        severity: 'harsh',
+      });
 
       expect(db.insert).toHaveBeenCalledWith(events);
       expect(chain.values).toHaveBeenCalledWith(
@@ -171,7 +174,10 @@ describe('JourneyService', () => {
       await JourneyService.endJourney(0, 0);
       jest.clearAllMocks();
 
-      await JourneyService.logEvent(EventType.HarshBraking, 0, 0, 0);
+      await JourneyService.logEvent(EventType.DrivingEvent, 0, 0, 0, {
+        family: 'braking',
+        severity: 'harsh',
+      });
 
       expect(db.insert).not.toHaveBeenCalled();
     });
