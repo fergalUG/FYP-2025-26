@@ -328,6 +328,39 @@ describe('EfficiencyService', () => {
   });
 
   describe('Motion-based event detection', () => {
+    it('uses eventSpeedMs for harsh braking detection when speedMs is smoothed/flat', async () => {
+      const svc = createService();
+      svc.startTracking();
+
+      const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
+
+      nowMs = 0;
+      const firstLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 20 } };
+      await svc.processLocation(firstLocation, {
+        ...buildOptions(firstLocation),
+        speedMs: 20,
+        eventSpeedMs: 20,
+      });
+
+      nowMs = 200;
+      const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 20 } };
+      await svc.processLocation(secondLocation, {
+        ...buildOptions(secondLocation),
+        speedMs: 20,
+        eventSpeedMs: 8,
+      });
+
+      nowMs = 300;
+      await motionListener({ ...mockMotionData, horizontalMagnitude: 0.45 });
+
+      expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
+        EventType.HarshBraking,
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Number)
+      );
+    });
+
     it('detects harsh braking when speed drops and force is high', async () => {
       const svc = createService();
       svc.startTracking();

@@ -20,6 +20,7 @@ export interface EfficiencyServiceDeps {
 
 export interface ProcessLocationOptions {
   speedMs: number;
+  eventSpeedMs?: number;
   speedConfidence: SpeedConfidence;
   speedSource: SpeedSource;
 }

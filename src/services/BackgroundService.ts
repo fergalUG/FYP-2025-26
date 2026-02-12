@@ -380,6 +380,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     if (state.currentJourneyId) {
       await deps.EfficiencyService.processLocation(location, {
         speedMs: smoothed.speedMs,
+        eventSpeedMs: validatedSpeed.value,
         speedConfidence: smoothed.confidence,
         speedSource: smoothed.source,
       });

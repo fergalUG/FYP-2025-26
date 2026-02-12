@@ -59,6 +59,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let lastLocation: Location.LocationObject | null = null;
   let lastLocationProcessedAtMs: number | null = null;
   let lastSpeedMs: number | null = null;
+  let lastEventSpeedMs: number | null = null;
   let lastLocationSpeedChangeRateKmhPerSec: number | null = null;
 
   // cornering
@@ -532,6 +533,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastLocation = null;
     lastLocationProcessedAtMs = null;
     lastSpeedMs = null;
+    lastEventSpeedMs = null;
     lastLocationSpeedChangeRateKmhPerSec = null;
     lastSpeedConfidence = 'none';
     lastSpeedSource = 'none';
@@ -562,6 +564,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastLocation = null;
     lastLocationProcessedAtMs = null;
     lastSpeedMs = null;
+    lastEventSpeedMs = null;
     lastLocationSpeedChangeRateKmhPerSec = null;
     lastSpeedConfidence = 'none';
     lastSpeedSource = 'none';
@@ -590,19 +593,23 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     const { latitude, longitude, heading } = location.coords;
     const speedMs = options.speedMs;
+    const eventSpeedMs = options.eventSpeedMs ?? speedMs;
     const speedConfidence = options.speedConfidence;
     const speedSource = options.speedSource;
     const isSpeedValid = Number.isFinite(speedMs) && speedMs >= 0;
+    const isEventSpeedValid = Number.isFinite(eventSpeedMs) && eventSpeedMs >= 0;
 
     const speedKmh = convertMsToKmh(speedMs);
+    const eventSpeedKmh = convertMsToKmh(eventSpeedMs);
     const currentTime = deps.now();
 
     currentSpeedBand = isSpeedValid ? resolveBand(speedKmh) : null;
 
-    const previousSpeedKmh = typeof lastSpeedMs === 'number' && Number.isFinite(lastSpeedMs) ? convertMsToKmh(lastSpeedMs) : null;
+    const previousSpeedKmh =
+      typeof lastEventSpeedMs === 'number' && Number.isFinite(lastEventSpeedMs) ? convertMsToKmh(lastEventSpeedMs) : null;
     const previousLocationTimestamp = lastLocation?.timestamp ?? null;
     const previousProcessedAtMs = lastLocationProcessedAtMs;
-    if (isSpeedValid && previousSpeedKmh !== null && previousLocationTimestamp !== null) {
+    if (isEventSpeedValid && previousSpeedKmh !== null && previousLocationTimestamp !== null) {
       let locationDeltaSeconds = (location.timestamp - previousLocationTimestamp) / 1000;
       if (locationDeltaSeconds <= 0.1 && previousProcessedAtMs !== null) {
         const wallClockDeltaSeconds = (currentTime - previousProcessedAtMs) / 1000;
@@ -611,7 +618,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
         }
       }
       if (locationDeltaSeconds > 0.1) {
-        lastLocationSpeedChangeRateKmhPerSec = (speedKmh - previousSpeedKmh) / locationDeltaSeconds;
+        lastLocationSpeedChangeRateKmhPerSec = (eventSpeedKmh - previousSpeedKmh) / locationDeltaSeconds;
       } else {
         lastLocationSpeedChangeRateKmhPerSec = null;
       }
@@ -637,6 +644,9 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       lastSpeedMs = speedMs;
       lastSpeedConfidence = speedConfidence;
       lastSpeedSource = speedSource;
+    }
+    if (isEventSpeedValid) {
+      lastEventSpeedMs = eventSpeedMs;
     }
 
     if (heading !== null && heading !== -1 && isSpeedValid && speedKmh >= MIN_SPEED_FOR_HEADING_KMH) {
