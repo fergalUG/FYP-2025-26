@@ -18,6 +18,7 @@ export default function JourneyDetail() {
 
   const [isEditingtitle, setIsEditingtitle] = useState<boolean>(false);
   const [draftTitle, setDraftTitle] = useState<string>('');
+  const [showMapLegend, setShowMapLegend] = useState<boolean>(true);
 
   useEffect(() => {
     if (journey) {
@@ -43,7 +44,7 @@ export default function JourneyDetail() {
   const handleMapPress = () => {
     router.push({
       pathname: '/journey/map',
-      params: { journeyId },
+      params: { journeyId, showLegend: showMapLegend ? '1' : '0' },
     });
   };
 
@@ -145,9 +146,14 @@ export default function JourneyDetail() {
         </View>
 
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Route Map</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Route Map</Text>
+            <AppButton style={styles.legendToggleButton} onPress={() => setShowMapLegend((prev) => !prev)} variant="secondary">
+              <Text style={styles.legendToggleText}>{showMapLegend ? 'Hide legend' : 'Show legend'}</Text>
+            </AppButton>
+          </View>
           <AppButton style={styles.mapButton} onPress={handleMapPress} variant="secondary">
-            <JourneyMap events={events} height={300} interactive={false} />
+            <JourneyMap events={events} height={300} interactive={false} showLegend={showMapLegend} />
           </AppButton>
         </View>
 
@@ -259,6 +265,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontWeight: '700',
       color: theme.colors.onBackground,
     },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: theme.spacing.sm,
+    },
     scoreWheelContainer: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -299,5 +311,17 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       padding: 0,
       overflow: 'hidden',
       borderWidth: 0,
+    },
+    legendToggleButton: {
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: theme.radius.md,
+    },
+    legendToggleText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.colors.onSurface,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
     },
   });

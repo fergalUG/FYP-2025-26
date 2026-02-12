@@ -146,12 +146,13 @@ interface JourneyMapProps {
   events: Event[];
   height?: DimensionValue;
   interactive?: boolean;
+  showLegend?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
 export const JourneyMap = (props: JourneyMapProps) => {
   const { theme } = useTheme();
-  const { events, height = 300, interactive = true, style } = props;
+  const { events, height = 300, interactive = true, showLegend = true, style } = props;
   const styles = createStyles(theme);
 
   const routePoints = useMemo<RoutePoint[]>(() => {
@@ -337,7 +338,7 @@ export const JourneyMap = (props: JourneyMapProps) => {
         )}
       </MapView>
 
-      {(incidentMarkers.length > 0 || speedingSegments.length > 0) && (
+      {showLegend && (incidentMarkers.length > 0 || speedingSegments.length > 0) && (
         <View style={styles.legend} pointerEvents="none">
           {hasLightSpeeding && (
             <View style={styles.legendItem}>
@@ -388,7 +389,7 @@ export const JourneyMap = (props: JourneyMapProps) => {
                 <View style={[styles.legendDot, styles.legendDotModerate]} />
                 <View style={[styles.legendDot, styles.legendDotHarsh]} />
               </View>
-              <Text style={styles.legendText}>Event severity (L/M/H)</Text>
+              <Text style={styles.legendText}>Event severity (Light/Moderate/Harsh)</Text>
             </View>
           )}
         </View>
