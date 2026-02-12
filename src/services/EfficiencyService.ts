@@ -295,11 +295,38 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       debugSummary.last.speedBand = band;
     }
 
+    const brakeRateExceeded = speedChangeRate < brakeSpeedChangeThreshold;
+    const brakeForceExceeded = horizontalForce >= brakeForceThreshold;
+    const accelRateExceeded = speedChangeRate > accelSpeedChangeThreshold;
+    const accelForceExceeded = horizontalForce >= accelForceThreshold;
+
+    if (debugEnabled) {
+      if (speedChangeRate < 0) {
+        debugSummary.braking.samples += 1;
+        if (brakeRateExceeded) {
+          if (!brakeForceExceeded) {
+            debugSummary.braking.rejectedForce += 1;
+          }
+        } else {
+          debugSummary.braking.rejectedRate += 1;
+        }
+      } else if (speedChangeRate > 0) {
+        debugSummary.acceleration.samples += 1;
+        if (accelRateExceeded) {
+          if (!accelForceExceeded) {
+            debugSummary.acceleration.rejectedForce += 1;
+          }
+        } else {
+          debugSummary.acceleration.rejectedRate += 1;
+        }
+      }
+    }
+
     let eventType: EventType | null = null;
 
-    if (speedChangeRate < brakeSpeedChangeThreshold && horizontalForce >= brakeForceThreshold) {
+    if (brakeRateExceeded && brakeForceExceeded) {
       eventType = EventType.HarshBraking;
-    } else if (speedChangeRate > accelSpeedChangeThreshold && horizontalForce >= accelForceThreshold) {
+    } else if (accelRateExceeded && accelForceExceeded) {
       eventType = EventType.HarshAcceleration;
     }
 
@@ -330,28 +357,10 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     if (debugEnabled) {
-      if (speedChangeRate < 0) {
-        debugSummary.braking.samples += 1;
-        if (speedChangeRate < brakeSpeedChangeThreshold) {
-          if (horizontalForce >= brakeForceThreshold) {
-            debugSummary.braking.triggered += 1;
-          } else {
-            debugSummary.braking.rejectedForce += 1;
-          }
-        } else {
-          debugSummary.braking.rejectedRate += 1;
-        }
-      } else if (speedChangeRate > 0) {
-        debugSummary.acceleration.samples += 1;
-        if (speedChangeRate > accelSpeedChangeThreshold) {
-          if (horizontalForce >= accelForceThreshold) {
-            debugSummary.acceleration.triggered += 1;
-          } else {
-            debugSummary.acceleration.rejectedForce += 1;
-          }
-        } else {
-          debugSummary.acceleration.rejectedRate += 1;
-        }
+      if (eventType === EventType.HarshBraking) {
+        debugSummary.braking.triggered += 1;
+      } else if (eventType === EventType.HarshAcceleration) {
+        debugSummary.acceleration.triggered += 1;
       }
     }
 
