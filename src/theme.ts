@@ -23,7 +23,13 @@ const dimensions = {
   deviceMaxHeight: MAX_HEIGHT,
 };
 
+const baseColors = {
+  white: '#FFFFFF',
+  black: '#000000',
+};
+
 export interface ThemeColors {
+  baseColors: typeof baseColors;
   primary: string;
   secondary: string;
   success: string;
@@ -72,6 +78,9 @@ export interface Theme {
 
 export const lightTheme: Theme = {
   colors: {
+    baseColors: {
+      ...baseColors,
+    },
     primary: '#339989',
     secondary: '#5BB9AD',
     success: '#2F9C8E',
@@ -117,6 +126,9 @@ export const lightTheme: Theme = {
 
 export const darkTheme: Theme = {
   colors: {
+    baseColors: {
+      ...baseColors,
+    },
     primary: '#339989',
     secondary: '#5BB9AD',
     success: '#3FB6A6',

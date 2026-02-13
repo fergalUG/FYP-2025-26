@@ -220,6 +220,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     journeyTitle: {
       fontSize: 22,
       fontWeight: '800',
+      textAlign: 'center',
       color: theme.colors.onBackground,
     },
     journeyDate: {

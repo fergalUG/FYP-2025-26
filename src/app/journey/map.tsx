@@ -34,7 +34,7 @@ export default function JourneyMapScreen() {
         options={{
           headerRight: () => (
             <Pressable onPress={() => setShowLegend((prev) => !prev)} style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}>
-              <Text>{showLegend ? 'Hide legend' : 'Show legend'}</Text>
+              <Text style={styles.headerText}>{showLegend ? 'Hide legend' : 'Show legend'}</Text>
             </Pressable>
           ),
         }}
@@ -61,7 +61,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       backgroundColor: theme.colors.surface,
     },
     headerText: {
-      fontWeight: '900',
+      fontWeight: '500',
+      fontSize  : 16,
+      color: theme.colors.baseColors.white,
+      paddingLeft: theme.spacing.xs,
+      paddingRight: theme.spacing.xs,
     },
     centerContent: {
       justifyContent: 'center',
