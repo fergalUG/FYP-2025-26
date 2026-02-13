@@ -81,7 +81,7 @@ export const getDebugLogsEnabled = async (): Promise<boolean> => {
     if (result.length > 0 && result[0].value) {
       return result[0].value === 'true';
     }
-    return false;
+    return true;
   } catch (error) {
     logger.warn('Failed to load debug logs setting:', error);
     return false;
