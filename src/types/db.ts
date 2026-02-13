@@ -19,16 +19,20 @@ export interface Event {
   latitude: number;
   longitude: number;
   speed: number;
+  family?: DrivingEventFamily | null;
+  severity?: EventSeverity | null;
+  metadata?: EventMetadata | null;
 }
+
+export type EventSeverity = 'light' | 'moderate' | 'harsh';
+export type DrivingEventFamily = 'braking' | 'acceleration' | 'cornering' | 'speeding';
+export type EventMetadataValue = string | number | boolean;
+export type EventMetadata = Record<string, EventMetadataValue>;
 
 export enum EventType {
   JourneyStart = 'journey_start',
   JourneyEnd = 'journey_end',
   LocationUpdate = 'location_update',
-  HarshAcceleration = 'harsh_acceleration',
-  HarshBraking = 'harsh_braking',
-  SharpTurn = 'sharp_turn',
-  ModerateSpeeding = 'moderate_speeding',
-  HarshSpeeding = 'harsh_speeding',
+  DrivingEvent = 'driving_event',
   StopAndGo = 'stop_and_go',
 }

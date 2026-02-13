@@ -135,10 +135,14 @@ describe('EfficiencyService', () => {
       await svc.processLocation(speedingLocation, buildOptions(speedingLocation));
 
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
-        EventType.ModerateSpeeding,
+        EventType.DrivingEvent,
         speedingLocation.coords.latitude,
         speedingLocation.coords.longitude,
-        expect.any(Number)
+        expect.any(Number),
+        expect.objectContaining({
+          family: 'speeding',
+          severity: 'moderate',
+        })
       );
     });
 
@@ -157,10 +161,14 @@ describe('EfficiencyService', () => {
       await svc.processLocation(speedingLocation, buildOptions(speedingLocation));
 
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
-        EventType.HarshSpeeding,
+        EventType.DrivingEvent,
         speedingLocation.coords.latitude,
         speedingLocation.coords.longitude,
-        expect.any(Number)
+        expect.any(Number),
+        expect.objectContaining({
+          family: 'speeding',
+          severity: 'harsh',
+        })
       );
     });
 
@@ -235,7 +243,17 @@ describe('EfficiencyService', () => {
 
       const events = [
         { id: 1, journeyId: 1, timestamp: 0, type: EventType.JourneyStart, latitude: 0, longitude: 0, speed: 0 },
-        { id: 2, journeyId: 1, timestamp: 0, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0 },
+        {
+          id: 2,
+          journeyId: 1,
+          timestamp: 0,
+          type: EventType.DrivingEvent,
+          family: 'braking',
+          severity: 'harsh',
+          latitude: 0,
+          longitude: 0,
+          speed: 0,
+        },
         { id: 3, journeyId: 1, timestamp: 600000, type: EventType.JourneyEnd, latitude: 0, longitude: 0, speed: 0 },
       ];
 
@@ -275,12 +293,20 @@ describe('EfficiencyService', () => {
         minScore: 100,
 
         harshBrakingCount: 0,
+        moderateBrakingCount: 0,
+        lightBrakingCount: 0,
         harshAccelerationCount: 0,
+        moderateAccelerationCount: 0,
+        lightAccelerationCount: 0,
         sharpTurnCount: 0,
+        moderateTurnCount: 0,
+        lightTurnCount: 0,
         stopAndGoCount: 0,
 
+        lightSpeedingEpisodeCount: 0,
         moderateSpeedingEpisodeCount: 0,
         harshSpeedingEpisodeCount: 0,
+        lightSpeedingSeconds: 0,
         moderateSpeedingSeconds: 0,
         harshSpeedingSeconds: 0,
 
@@ -293,13 +319,83 @@ describe('EfficiencyService', () => {
       const svc = createService();
       const events = [
         { id: 1, journeyId: 1, timestamp: 0, type: EventType.JourneyStart, latitude: 0, longitude: 0, speed: 0 },
-        { id: 2, journeyId: 1, timestamp: 0, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0 },
-        { id: 3, journeyId: 1, timestamp: 2000, type: EventType.HarshBraking, latitude: 0, longitude: 0, speed: 0 },
-        { id: 4, journeyId: 1, timestamp: 100000, type: EventType.HarshAcceleration, latitude: 0, longitude: 0, speed: 0 },
-        { id: 5, journeyId: 1, timestamp: 200000, type: EventType.ModerateSpeeding, latitude: 0, longitude: 0, speed: 0 },
-        { id: 6, journeyId: 1, timestamp: 210000, type: EventType.ModerateSpeeding, latitude: 0, longitude: 0, speed: 0 },
-        { id: 7, journeyId: 1, timestamp: 400000, type: EventType.HarshSpeeding, latitude: 0, longitude: 0, speed: 0 },
-        { id: 8, journeyId: 1, timestamp: 410000, type: EventType.HarshSpeeding, latitude: 0, longitude: 0, speed: 0 },
+        {
+          id: 2,
+          journeyId: 1,
+          timestamp: 0,
+          type: EventType.DrivingEvent,
+          family: 'braking',
+          severity: 'harsh',
+          latitude: 0,
+          longitude: 0,
+          speed: 0,
+        },
+        {
+          id: 3,
+          journeyId: 1,
+          timestamp: 2000,
+          type: EventType.DrivingEvent,
+          family: 'braking',
+          severity: 'harsh',
+          latitude: 0,
+          longitude: 0,
+          speed: 0,
+        },
+        {
+          id: 4,
+          journeyId: 1,
+          timestamp: 100000,
+          type: EventType.DrivingEvent,
+          family: 'acceleration',
+          severity: 'harsh',
+          latitude: 0,
+          longitude: 0,
+          speed: 0,
+        },
+        {
+          id: 5,
+          journeyId: 1,
+          timestamp: 200000,
+          type: EventType.DrivingEvent,
+          family: 'speeding',
+          severity: 'moderate',
+          latitude: 0,
+          longitude: 0,
+          speed: 0,
+        },
+        {
+          id: 6,
+          journeyId: 1,
+          timestamp: 210000,
+          type: EventType.DrivingEvent,
+          family: 'speeding',
+          severity: 'moderate',
+          latitude: 0,
+          longitude: 0,
+          speed: 0,
+        },
+        {
+          id: 7,
+          journeyId: 1,
+          timestamp: 400000,
+          type: EventType.DrivingEvent,
+          family: 'speeding',
+          severity: 'harsh',
+          latitude: 0,
+          longitude: 0,
+          speed: 0,
+        },
+        {
+          id: 8,
+          journeyId: 1,
+          timestamp: 410000,
+          type: EventType.DrivingEvent,
+          family: 'speeding',
+          severity: 'harsh',
+          latitude: 0,
+          longitude: 0,
+          speed: 0,
+        },
         { id: 9, journeyId: 1, timestamp: 600000, type: EventType.JourneyEnd, latitude: 0, longitude: 0, speed: 0 },
       ];
 
@@ -354,10 +450,14 @@ describe('EfficiencyService', () => {
       await motionListener({ ...mockMotionData, horizontalMagnitude: 0.45 });
 
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
-        EventType.HarshBraking,
+        EventType.DrivingEvent,
         expect.any(Number),
         expect.any(Number),
-        expect.any(Number)
+        expect.any(Number),
+        expect.objectContaining({
+          family: 'braking',
+          severity: 'harsh',
+        })
       );
     });
 
@@ -378,10 +478,14 @@ describe('EfficiencyService', () => {
       await motionListener({ ...mockMotionData, horizontalMagnitude: 0.45 });
 
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
-        EventType.HarshBraking,
+        EventType.DrivingEvent,
         expect.any(Number),
         expect.any(Number),
-        expect.any(Number)
+        expect.any(Number),
+        expect.objectContaining({
+          family: 'braking',
+          severity: 'harsh',
+        })
       );
     });
 
@@ -402,10 +506,14 @@ describe('EfficiencyService', () => {
       await motionListener({ ...mockMotionData, horizontalMagnitude: 0.35 });
 
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
-        EventType.HarshAcceleration,
+        EventType.DrivingEvent,
         expect.any(Number),
         expect.any(Number),
-        expect.any(Number)
+        expect.any(Number),
+        expect.objectContaining({
+          family: 'acceleration',
+          severity: 'harsh',
+        })
       );
     });
 
@@ -427,9 +535,13 @@ describe('EfficiencyService', () => {
       nowMs = 1200;
       await motionListener({ ...mockMotionData, horizontalMagnitude: 0.5 });
 
-      const harshAccelerationCalls = (mockJourneyService.logEvent as jest.Mock).mock.calls.filter(
-        (call) => call[0] === EventType.HarshAcceleration
-      );
+      const harshAccelerationCalls = (mockJourneyService.logEvent as jest.Mock).mock.calls.filter((call) => {
+        if (call[0] !== EventType.DrivingEvent) {
+          return false;
+        }
+        const details = call[4] as { family?: string; severity?: string } | undefined;
+        return details?.family === 'acceleration' && details?.severity === 'harsh';
+      });
       expect(harshAccelerationCalls).toHaveLength(1);
     });
 
@@ -450,7 +562,7 @@ describe('EfficiencyService', () => {
     });
 
     describe('Harsh Cornering', () => {
-      it('detects harsh cornering with sustained force and heading change', async () => {
+      it('detects harsh cornering with force and heading change', async () => {
         const svc = createService();
         svc.startTracking();
         const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
@@ -462,22 +574,22 @@ describe('EfficiencyService', () => {
         const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } };
         await svc.processLocation(secondLocation, buildOptions(secondLocation));
 
-        // Buffer must be filled (25 samples at 10ms each = 250ms)
-        // AND duration must reach 500ms
-        for (let i = 0; i < 60; i++) {
-          nowMs += 10;
-          await motionListener({ ...mockMotionData, horizontalMagnitude: 0.6 });
-        }
+        nowMs += 10;
+        await motionListener({ ...mockMotionData, horizontalMagnitude: 0.6 });
 
         expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
-          EventType.SharpTurn,
+          EventType.DrivingEvent,
           expect.any(Number),
           expect.any(Number),
-          expect.any(Number)
+          expect.any(Number),
+          expect.objectContaining({
+            family: 'cornering',
+            severity: 'harsh',
+          })
         );
       });
 
-      it('filters out momentary spikes (not sustained force)', async () => {
+      it('filters out cornering when heading change is too small', async () => {
         const svc = createService();
         svc.startTracking();
         const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
@@ -486,24 +598,20 @@ describe('EfficiencyService', () => {
         const firstLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 0 } };
         await svc.processLocation(firstLocation, buildOptions(firstLocation));
         nowMs = 11000;
-        const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } };
+        const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 5 } };
         await svc.processLocation(secondLocation, buildOptions(secondLocation));
 
-        // Buffer has low average
-        for (let i = 0; i < 24; i++) {
-          nowMs += 10;
-          await motionListener({ ...mockMotionData, horizontalMagnitude: 0.1 });
-        }
-        // One spike - even if very high, it won't be sustained for 500ms
         nowMs += 10;
         await motionListener({ ...mockMotionData, horizontalMagnitude: 0.9 });
 
-        expect(mockJourneyService.logEvent).not.toHaveBeenCalledWith(
-          EventType.SharpTurn,
-          expect.any(Number),
-          expect.any(Number),
-          expect.any(Number)
-        );
+        const corneringCalls = (mockJourneyService.logEvent as jest.Mock).mock.calls.filter((call) => {
+          if (call[0] !== EventType.DrivingEvent) {
+            return false;
+          }
+          const details = call[4] as { family?: string } | undefined;
+          return details?.family === 'cornering';
+        });
+        expect(corneringCalls).toHaveLength(0);
       });
 
       it('respects event cooldown', async () => {
@@ -518,11 +626,8 @@ describe('EfficiencyService', () => {
         const secondLocation = { ...mockLocation, coords: { ...mockLocation.coords, speed: 10, heading: 30 } };
         await svc.processLocation(secondLocation, buildOptions(secondLocation));
 
-        // Fill buffer and trigger first event (60 * 10ms = 600ms > 500ms)
-        for (let i = 0; i < 60; i++) {
-          nowMs += 10;
-          await motionListener({ ...mockMotionData, horizontalMagnitude: 0.6 });
-        }
+        nowMs += 10;
+        await motionListener({ ...mockMotionData, horizontalMagnitude: 0.6 });
         const firstCallCount = (mockJourneyService.logEvent as jest.Mock).mock.calls.length;
         expect(firstCallCount).toBeGreaterThan(0);
 

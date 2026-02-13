@@ -23,7 +23,13 @@ const dimensions = {
   deviceMaxHeight: MAX_HEIGHT,
 };
 
+const baseColors = {
+  white: '#FFFFFF',
+  black: '#000000',
+};
+
 export interface ThemeColors {
+  baseColors: typeof baseColors;
   primary: string;
   secondary: string;
   success: string;
@@ -54,6 +60,7 @@ export interface ThemeColors {
     brake: string;
     accel: string;
     corner: string;
+    lightSpeeding: string;
     moderateSpeeding: string;
     harshSpeeding: string;
     stopAndGo: string;
@@ -71,6 +78,9 @@ export interface Theme {
 
 export const lightTheme: Theme = {
   colors: {
+    baseColors: {
+      ...baseColors,
+    },
     primary: '#339989',
     secondary: '#5BB9AD',
     success: '#2F9C8E',
@@ -101,6 +111,7 @@ export const lightTheme: Theme = {
       brake: '#F2545B',
       accel: '#F29154',
       corner: '#F2DD54',
+      lightSpeeding: '#F2DD54',
       moderateSpeeding: '#F29154',
       harshSpeeding: '#F2545B',
       stopAndGo: '#5C7CFA',
@@ -115,6 +126,9 @@ export const lightTheme: Theme = {
 
 export const darkTheme: Theme = {
   colors: {
+    baseColors: {
+      ...baseColors,
+    },
     primary: '#339989',
     secondary: '#5BB9AD',
     success: '#3FB6A6',
@@ -145,6 +159,7 @@ export const darkTheme: Theme = {
       brake: '#F2545B',
       accel: '#F29154',
       corner: '#F2DD54',
+      lightSpeeding: '#F2DD54',
       moderateSpeeding: '#F29154',
       harshSpeeding: '#F2545B',
       stopAndGo: '#748FFC',

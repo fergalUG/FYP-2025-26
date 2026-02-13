@@ -13,22 +13,25 @@ interface StatTileProps {
   valueColor?: string;
   variant?: StatTileVariant;
   align?: StatTileAlign;
+  allowValueWrap?: boolean;
   style?: ViewStyle;
 }
 
 export const StatTile = (props: StatTileProps) => {
-  const { label, value, valueColor, variant = 'large', align = 'start', style } = props;
+  const { label, value, valueColor, variant = 'large', align = 'start', allowValueWrap = false, style } = props;
   const { theme } = useTheme();
   const styles = createStyles(theme);
 
   const valueStyle = variant === 'compact' ? styles.valueCompact : styles.valueLarge;
   const labelStyle = variant === 'compact' ? styles.labelCompact : styles.labelLarge;
   const alignStyle = align === 'center' ? styles.alignCenter : styles.alignStart;
+  const valueWrapStyle = allowValueWrap ? styles.valueWrap : null;
+  const valueTextAlignStyle = align === 'center' ? styles.valueTextCenter : styles.valueTextStart;
 
   return (
     <View style={[styles.container, alignStyle, style]}>
       <Text style={labelStyle}>{label}</Text>
-      <Text style={[valueStyle, valueColor ? { color: valueColor } : null]}>{value}</Text>
+      <Text style={[valueStyle, valueWrapStyle, valueTextAlignStyle, valueColor ? { color: valueColor } : null]}>{value}</Text>
     </View>
   );
 };
@@ -72,5 +75,15 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontSize: 16,
       fontWeight: '800',
       color: theme.colors.onBackground,
+    },
+    valueWrap: {
+      width: '100%',
+      flexShrink: 1,
+    },
+    valueTextStart: {
+      textAlign: 'left',
+    },
+    valueTextCenter: {
+      textAlign: 'center',
     },
   });

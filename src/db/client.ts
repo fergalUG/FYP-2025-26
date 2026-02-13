@@ -31,6 +31,9 @@ export const resetDatabase = async () => {
       latitude REAL NOT NULL,
       longitude REAL NOT NULL,
       speed REAL NOT NULL,
+      family TEXT,
+      severity TEXT,
+      metadata TEXT,
       FOREIGN KEY (journeyId) REFERENCES journeys(id) ON DELETE CASCADE
     );
 

@@ -34,28 +34,13 @@ export const JourneyStats = (props: JourneyStatsProps) => {
 
   const durationText = durationHours > 0 ? `${durationHours}h ${remainingMinutes}m` : `${durationMinutes}m`;
 
+  const lightIncidentCount = stats.lightBrakingCount + stats.lightAccelerationCount + stats.lightTurnCount;
+  const moderateIncidentCount = stats.moderateBrakingCount + stats.moderateAccelerationCount + stats.moderateTurnCount;
   const harshIncidentCount = stats.harshBrakingCount + stats.harshAccelerationCount + stats.sharpTurnCount;
   const stopAndGoCount = stats.stopAndGoCount ?? 0;
-  const totalSpeedingEpisodes = stats.moderateSpeedingEpisodeCount + stats.harshSpeedingEpisodeCount;
-  const summaryParts: string[] = [];
-
-  if (harshIncidentCount === 0) {
-    summaryParts.push('No harsh events');
-  } else {
-    summaryParts.push(`${harshIncidentCount} harsh event${harshIncidentCount === 1 ? '' : 's'}`);
-  }
-
-  if (stopAndGoCount === 0) {
-    summaryParts.push('no stop & go');
-  } else {
-    summaryParts.push(`${stopAndGoCount} stop & go event${stopAndGoCount === 1 ? '' : 's'}`);
-  }
-
-  if (totalSpeedingEpisodes === 0) {
-    summaryParts.push('no speeding');
-  } else {
-    summaryParts.push(`${totalSpeedingEpisodes} speeding episode${totalSpeedingEpisodes === 1 ? '' : 's'}`);
-  }
+  const totalDrivingEvents = lightIncidentCount + moderateIncidentCount + harshIncidentCount + stopAndGoCount;
+  const totalSpeedingEpisodes = stats.lightSpeedingEpisodeCount + stats.moderateSpeedingEpisodeCount + stats.harshSpeedingEpisodeCount;
+  const totalSpeedingSeconds = stats.lightSpeedingSeconds + stats.moderateSpeedingSeconds + stats.harshSpeedingSeconds;
 
   const formatSeconds = (seconds: number): string => {
     const rounded = Math.round(seconds);
@@ -67,62 +52,120 @@ export const JourneyStats = (props: JourneyStatsProps) => {
     return s === 0 ? `${m}m` : `${m}m ${s}s`;
   };
 
+  const formatTierCount = (lightCount: number, moderateCount: number, harshCount: number): string => {
+    return `Light ${lightCount} • Moderate ${moderateCount} • Harsh ${harshCount}`;
+  };
+
+  const formatEpisodeCount = (episodeCount: number): string => {
+    return `${episodeCount} episode${episodeCount === 1 ? '' : 's'}`;
+  };
+
+  const summaryParts: string[] = [];
+
+  if (totalDrivingEvents === 0) {
+    summaryParts.push('No driving events');
+  } else {
+    summaryParts.push(
+      `${totalDrivingEvents} driving event${totalDrivingEvents === 1 ? '' : 's'} (Light ${lightIncidentCount}, Moderate ${moderateIncidentCount}, Harsh ${harshIncidentCount})`
+    );
+  }
+
+  if (stopAndGoCount === 0) {
+    summaryParts.push('no stop & go');
+  } else {
+    summaryParts.push(`${stopAndGoCount} stop & go event${stopAndGoCount === 1 ? '' : 's'}`);
+  }
+
+  if (totalSpeedingEpisodes === 0) {
+    summaryParts.push('no speeding');
+  } else {
+    summaryParts.push(
+      `${totalSpeedingEpisodes} speeding episode${totalSpeedingEpisodes === 1 ? '' : 's'} (${formatSeconds(totalSpeedingSeconds)})`
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Efficiency Summary</Text>
       <Text style={styles.subtitleMuted}>{summaryParts.join(', ')}</Text>
 
-      <View style={styles.statsGrid}>
+      <View style={styles.tileGrid}>
         <StatTile
           label="Score"
           value={`${displayedScore}/100`}
           valueColor={getScoreColor(displayedScore, theme)}
           variant="compact"
-          style={styles.tile}
+          style={styles.tileHalf}
         />
-        <StatTile label="Avg Score" value={`${averageScore}/100`} variant="compact" style={styles.tile} />
+        <StatTile label="Avg Score" value={`${averageScore}/100`} variant="compact" style={styles.tileHalf} />
         <StatTile
           label="Distance"
           value={`${Math.round((journey.distanceKm ?? 0) * 100) / 100} km`}
           variant="compact"
-          style={styles.tile}
+          style={styles.tileHalf}
         />
-        <StatTile label="Duration" value={durationText} variant="compact" style={styles.tile} />
-        <StatTile label="Avg Speed" value={`${stats.avgSpeed} km/h`} variant="compact" style={styles.tile} />
-        <StatTile label="Max Speed" value={`${stats.maxSpeed} km/h`} variant="compact" style={styles.tile} />
+        <StatTile label="Duration" value={durationText} variant="compact" style={styles.tileHalf} />
+        <StatTile label="Avg Speed" value={`${stats.avgSpeed} km/h`} variant="compact" style={styles.tileHalf} />
+        <StatTile label="Max Speed" value={`${stats.maxSpeed} km/h`} variant="compact" style={styles.tileHalf} />
       </View>
 
       <Text style={styles.subtitle}>Driving Events</Text>
 
-      <View style={styles.statsGrid}>
-        <StatTile label="Harsh Brakes" value={`${stats.harshBrakingCount}`} variant="compact" style={styles.tile} />
-        <StatTile label="Harsh Accel" value={`${stats.harshAccelerationCount}`} variant="compact" style={styles.tile} />
-        <StatTile label="Sharp Turns" value={`${stats.sharpTurnCount}`} variant="compact" style={styles.tile} />
-        <StatTile label="Stop & Go" value={`${stopAndGoCount}`} variant="compact" style={styles.tile} />
+      <View style={styles.stackGrid}>
+        <StatTile
+          label="Braking"
+          value={formatTierCount(stats.lightBrakingCount, stats.moderateBrakingCount, stats.harshBrakingCount)}
+          variant="compact"
+          allowValueWrap={true}
+          style={styles.tileFull}
+        />
+        <StatTile
+          label="Acceleration"
+          value={formatTierCount(stats.lightAccelerationCount, stats.moderateAccelerationCount, stats.harshAccelerationCount)}
+          variant="compact"
+          allowValueWrap={true}
+          style={styles.tileFull}
+        />
+        <StatTile
+          label="Cornering"
+          value={formatTierCount(stats.lightTurnCount, stats.moderateTurnCount, stats.sharpTurnCount)}
+          variant="compact"
+          allowValueWrap={true}
+          style={styles.tileFull}
+        />
+        <StatTile
+          label="Stop & Go"
+          value={`${stopAndGoCount} event${stopAndGoCount === 1 ? '' : 's'}`}
+          variant="compact"
+          allowValueWrap={true}
+          style={styles.tileFull}
+        />
       </View>
 
-      {(stats.moderateSpeedingEpisodeCount > 0 ||
-        stats.harshSpeedingEpisodeCount > 0 ||
-        stats.moderateSpeedingSeconds > 0 ||
-        stats.harshSpeedingSeconds > 0) && (
-        <>
-          <Text style={styles.subtitle}>Speeding</Text>
-          <View style={styles.statsGrid}>
-            <StatTile
-              label="Moderate"
-              value={`${stats.moderateSpeedingEpisodeCount} • ${formatSeconds(stats.moderateSpeedingSeconds)}`}
-              variant="compact"
-              style={styles.tileWide}
-            />
-            <StatTile
-              label="Harsh"
-              value={`${stats.harshSpeedingEpisodeCount} • ${formatSeconds(stats.harshSpeedingSeconds)}`}
-              variant="compact"
-              style={styles.tileWide}
-            />
-          </View>
-        </>
-      )}
+      <Text style={styles.subtitle}>Speeding</Text>
+      <View style={styles.stackGrid}>
+        <StatTile
+          label="Light"
+          value={`${formatEpisodeCount(stats.lightSpeedingEpisodeCount)} • ${formatSeconds(stats.lightSpeedingSeconds)}`}
+          variant="compact"
+          allowValueWrap={true}
+          style={styles.tileFull}
+        />
+        <StatTile
+          label="Moderate"
+          value={`${formatEpisodeCount(stats.moderateSpeedingEpisodeCount)} • ${formatSeconds(stats.moderateSpeedingSeconds)}`}
+          variant="compact"
+          allowValueWrap={true}
+          style={styles.tileFull}
+        />
+        <StatTile
+          label="Harsh"
+          value={`${formatEpisodeCount(stats.harshSpeedingEpisodeCount)} • ${formatSeconds(stats.harshSpeedingSeconds)}`}
+          variant="compact"
+          allowValueWrap={true}
+          style={styles.tileFull}
+        />
+      </View>
     </View>
   );
 };
@@ -147,16 +190,19 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       color: theme.colors.textSecondary,
       marginTop: -theme.spacing.sm,
     },
-    statsGrid: {
+    tileGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'space-between',
       gap: theme.spacing.sm,
     },
-    tile: {
+    stackGrid: {
+      gap: theme.spacing.sm,
+    },
+    tileHalf: {
       width: '48%',
     },
-    tileWide: {
+    tileFull: {
       width: '100%',
     },
   });

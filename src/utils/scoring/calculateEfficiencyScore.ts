@@ -47,12 +47,20 @@ export const calculateEfficiencyScore = (
       minScore: 100,
 
       harshBrakingCount: 0,
+      moderateBrakingCount: 0,
+      lightBrakingCount: 0,
       harshAccelerationCount: 0,
+      moderateAccelerationCount: 0,
+      lightAccelerationCount: 0,
       sharpTurnCount: 0,
+      moderateTurnCount: 0,
+      lightTurnCount: 0,
       stopAndGoCount: 0,
 
+      lightSpeedingEpisodeCount: 0,
       moderateSpeedingEpisodeCount: 0,
       harshSpeedingEpisodeCount: 0,
+      lightSpeedingSeconds: 0,
       moderateSpeedingSeconds: 0,
       harshSpeedingSeconds: 0,
 
@@ -69,9 +77,14 @@ export const calculateEfficiencyScore = (
   const normalized = normalizeJourneyEvents(events, config);
 
   const penaltyActions = [
-    ...normalized.incidents,
+    ...normalized.incidents.map((incident) => ({
+      family: incident.family,
+      severity: incident.severity ?? undefined,
+      timestamp: incident.timestamp,
+    })),
     ...normalized.speedingEpisodes.map((episode) => ({
-      type: episode.severity === 'harsh' ? EventType.HarshSpeeding : EventType.ModerateSpeeding,
+      family: 'speeding' as const,
+      severity: episode.severity,
       timestamp: episode.startTimestamp,
     })),
   ].sort((a, b) => a.timestamp - b.timestamp);
@@ -106,12 +119,20 @@ export const calculateEfficiencyScore = (
     minScore: clamp(simulation.minScore, config.minScore, config.maxScore),
 
     harshBrakingCount: normalized.harshBrakingCount,
+    moderateBrakingCount: normalized.moderateBrakingCount,
+    lightBrakingCount: normalized.lightBrakingCount,
     harshAccelerationCount: normalized.harshAccelerationCount,
+    moderateAccelerationCount: normalized.moderateAccelerationCount,
+    lightAccelerationCount: normalized.lightAccelerationCount,
     sharpTurnCount: normalized.sharpTurnCount,
+    moderateTurnCount: normalized.moderateTurnCount,
+    lightTurnCount: normalized.lightTurnCount,
     stopAndGoCount: normalized.stopAndGoCount,
 
+    lightSpeedingEpisodeCount: normalized.lightSpeedingEpisodeCount,
     moderateSpeedingEpisodeCount: normalized.moderateSpeedingEpisodeCount,
     harshSpeedingEpisodeCount: normalized.harshSpeedingEpisodeCount,
+    lightSpeedingSeconds: normalized.lightSpeedingSeconds,
     moderateSpeedingSeconds: normalized.moderateSpeedingSeconds,
     harshSpeedingSeconds: normalized.harshSpeedingSeconds,
 
