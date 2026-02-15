@@ -21,6 +21,14 @@ export default defineConfig([
       '.github/**',
       '.vscode/**',
       '__tests__/**',
+      'tmp/**',
+      '.venv/**',
+      'logs/**',
+      'coverage/**',
+      'docs/**',
+      'output/**',
+      'scripts/**',
+      'testdb/**',
 
       // files
       'src/utils/logger.ts',
