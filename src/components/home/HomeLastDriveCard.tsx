@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import type { Journey } from '@types';
 
-import { useTheme } from '@hooks';
+import { useTheme } from '@hooks/useTheme';
 import { getScoreColor } from '@utils/score';
 import { AppButton } from '@components/common/AppButton';
 import { IconChip } from '@components/common/IconChip';

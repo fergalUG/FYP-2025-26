@@ -4,7 +4,7 @@ import type { ViewStyle } from 'react-native';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { ComponentProps } from 'react';
-import { useTheme } from '@hooks';
+import { useTheme } from '@hooks/useTheme';
 
 interface IconChipProps {
   icon: ComponentProps<typeof MaterialIcons>['name'];

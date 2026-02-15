@@ -120,7 +120,6 @@ export const simulateScoreTimeline = (args: {
   const applyTimepoint = (ts: number): void => {
     const ending = episodeEndsByTimestamp.get(ts);
     if (ending && ending.length > 0) {
-      // Episodes do not overlap; if they did, we'd need to recompute max drain.
       drainPointsPerMs = 0;
     }
 

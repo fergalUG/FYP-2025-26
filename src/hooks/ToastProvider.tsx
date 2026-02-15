@@ -2,8 +2,7 @@ import React, { createContext, useCallback, useMemo, useRef, useState, useContex
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { ToastVariant } from '@components/common/Toast';
-import { Toast } from '@components';
+import { Toast, type ToastVariant } from '@components/common/Toast';
 import { useTheme } from '@hooks/useTheme';
 
 interface ToastOptions {

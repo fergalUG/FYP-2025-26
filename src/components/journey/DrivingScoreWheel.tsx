@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { useTheme } from '@hooks';
+import { useTheme } from '@hooks/useTheme';
 
 interface DrivingScoreWheelProps {
   score: number;

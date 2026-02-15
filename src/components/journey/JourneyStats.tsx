@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { useTheme } from '@hooks';
+import { useTheme } from '@hooks/useTheme';
 import type { Journey } from '@types';
 import { getScoreColor } from '@utils/score';
 import { StatTile } from '@components/common/StatTile';

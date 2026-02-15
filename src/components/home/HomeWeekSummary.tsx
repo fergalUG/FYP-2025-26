@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useTheme } from '@hooks';
+import { useTheme } from '@hooks/useTheme';
 import { getScoreColor } from '@utils/score';
 import { StatTile } from '@components/common/StatTile';
 import { Journey } from '@types';

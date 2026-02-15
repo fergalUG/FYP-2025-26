@@ -40,9 +40,14 @@ yarn-error.*
 /ios
 /android
 
+*.py
+*.pyc
+
 *.txt
 /logs
 
 coverage/
 
 *.db
+testdb/
+tmp/

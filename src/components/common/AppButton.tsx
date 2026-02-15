@@ -1,5 +1,5 @@
 import { GestureResponderEvent, Pressable, StyleSheet, Animated, PressableProps, StyleProp, ViewStyle } from 'react-native';
-import { useTheme } from '@hooks';
+import { useTheme } from '@hooks/useTheme';
 import { useRef, useMemo } from 'react';
 
 interface AppButtonProps extends PressableProps {

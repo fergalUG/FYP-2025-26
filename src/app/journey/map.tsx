@@ -63,7 +63,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     headerText: {
       fontWeight: '500',
       fontSize: 16,
-      color: theme.colors.baseColors.white,
+      color: theme.colors.onSurface,
       paddingLeft: theme.spacing.xs,
       paddingRight: theme.spacing.xs,
     },

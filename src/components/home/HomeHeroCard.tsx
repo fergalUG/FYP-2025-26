@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { AppButton } from '@/components/common/AppButton';
 import type { PermissionState } from '@types';
-import { useTheme } from '@hooks';
+import { useTheme } from '@hooks/useTheme';
 
 interface HomeHeroCardProps {
   driverName: string;

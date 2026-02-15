@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useBackgroundService, useTheme } from '@hooks';
+import { useBackgroundService } from '@hooks/useBackgroundService';
+import { useTheme } from '@hooks/useTheme';
 import { getServiceStatusColor } from '@utils/service';
 
 interface ServiceStatusIndicatorProps {

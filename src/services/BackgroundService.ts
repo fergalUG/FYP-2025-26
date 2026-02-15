@@ -654,6 +654,8 @@ export const singleton = createBackgroundServiceController({
   logger,
 });
 
+singleton.registerBackgroundTask();
+
 export const initBackgroundService = (): void => {
   singleton.init();
   singleton.registerBackgroundTask();

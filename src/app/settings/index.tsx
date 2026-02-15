@@ -210,7 +210,7 @@ export default function Settings() {
           <View style={styles.rowBetween}>
             <View style={styles.rowText}>
               <Text style={styles.itemTitle}>Dark Theme</Text>
-              <Text style={styles.itemSubtitle}>Use the darker palette for low light.</Text>
+              <Text style={styles.itemSubtitle}>Use the dark theme palette.</Text>
             </View>
             <Switch
               value={mode === 'dark'}

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, ViewStyle, StyleProp, DimensionValue } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
-import { useTheme } from '@hooks';
+import { useTheme } from '@hooks/useTheme';
 import type { Event, EventSeverity } from '@types';
 import { EventType } from '@types';
 import { DEFAULT_EFFICIENCY_SCORING_CONFIG } from '@utils/scoring/efficiencyScoringConfig';
