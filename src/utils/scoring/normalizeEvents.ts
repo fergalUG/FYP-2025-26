@@ -66,7 +66,7 @@ const normalizeDrivingEvent = (event: Event): NormalizedDrivingEvent | null => {
     const family = event.family;
     const severity = event.severity;
     if (
-      (family === 'braking' || family === 'acceleration' || family === 'cornering' || family === 'speeding') &&
+      (family === 'braking' || family === 'acceleration' || family === 'cornering' || family === 'speeding' || family === 'oscillation') &&
       isDrivingSeverity(severity)
     ) {
       return { family, severity };

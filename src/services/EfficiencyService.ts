@@ -2,7 +2,13 @@ import type * as Location from 'expo-location';
 
 import VehicleMotion from '@modules/vehicle-motion';
 import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
-import { createAccelerationDetector, createBrakingDetector, createCorneringDetector, createSpeedingDetector } from '@services/detectors';
+import {
+  createAccelerationDetector,
+  createBrakingDetector,
+  createCorneringDetector,
+  createOscillationDetector,
+  createSpeedingDetector,
+} from '@services/detectors';
 
 import {
   EventType,
@@ -70,6 +76,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   const accelerationDetector = createAccelerationDetector();
   const corneringDetector = createCorneringDetector();
   const speedingDetector = createSpeedingDetector();
+  const oscillationDetector = createOscillationDetector();
 
   const buildDebugSummary = () => ({
     motionUpdates: 0,
@@ -138,6 +145,10 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     stopGoGoCandidateStart = null;
     stopGoCycleTimestamps = [];
     lastStopGoEventTime = 0;
+  };
+
+  const isStopGoSuppressionActive = (): boolean => {
+    return stopGoPhase === 'stopped' || stopGoStopCandidateStart !== null || stopGoGoCandidateStart !== null;
   };
 
   const emitDebugSummary = (now: number) => {
@@ -215,7 +226,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   };
 
   const logDrivingEvent = async (
-    family: 'braking' | 'acceleration' | 'cornering' | 'speeding',
+    family: 'braking' | 'acceleration' | 'cornering' | 'speeding' | 'oscillation',
     severity: 'light' | 'moderate' | 'harsh',
     location: Location.LocationObject,
     speedKmh: number,
@@ -405,6 +416,32 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     });
   };
 
+  const checkOscillation = async (
+    location: Location.LocationObject,
+    speedKmh: number,
+    band: SpeedBand,
+    speedConfidence: SpeedConfidence,
+    now: number
+  ): Promise<void> => {
+    const oscillationResult = oscillationDetector.detect({
+      nowMs: now,
+      speedKmh,
+      speedBand: band,
+      speedChangeRateKmhPerSec: lastLocationSpeedChangeRateKmhPerSec,
+      speedReliable: speedConfidence === 'high' || speedConfidence === 'medium',
+      suppressed: isStopGoSuppressionActive(),
+    });
+
+    if (!oscillationResult.detected || !oscillationResult.severity) {
+      return;
+    }
+
+    await logDrivingEvent('oscillation', oscillationResult.severity, location, speedKmh, {
+      speedBand: band,
+      ...(oscillationResult.metadata ?? {}),
+    });
+  };
+
   const handleMotionUpdate = async (data: MotionData): Promise<void> => {
     const debugEnabled = isDebugEnabled();
     if (debugEnabled !== lastDebugEnabled) {
@@ -414,6 +451,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
     if (debugEnabled) {
       debugSummary.motionUpdates += 1;
+    }
+
+    const now = deps.now();
+    if (isTracking && Number.isFinite(data.horizontalMagnitude) && data.horizontalMagnitude >= 0) {
+      oscillationDetector.addForceSample(now, data.horizontalMagnitude);
     }
 
     if (!isTracking) {
@@ -483,6 +525,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     brakingDetector.reset();
     accelerationDetector.reset();
     corneringDetector.reset();
+    oscillationDetector.reset();
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
@@ -511,6 +554,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     brakingDetector.reset();
     accelerationDetector.reset();
     corneringDetector.reset();
+    oscillationDetector.reset();
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
@@ -570,6 +614,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
           speedKmh: speedKmh.toFixed(1),
           speedConfidence,
         });
+      }
+
+      if (currentSpeedBand) {
+        const oscillationSpeedKmh = isEventSpeedValid ? eventSpeedKmh : speedKmh;
+        await checkOscillation(location, oscillationSpeedKmh, currentSpeedBand, speedConfidence, currentTime);
       }
     } else {
       resetStopGoCandidates();

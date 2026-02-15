@@ -11,6 +11,12 @@ export interface CorneringTierThreshold {
   minHeadingChangeDeg: number;
 }
 
+export interface OscillationTierThreshold {
+  minSpeedStdDevKmh: number;
+  minSignFlipCount: number;
+  minForceP90G: number;
+}
+
 export const SEVERITY_ORDER_DESC: EventSeverity[] = ['harsh', 'moderate', 'light'];
 
 export const BRAKING_TIER_THRESHOLDS: Record<SpeedBand, Record<EventSeverity, LongitudinalTierThreshold>> = {
@@ -88,6 +94,38 @@ export const SPEEDING_THRESHOLD_KMH: Record<EventSeverity, number> = {
   harsh: 120,
 };
 
+export const CORNERING_MAX_ABS_SPEED_CHANGE_KMH_PER_SEC = 10;
+
+export const OSCILLATION_WINDOW_MS = 15 * 1000;
+export const OSCILLATION_EPISODE_END_STABLE_MS = 8 * 1000;
+export const OSCILLATION_MIN_SPEED_KMH = 10;
+export const OSCILLATION_MIN_SPEED_SAMPLES = 6;
+export const OSCILLATION_MIN_FORCE_SAMPLES = 20;
+export const OSCILLATION_SIGN_CHANGE_DEADBAND_KMH_PER_SEC = 0.8;
+
+export const OSCILLATION_TIER_THRESHOLDS: Record<SpeedBand, Record<EventSeverity, OscillationTierThreshold>> = {
+  low: {
+    light: { minSpeedStdDevKmh: 3.2, minSignFlipCount: 3, minForceP90G: 0.12 },
+    moderate: { minSpeedStdDevKmh: 4.6, minSignFlipCount: 4, minForceP90G: 0.16 },
+    harsh: { minSpeedStdDevKmh: 6.2, minSignFlipCount: 5, minForceP90G: 0.22 },
+  },
+  mid: {
+    light: { minSpeedStdDevKmh: 2.8, minSignFlipCount: 3, minForceP90G: 0.11 },
+    moderate: { minSpeedStdDevKmh: 4.1, minSignFlipCount: 4, minForceP90G: 0.15 },
+    harsh: { minSpeedStdDevKmh: 5.6, minSignFlipCount: 5, minForceP90G: 0.2 },
+  },
+  high: {
+    light: { minSpeedStdDevKmh: 2.4, minSignFlipCount: 2, minForceP90G: 0.1 },
+    moderate: { minSpeedStdDevKmh: 3.5, minSignFlipCount: 3, minForceP90G: 0.14 },
+    harsh: { minSpeedStdDevKmh: 4.8, minSignFlipCount: 4, minForceP90G: 0.18 },
+  },
+  very_high: {
+    light: { minSpeedStdDevKmh: 2.1, minSignFlipCount: 2, minForceP90G: 0.09 },
+    moderate: { minSpeedStdDevKmh: 3.0, minSignFlipCount: 3, minForceP90G: 0.12 },
+    harsh: { minSpeedStdDevKmh: 4.2, minSignFlipCount: 4, minForceP90G: 0.16 },
+  },
+};
+
 export const DETECTION_COOLDOWN_MS: Record<DrivingEventFamily, Record<EventSeverity, number>> = {
   braking: {
     light: 4000,
@@ -109,6 +147,9 @@ export const DETECTION_COOLDOWN_MS: Record<DrivingEventFamily, Record<EventSever
     moderate: 0,
     harsh: 0,
   },
+  oscillation: {
+    light: 0,
+    moderate: 0,
+    harsh: 0,
+  },
 };
-
-export const CORNERING_MAX_ABS_SPEED_CHANGE_KMH_PER_SEC = 10;
