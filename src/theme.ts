@@ -63,6 +63,9 @@ export interface ThemeColors {
     lightSpeeding: string;
     moderateSpeeding: string;
     harshSpeeding: string;
+    lightOscillation: string;
+    moderateOscillation: string;
+    harshOscillation: string;
     stopAndGo: string;
     start: string;
     end: string;
@@ -114,6 +117,9 @@ export const lightTheme: Theme = {
       lightSpeeding: '#F2DD54',
       moderateSpeeding: '#F29154',
       harshSpeeding: '#F2545B',
+      lightOscillation: '#f093d4',
+      moderateOscillation: '#ef4df7',
+      harshOscillation: '#c31cd6',
       stopAndGo: '#5C7CFA',
       start: '#339989',
       end: '#5BB9AD',
@@ -162,6 +168,9 @@ export const darkTheme: Theme = {
       lightSpeeding: '#F2DD54',
       moderateSpeeding: '#F29154',
       harshSpeeding: '#F2545B',
+      lightOscillation: '#f093d4',
+      moderateOscillation: '#ef4df7',
+      harshOscillation: '#c31cd6',
       stopAndGo: '#748FFC',
       start: '#339989',
       end: '#5BB9AD',

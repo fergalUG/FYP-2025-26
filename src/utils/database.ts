@@ -309,6 +309,13 @@ const createMockStats = (score: number, durationMs: number, distanceKm: number, 
     moderateSpeedingSeconds: profile.speedingEpisodes.moderate * SPEEDING_EPISODE_SECONDS,
     harshSpeedingSeconds: profile.speedingEpisodes.harsh * SPEEDING_EPISODE_SECONDS,
 
+    lightOscillationEpisodeCount: 0,
+    moderateOscillationEpisodeCount: 0,
+    harshOscillationEpisodeCount: 0,
+    lightOscillationSeconds: 0,
+    moderateOscillationSeconds: 0,
+    harshOscillationSeconds: 0,
+
     avgSpeed: Number(avgSpeed.toFixed(1)),
     maxSpeed: Number((avgSpeed * 1.45).toFixed(1)),
   };

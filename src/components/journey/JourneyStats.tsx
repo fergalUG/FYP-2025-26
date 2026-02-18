@@ -34,13 +34,23 @@ export const JourneyStats = (props: JourneyStatsProps) => {
 
   const durationText = durationHours > 0 ? `${durationHours}h ${remainingMinutes}m` : `${durationMinutes}m`;
 
-  const lightIncidentCount = stats.lightBrakingCount + stats.lightAccelerationCount + stats.lightTurnCount;
-  const moderateIncidentCount = stats.moderateBrakingCount + stats.moderateAccelerationCount + stats.moderateTurnCount;
-  const harshIncidentCount = stats.harshBrakingCount + stats.harshAccelerationCount + stats.sharpTurnCount;
+  const lightOscillationEpisodeCount = stats.lightOscillationEpisodeCount ?? 0;
+  const moderateOscillationEpisodeCount = stats.moderateOscillationEpisodeCount ?? 0;
+  const harshOscillationEpisodeCount = stats.harshOscillationEpisodeCount ?? 0;
+  const lightOscillationSeconds = stats.lightOscillationSeconds ?? 0;
+  const moderateOscillationSeconds = stats.moderateOscillationSeconds ?? 0;
+  const harshOscillationSeconds = stats.harshOscillationSeconds ?? 0;
+
+  const lightIncidentCount = stats.lightBrakingCount + stats.lightAccelerationCount + stats.lightTurnCount + lightOscillationEpisodeCount;
+  const moderateIncidentCount =
+    stats.moderateBrakingCount + stats.moderateAccelerationCount + stats.moderateTurnCount + moderateOscillationEpisodeCount;
+  const harshIncidentCount = stats.harshBrakingCount + stats.harshAccelerationCount + stats.sharpTurnCount + harshOscillationEpisodeCount;
   const stopAndGoCount = stats.stopAndGoCount ?? 0;
   const totalDrivingEvents = lightIncidentCount + moderateIncidentCount + harshIncidentCount + stopAndGoCount;
   const totalSpeedingEpisodes = stats.lightSpeedingEpisodeCount + stats.moderateSpeedingEpisodeCount + stats.harshSpeedingEpisodeCount;
   const totalSpeedingSeconds = stats.lightSpeedingSeconds + stats.moderateSpeedingSeconds + stats.harshSpeedingSeconds;
+  const totalOscillationEpisodes = lightOscillationEpisodeCount + moderateOscillationEpisodeCount + harshOscillationEpisodeCount;
+  const totalOscillationSeconds = lightOscillationSeconds + moderateOscillationSeconds + harshOscillationSeconds;
 
   const formatSeconds = (seconds: number): string => {
     const rounded = Math.round(seconds);
@@ -81,6 +91,14 @@ export const JourneyStats = (props: JourneyStatsProps) => {
   } else {
     summaryParts.push(
       `${totalSpeedingEpisodes} speeding episode${totalSpeedingEpisodes === 1 ? '' : 's'} (${formatSeconds(totalSpeedingSeconds)})`
+    );
+  }
+
+  if (totalOscillationEpisodes === 0) {
+    summaryParts.push('no oscillation');
+  } else {
+    summaryParts.push(
+      `${totalOscillationEpisodes} oscillation episode${totalOscillationEpisodes === 1 ? '' : 's'} (${formatSeconds(totalOscillationSeconds)})`
     );
   }
 
@@ -161,6 +179,31 @@ export const JourneyStats = (props: JourneyStatsProps) => {
         <StatTile
           label="Harsh"
           value={`${formatEpisodeCount(stats.harshSpeedingEpisodeCount)} • ${formatSeconds(stats.harshSpeedingSeconds)}`}
+          variant="compact"
+          allowValueWrap={true}
+          style={styles.tileFull}
+        />
+      </View>
+
+      <Text style={styles.subtitle}>Speed Oscillation</Text>
+      <View style={styles.stackGrid}>
+        <StatTile
+          label="Light"
+          value={`${formatEpisodeCount(lightOscillationEpisodeCount)} • ${formatSeconds(lightOscillationSeconds)}`}
+          variant="compact"
+          allowValueWrap={true}
+          style={styles.tileFull}
+        />
+        <StatTile
+          label="Moderate"
+          value={`${formatEpisodeCount(moderateOscillationEpisodeCount)} • ${formatSeconds(moderateOscillationSeconds)}`}
+          variant="compact"
+          allowValueWrap={true}
+          style={styles.tileFull}
+        />
+        <StatTile
+          label="Harsh"
+          value={`${formatEpisodeCount(harshOscillationEpisodeCount)} • ${formatSeconds(harshOscillationSeconds)}`}
           variant="compact"
           allowValueWrap={true}
           style={styles.tileFull}

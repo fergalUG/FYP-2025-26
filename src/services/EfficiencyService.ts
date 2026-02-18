@@ -16,6 +16,8 @@ import {
   type EfficiencyServiceDeps,
   type ProcessLocationOptions,
   type ScoringStats,
+  type DrivingEventFamily,
+  type EventSeverity,
 } from '@types';
 import { JourneyService } from '@services/JourneyService';
 import { createLogger, isDebugEnabled, LogModule } from '@utils/logger';
@@ -226,8 +228,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   };
 
   const logDrivingEvent = async (
-    family: 'braking' | 'acceleration' | 'cornering' | 'speeding' | 'oscillation',
-    severity: 'light' | 'moderate' | 'harsh',
+    family: DrivingEventFamily,
+    severity: EventSeverity,
     location: Location.LocationObject,
     speedKmh: number,
     metadata?: Record<string, string | number | boolean>

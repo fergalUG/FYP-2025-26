@@ -64,6 +64,13 @@ export const calculateEfficiencyScore = (
       moderateSpeedingSeconds: 0,
       harshSpeedingSeconds: 0,
 
+      lightOscillationEpisodeCount: 0,
+      moderateOscillationEpisodeCount: 0,
+      harshOscillationEpisodeCount: 0,
+      lightOscillationSeconds: 0,
+      moderateOscillationSeconds: 0,
+      harshOscillationSeconds: 0,
+
       avgSpeed: 0,
       maxSpeed: 0,
     };
@@ -135,6 +142,13 @@ export const calculateEfficiencyScore = (
     lightSpeedingSeconds: normalized.lightSpeedingSeconds,
     moderateSpeedingSeconds: normalized.moderateSpeedingSeconds,
     harshSpeedingSeconds: normalized.harshSpeedingSeconds,
+
+    lightOscillationEpisodeCount: normalized.lightOscillationEpisodeCount,
+    moderateOscillationEpisodeCount: normalized.moderateOscillationEpisodeCount,
+    harshOscillationEpisodeCount: normalized.harshOscillationEpisodeCount,
+    lightOscillationSeconds: normalized.lightOscillationSeconds,
+    moderateOscillationSeconds: normalized.moderateOscillationSeconds,
+    harshOscillationSeconds: normalized.harshOscillationSeconds,
 
     avgSpeed: Math.round(avgSpeed * 100) / 100,
     maxSpeed: Math.round(maxSpeed * 100) / 100,
