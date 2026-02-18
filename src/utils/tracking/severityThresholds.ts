@@ -103,6 +103,14 @@ export const OSCILLATION_MIN_SPEED_SAMPLES = 6;
 export const OSCILLATION_MIN_FORCE_SAMPLES = 20;
 export const OSCILLATION_SIGN_CHANGE_DEADBAND_KMH_PER_SEC = 0.8;
 
+export const STOP_AND_GO_STOP_SPEED_KMH = 4;
+export const STOP_AND_GO_GO_SPEED_KMH = 10;
+export const STOP_AND_GO_STOP_DWELL_MS = 3 * 1000;
+export const STOP_AND_GO_GO_DWELL_MS = 3 * 1000;
+export const STOP_AND_GO_WINDOW_MS = 120 * 1000;
+export const STOP_AND_GO_MIN_CYCLES = 2;
+export const STOP_AND_GO_EVENT_COOLDOWN_MS = 30 * 1000;
+
 export const OSCILLATION_TIER_THRESHOLDS: Record<SpeedBand, Record<EventSeverity, OscillationTierThreshold>> = {
   low: {
     light: { minSpeedStdDevKmh: 3.2, minSignFlipCount: 3, minForceP90G: 0.12 },

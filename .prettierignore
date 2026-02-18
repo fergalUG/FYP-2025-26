@@ -8,3 +8,5 @@
 modules/vehicle-motion/ios/
 
 .gitignore
+
+.venv/

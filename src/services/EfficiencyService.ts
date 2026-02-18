@@ -7,6 +7,7 @@ import {
   createBrakingDetector,
   createCorneringDetector,
   createOscillationDetector,
+  createStopAndGoDetector,
   createSpeedingDetector,
 } from '@services/detectors';
 
@@ -18,6 +19,7 @@ import {
   type ScoringStats,
   type DrivingEventFamily,
   type EventSeverity,
+  type StopAndGoPhase,
 } from '@types';
 import { JourneyService } from '@services/JourneyService';
 import { createLogger, isDebugEnabled, LogModule } from '@utils/logger';
@@ -31,15 +33,6 @@ const logger = createLogger(LogModule.EfficiencyService);
 const MIN_SPEED_FOR_EVENTS_KMH = 10;
 const MIN_SPEED_FOR_HEADING_KMH = 15;
 const HEADING_LOOKBACK_TIME_MS = 2000;
-
-// stop and go detection constants
-const STOP_GO_STOP_SPEED_KMH = 4;
-const STOP_GO_GO_SPEED_KMH = 10;
-const STOP_GO_STOP_DWELL_MS = 4000;
-const STOP_GO_GO_DWELL_MS = 4000;
-const STOP_GO_WINDOW_MS = 120000;
-const STOP_GO_MIN_CYCLES = 3;
-const STOP_GO_EVENT_COOLDOWN_MS = 30000;
 
 const HEADING_HISTORY_SIZE = 5;
 const DEBUG_SUMMARY_INTERVAL_MS = 1000;
@@ -67,18 +60,12 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let lastDebugSummaryTime = 0;
   let lastDebugEnabled = false;
 
-  //stop and go
-  let stopGoPhase: 'moving' | 'stopped' | 'unknown' = 'unknown';
-  let stopGoStopCandidateStart: number | null = null;
-  let stopGoGoCandidateStart: number | null = null;
-  let stopGoCycleTimestamps: number[] = [];
-  let lastStopGoEventTime = 0;
-
   const brakingDetector = createBrakingDetector();
   const accelerationDetector = createAccelerationDetector();
   const corneringDetector = createCorneringDetector();
   const speedingDetector = createSpeedingDetector();
   const oscillationDetector = createOscillationDetector();
+  const stopAndGoDetector = createStopAndGoDetector();
 
   const buildDebugSummary = () => ({
     motionUpdates: 0,
@@ -112,12 +99,18 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       triggered: 0,
     },
     stopAndGo: {
-      phase: 'unknown' as 'moving' | 'stopped' | 'unknown',
+      phase: 'unknown' as StopAndGoPhase,
       cycleCount: 0,
       lastEventTime: 0,
       timeSinceLastEvent: 0,
       stopCandidateStart: 0,
       goCandidateStart: 0,
+      lastReason: 'none',
+      triggered: 0,
+    },
+    oscillation: {
+      samples: 0,
+      lastReason: 'none',
       triggered: 0,
     },
     last: {
@@ -136,21 +129,18 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     debugSummary = buildDebugSummary();
   };
 
-  const resetStopGoCandidates = () => {
-    stopGoStopCandidateStart = null;
-    stopGoGoCandidateStart = null;
-  };
+  const syncStopAndGoDebugSummary = (now: number): void => {
+    if (!isDebugEnabled()) {
+      return;
+    }
 
-  const resetStopGoState = () => {
-    stopGoPhase = 'unknown';
-    stopGoStopCandidateStart = null;
-    stopGoGoCandidateStart = null;
-    stopGoCycleTimestamps = [];
-    lastStopGoEventTime = 0;
-  };
-
-  const isStopGoSuppressionActive = (): boolean => {
-    return stopGoPhase === 'stopped' || stopGoStopCandidateStart !== null || stopGoGoCandidateStart !== null;
+    const stopAndGoState = stopAndGoDetector.getState();
+    debugSummary.stopAndGo.phase = stopAndGoState.phase;
+    debugSummary.stopAndGo.cycleCount = stopAndGoState.cycleCount;
+    debugSummary.stopAndGo.lastEventTime = stopAndGoState.lastEventTimeMs ?? 0;
+    debugSummary.stopAndGo.timeSinceLastEvent = stopAndGoState.lastEventTimeMs ? now - stopAndGoState.lastEventTimeMs : 0;
+    debugSummary.stopAndGo.stopCandidateStart = stopAndGoState.stopCandidateStartMs ?? 0;
+    debugSummary.stopAndGo.goCandidateStart = stopAndGoState.goCandidateStartMs ?? 0;
   };
 
   const emitDebugSummary = (now: number) => {
@@ -163,63 +153,6 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     lastDebugSummaryTime = now;
     deps.logger.debug('Motion summary (1s)', debugSummary);
     resetDebugSummary();
-  };
-
-  const handleStopAndGo = async (speedKmh: number, now: number, latitude: number, longitude: number): Promise<void> => {
-    if (isDebugEnabled()) {
-      debugSummary.stopAndGo.phase = stopGoPhase;
-      debugSummary.stopAndGo.cycleCount = stopGoCycleTimestamps.length;
-      debugSummary.stopAndGo.lastEventTime = lastStopGoEventTime;
-      debugSummary.stopAndGo.timeSinceLastEvent = lastStopGoEventTime ? now - lastStopGoEventTime : 0;
-      debugSummary.stopAndGo.stopCandidateStart = stopGoStopCandidateStart ?? 0;
-      debugSummary.stopAndGo.goCandidateStart = stopGoGoCandidateStart ?? 0;
-    }
-
-    if (speedKmh <= STOP_GO_STOP_SPEED_KMH) {
-      stopGoGoCandidateStart = null;
-
-      if (stopGoPhase !== 'stopped') {
-        if (stopGoStopCandidateStart === null) {
-          stopGoStopCandidateStart = now;
-        } else if (now - stopGoStopCandidateStart >= STOP_GO_STOP_DWELL_MS) {
-          stopGoPhase = 'stopped';
-          stopGoStopCandidateStart = null;
-        }
-      }
-      return;
-    }
-
-    if (speedKmh >= STOP_GO_GO_SPEED_KMH) {
-      stopGoStopCandidateStart = null;
-
-      if (stopGoPhase !== 'moving') {
-        if (stopGoGoCandidateStart === null) {
-          stopGoGoCandidateStart = now;
-        } else if (now - stopGoGoCandidateStart >= STOP_GO_GO_DWELL_MS) {
-          if (stopGoPhase === 'stopped') {
-            stopGoCycleTimestamps.push(now);
-            stopGoCycleTimestamps = stopGoCycleTimestamps.filter((ts) => now - ts <= STOP_GO_WINDOW_MS);
-
-            if (stopGoCycleTimestamps.length >= STOP_GO_MIN_CYCLES && now - lastStopGoEventTime >= STOP_GO_EVENT_COOLDOWN_MS) {
-              await deps.JourneyService.logEvent(EventType.StopAndGo, latitude, longitude, speedKmh);
-              deps.logger.info(`stop_and_go detected: ${stopGoCycleTimestamps.length} cycles in ${STOP_GO_WINDOW_MS / 1000}s`);
-              lastStopGoEventTime = now;
-              stopGoCycleTimestamps = [];
-              if (isDebugEnabled()) {
-                debugSummary.stopAndGo.triggered += 1;
-              }
-            }
-          }
-
-          stopGoPhase = 'moving';
-          stopGoGoCandidateStart = null;
-        }
-      }
-      return;
-    }
-
-    resetStopGoCandidates();
-    stopGoPhase = 'unknown';
   };
 
   const resolveBand = (speedKmh: number): SpeedBand => {
@@ -423,7 +356,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     speedKmh: number,
     band: SpeedBand,
     speedConfidence: SpeedConfidence,
-    now: number
+    now: number,
+    debugEnabled: boolean
   ): Promise<void> => {
     const oscillationResult = oscillationDetector.detect({
       nowMs: now,
@@ -431,11 +365,20 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       speedBand: band,
       speedChangeRateKmhPerSec: lastLocationSpeedChangeRateKmhPerSec,
       speedReliable: speedConfidence === 'high' || speedConfidence === 'medium',
-      suppressed: isStopGoSuppressionActive(),
+      suppressed: stopAndGoDetector.isSuppressionActive(),
     });
+
+    if (debugEnabled) {
+      debugSummary.oscillation.samples += 1;
+      debugSummary.oscillation.lastReason = oscillationResult.reason;
+    }
 
     if (!oscillationResult.detected || !oscillationResult.severity) {
       return;
+    }
+
+    if (debugEnabled) {
+      debugSummary.oscillation.triggered += 1;
     }
 
     await logDrivingEvent('oscillation', oscillationResult.severity, location, speedKmh, {
@@ -528,10 +471,10 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     accelerationDetector.reset();
     corneringDetector.reset();
     oscillationDetector.reset();
+    stopAndGoDetector.reset();
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
-    resetStopGoState();
 
     deps.VehicleMotion.startTracking();
     deps.VehicleMotion.addListener('onMotionUpdate', handleMotionUpdate);
@@ -557,10 +500,10 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     accelerationDetector.reset();
     corneringDetector.reset();
     oscillationDetector.reset();
+    stopAndGoDetector.reset();
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
-    resetStopGoState();
 
     deps.VehicleMotion.removeAllListeners('onMotionUpdate');
     deps.VehicleMotion.stopTracking();
@@ -583,6 +526,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     const speedKmh = convertMsToKmh(speedMs);
     const eventSpeedKmh = convertMsToKmh(eventSpeedMs);
     const currentTime = deps.now();
+    const debugEnabled = isDebugEnabled();
 
     currentSpeedBand = isSpeedValid ? resolveBand(speedKmh) : null;
 
@@ -608,7 +552,26 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     if (isSpeedValid) {
-      await handleStopAndGo(speedKmh, currentTime, latitude, longitude);
+      const stopAndGoResult = stopAndGoDetector.detect({
+        nowMs: currentTime,
+        speedKmh,
+      });
+      syncStopAndGoDebugSummary(currentTime);
+      if (debugEnabled) {
+        debugSummary.stopAndGo.lastReason = stopAndGoResult.reason;
+      }
+
+      if (stopAndGoResult.detected) {
+        await deps.JourneyService.logEvent(EventType.StopAndGo, latitude, longitude, speedKmh);
+        deps.logger.info('stop_and_go detected', {
+          speedKmh: Number(speedKmh.toFixed(2)),
+          ...(stopAndGoResult.metadata ?? {}),
+        });
+        if (debugEnabled) {
+          debugSummary.stopAndGo.triggered += 1;
+        }
+      }
+
       if (speedConfidence !== 'low') {
         await checkSpeeding(location, speedKmh);
       } else {
@@ -620,10 +583,14 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
       if (currentSpeedBand) {
         const oscillationSpeedKmh = isEventSpeedValid ? eventSpeedKmh : speedKmh;
-        await checkOscillation(location, oscillationSpeedKmh, currentSpeedBand, speedConfidence, currentTime);
+        await checkOscillation(location, oscillationSpeedKmh, currentSpeedBand, speedConfidence, currentTime, debugEnabled);
       }
     } else {
-      resetStopGoCandidates();
+      stopAndGoDetector.clearCandidates();
+      syncStopAndGoDebugSummary(currentTime);
+      if (debugEnabled) {
+        debugSummary.stopAndGo.lastReason = 'none';
+      }
     }
 
     if (isSpeedValid) {

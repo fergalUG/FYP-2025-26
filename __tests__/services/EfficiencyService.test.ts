@@ -211,13 +211,6 @@ describe('EfficiencyService', () => {
       await processAt(18000, 20);
       await processAt(23000, 20);
 
-      expect(mockJourneyService.logEvent).not.toHaveBeenCalled();
-
-      await processAt(24000, 0);
-      await processAt(29000, 0);
-      await processAt(30000, 20);
-      await processAt(35000, 20);
-
       expect(mockJourneyService.logEvent).toHaveBeenCalledTimes(1);
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
         EventType.StopAndGo,
@@ -225,6 +218,13 @@ describe('EfficiencyService', () => {
         expect.any(Number),
         expect.any(Number)
       );
+
+      await processAt(24000, 0);
+      await processAt(29000, 0);
+      await processAt(30000, 20);
+      await processAt(35000, 20);
+
+      expect(mockJourneyService.logEvent).toHaveBeenCalledTimes(1);
     });
   });
 

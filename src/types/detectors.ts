@@ -22,6 +22,30 @@ export interface OscillationDetectorContext {
   suppressed: boolean;
 }
 
+export type StopAndGoPhase = 'moving' | 'stopped' | 'unknown';
+
+export interface StopAndGoDetectorContext {
+  nowMs: number;
+  speedKmh: number;
+}
+
+export interface StopAndGoDetectorState {
+  phase: StopAndGoPhase;
+  cycleCount: number;
+  stopCandidateStartMs: number | null;
+  goCandidateStartMs: number | null;
+  lastEventTimeMs: number | null;
+}
+
+export type StopAndGoDetectorReason = 'none' | 'speed_band' | 'insufficient_cycles' | 'cooldown';
+
+export interface StopAndGoDetectorResult {
+  detected: boolean;
+  reason: StopAndGoDetectorReason;
+  state: StopAndGoDetectorState;
+  metadata?: EventMetadata;
+}
+
 export type DetectorRejectionReason =
   | 'rate'
   | 'force'
