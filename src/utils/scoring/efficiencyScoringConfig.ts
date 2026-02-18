@@ -48,6 +48,11 @@ export const DEFAULT_EFFICIENCY_SCORING_CONFIG: EfficiencyScoringConfig = {
         moderate: 4,
         harsh: 6,
       },
+      oscillation: {
+        light: 2,
+        moderate: 5,
+        harsh: 8,
+      },
       speeding: {
         light: 1,
         moderate: 4,
@@ -61,6 +66,7 @@ export const DEFAULT_EFFICIENCY_SCORING_CONFIG: EfficiencyScoringConfig = {
     braking: 4000,
     acceleration: 4000,
     cornering: 5000,
+    oscillation: 30000,
     stop_and_go: 30000,
   },
 

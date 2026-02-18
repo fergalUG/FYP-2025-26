@@ -7,6 +7,7 @@ export interface NormalizedIncident {
   family: IncidentFamily;
   severity: EventSeverity | null;
   timestamp: number;
+  oscillationDurationSeconds?: number;
 }
 
 export interface SpeedingEpisode {
@@ -40,6 +41,14 @@ export interface NormalizedJourneyEvents {
   lightSpeedingSeconds: number;
   moderateSpeedingSeconds: number;
   harshSpeedingSeconds: number;
+
+  lightOscillationEpisodeCount: number;
+  moderateOscillationEpisodeCount: number;
+  harshOscillationEpisodeCount: number;
+
+  lightOscillationSeconds: number;
+  moderateOscillationSeconds: number;
+  harshOscillationSeconds: number;
 }
 
 interface NormalizedDrivingEvent {
@@ -66,13 +75,29 @@ const normalizeDrivingEvent = (event: Event): NormalizedDrivingEvent | null => {
     const family = event.family;
     const severity = event.severity;
     if (
-      (family === 'braking' || family === 'acceleration' || family === 'cornering' || family === 'speeding') &&
+      (family === 'braking' || family === 'acceleration' || family === 'cornering' || family === 'speeding' || family === 'oscillation') &&
       isDrivingSeverity(severity)
     ) {
       return { family, severity };
     }
   }
   return null;
+};
+
+const getNumericMetadataField = (event: Event, key: string): number | null => {
+  const value = event.metadata?.[key];
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  return value;
+};
+
+const getOscillationDurationSeconds = (event: Event): number => {
+  const episodeDurationMs = getNumericMetadataField(event, 'episodeDurationMs');
+  if (episodeDurationMs === null || episodeDurationMs <= 0) {
+    return 0;
+  }
+  return episodeDurationMs / 1000;
 };
 
 export const normalizeJourneyEvents = (events: Event[], config: EfficiencyScoringConfig): NormalizedJourneyEvents => {
@@ -117,11 +142,17 @@ export const normalizeJourneyEvents = (events: Event[], config: EfficiencyScorin
     }
 
     lastIncidentTimestampByFamily.set(family, event.timestamp);
-    incidents.push({
+    const incident: NormalizedIncident = {
       family,
       severity: drivingEvent.severity,
       timestamp: event.timestamp,
-    });
+    };
+
+    if (drivingEvent.family === 'oscillation') {
+      incident.oscillationDurationSeconds = getOscillationDurationSeconds(event);
+    }
+
+    incidents.push(incident);
   }
 
   const speedingEpisodes: SpeedingEpisode[] = [];
@@ -169,6 +200,13 @@ export const normalizeJourneyEvents = (events: Event[], config: EfficiencyScorin
 
   let stopAndGoCount = 0;
 
+  let lightOscillationEpisodeCount = 0;
+  let moderateOscillationEpisodeCount = 0;
+  let harshOscillationEpisodeCount = 0;
+  let lightOscillationSeconds = 0;
+  let moderateOscillationSeconds = 0;
+  let harshOscillationSeconds = 0;
+
   for (const incident of incidents) {
     if (incident.family === 'stop_and_go') {
       stopAndGoCount += 1;
@@ -191,6 +229,22 @@ export const normalizeJourneyEvents = (events: Event[], config: EfficiencyScorin
       if (incident.severity === 'harsh') sharpTurnCount += 1;
       if (incident.severity === 'moderate') moderateTurnCount += 1;
       if (incident.severity === 'light') lightTurnCount += 1;
+    }
+
+    if (incident.family === 'oscillation') {
+      const durationSeconds = incident.oscillationDurationSeconds ?? 0;
+      if (incident.severity === 'harsh') {
+        harshOscillationEpisodeCount += 1;
+        harshOscillationSeconds += durationSeconds;
+      }
+      if (incident.severity === 'moderate') {
+        moderateOscillationEpisodeCount += 1;
+        moderateOscillationSeconds += durationSeconds;
+      }
+      if (incident.severity === 'light') {
+        lightOscillationEpisodeCount += 1;
+        lightOscillationSeconds += durationSeconds;
+      }
     }
   }
 
@@ -240,5 +294,13 @@ export const normalizeJourneyEvents = (events: Event[], config: EfficiencyScorin
     lightSpeedingSeconds,
     moderateSpeedingSeconds,
     harshSpeedingSeconds,
+
+    lightOscillationEpisodeCount,
+    moderateOscillationEpisodeCount,
+    harshOscillationEpisodeCount,
+
+    lightOscillationSeconds,
+    moderateOscillationSeconds,
+    harshOscillationSeconds,
   };
 };

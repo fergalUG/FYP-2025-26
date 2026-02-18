@@ -25,6 +25,13 @@ export interface ScoringStats {
   moderateSpeedingSeconds: number;
   harshSpeedingSeconds: number;
 
+  lightOscillationEpisodeCount: number;
+  moderateOscillationEpisodeCount: number;
+  harshOscillationEpisodeCount: number;
+  lightOscillationSeconds: number;
+  moderateOscillationSeconds: number;
+  harshOscillationSeconds: number;
+
   avgSpeed: number;
   maxSpeed: number;
 }

@@ -3,6 +3,7 @@ import {
   BRAKING_TIER_THRESHOLDS,
   CORNERING_TIER_THRESHOLDS,
   DETECTION_COOLDOWN_MS,
+  OSCILLATION_TIER_THRESHOLDS,
   SEVERITY_ORDER_DESC,
   SPEEDING_THRESHOLD_KMH,
 } from '@utils/tracking/severityThresholds';
@@ -34,6 +35,17 @@ describe('severityThresholds', () => {
       expect(thresholds.moderate.minForceG).toBeLessThanOrEqual(thresholds.harsh.minForceG);
       expect(thresholds.light.minHeadingChangeDeg).toBeLessThanOrEqual(thresholds.moderate.minHeadingChangeDeg);
       expect(thresholds.moderate.minHeadingChangeDeg).toBeLessThanOrEqual(thresholds.harsh.minHeadingChangeDeg);
+    }
+  });
+
+  it('uses monotonic thresholds for oscillation tiers', () => {
+    for (const thresholds of Object.values(OSCILLATION_TIER_THRESHOLDS)) {
+      expect(thresholds.light.minSpeedStdDevKmh).toBeLessThanOrEqual(thresholds.moderate.minSpeedStdDevKmh);
+      expect(thresholds.moderate.minSpeedStdDevKmh).toBeLessThanOrEqual(thresholds.harsh.minSpeedStdDevKmh);
+      expect(thresholds.light.minSignFlipCount).toBeLessThanOrEqual(thresholds.moderate.minSignFlipCount);
+      expect(thresholds.moderate.minSignFlipCount).toBeLessThanOrEqual(thresholds.harsh.minSignFlipCount);
+      expect(thresholds.light.minForceP90G).toBeLessThanOrEqual(thresholds.moderate.minForceP90G);
+      expect(thresholds.moderate.minForceP90G).toBeLessThanOrEqual(thresholds.harsh.minForceP90G);
     }
   });
 

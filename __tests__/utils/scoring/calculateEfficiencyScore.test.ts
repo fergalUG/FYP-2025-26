@@ -30,6 +30,7 @@ const baseConfig: EfficiencyScoringConfig = {
       braking: { light: 2, moderate: 5, harsh: 8 },
       acceleration: { light: 2, moderate: 4, harsh: 6 },
       cornering: { light: 2, moderate: 4, harsh: 6 },
+      oscillation: { light: 2, moderate: 5, harsh: 8 },
       speeding: { light: 1, moderate: 4, harsh: 8 },
     },
     stopAndGo: 5,
@@ -38,6 +39,7 @@ const baseConfig: EfficiencyScoringConfig = {
     braking: 4000,
     acceleration: 4000,
     cornering: 5000,
+    oscillation: 30000,
     stop_and_go: 30000,
   },
   speedingEpisodeGapMs: 25 * 1000,
@@ -120,6 +122,50 @@ describe('calculateEfficiencyScore', () => {
     expect(one.score).toBeLessThan(base.score);
     expect(debounced.score).toBe(one.score);
     expect(two.score).toBeLessThan(one.score);
+  });
+
+  it('applies oscillation penalties and de-bounces within cooldown', () => {
+    const oneOscillation = [
+      makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
+      makeEvent({
+        id: 2,
+        timestamp: 10000,
+        type: EventType.DrivingEvent,
+        family: 'oscillation',
+        severity: 'harsh',
+        metadata: { episodeDurationMs: 12000 },
+      }),
+      makeEvent({ id: 3, timestamp: 600000, type: EventType.JourneyEnd }),
+    ];
+    const debouncedOscillation = [
+      makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
+      makeEvent({
+        id: 2,
+        timestamp: 10000,
+        type: EventType.DrivingEvent,
+        family: 'oscillation',
+        severity: 'harsh',
+        metadata: { episodeDurationMs: 12000 },
+      }),
+      makeEvent({
+        id: 3,
+        timestamp: 25000,
+        type: EventType.DrivingEvent,
+        family: 'oscillation',
+        severity: 'harsh',
+        metadata: { episodeDurationMs: 6000 },
+      }),
+      makeEvent({ id: 4, timestamp: 600000, type: EventType.JourneyEnd }),
+    ];
+
+    const a = calculateEfficiencyScore(oneOscillation, 0, baseConfig);
+    const b = calculateEfficiencyScore(debouncedOscillation, 0, baseConfig);
+
+    expect(a.stats.harshOscillationEpisodeCount).toBe(1);
+    expect(a.stats.harshOscillationSeconds).toBe(12);
+    expect(b.stats.harshOscillationEpisodeCount).toBe(1);
+    expect(b.stats.harshOscillationSeconds).toBe(12);
+    expect(b.score).toBe(a.score);
   });
 
   it('groups speeding samples into episodes and applies drain', () => {

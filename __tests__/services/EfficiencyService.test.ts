@@ -211,13 +211,6 @@ describe('EfficiencyService', () => {
       await processAt(18000, 20);
       await processAt(23000, 20);
 
-      expect(mockJourneyService.logEvent).not.toHaveBeenCalled();
-
-      await processAt(24000, 0);
-      await processAt(29000, 0);
-      await processAt(30000, 20);
-      await processAt(35000, 20);
-
       expect(mockJourneyService.logEvent).toHaveBeenCalledTimes(1);
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
         EventType.StopAndGo,
@@ -225,6 +218,13 @@ describe('EfficiencyService', () => {
         expect.any(Number),
         expect.any(Number)
       );
+
+      await processAt(24000, 0);
+      await processAt(29000, 0);
+      await processAt(30000, 20);
+      await processAt(35000, 20);
+
+      expect(mockJourneyService.logEvent).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -309,6 +309,13 @@ describe('EfficiencyService', () => {
         lightSpeedingSeconds: 0,
         moderateSpeedingSeconds: 0,
         harshSpeedingSeconds: 0,
+
+        lightOscillationEpisodeCount: 0,
+        moderateOscillationEpisodeCount: 0,
+        harshOscillationEpisodeCount: 0,
+        lightOscillationSeconds: 0,
+        moderateOscillationSeconds: 0,
+        harshOscillationSeconds: 0,
 
         avgSpeed: 0,
         maxSpeed: 0,
@@ -543,6 +550,71 @@ describe('EfficiencyService', () => {
         return details?.family === 'acceleration' && details?.severity === 'harsh';
       });
       expect(harshAccelerationCalls).toHaveLength(1);
+    });
+
+    it('detects and logs one oscillation episode after stability', async () => {
+      const svc = createService();
+      svc.startTracking();
+
+      const motionListener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (d: MotionData) => Promise<void> | void;
+
+      const processSample = async (timeMs: number, speedKmh: number, forceG: number) => {
+        nowMs = timeMs;
+        const location = {
+          ...mockLocation,
+          timestamp: timeMs,
+          coords: {
+            ...mockLocation.coords,
+            speed: speedKmh / 3.6,
+          },
+        };
+
+        await svc.processLocation(location, buildOptions(location));
+
+        for (let i = 0; i < 3; i++) {
+          nowMs = timeMs + i + 1;
+          await motionListener({ ...mockMotionData, horizontalMagnitude: forceG });
+        }
+      };
+
+      let timeMs = 0;
+
+      for (let i = 0; i < 6; i++) {
+        await processSample(timeMs, 62, 0.08);
+        timeMs += 1000;
+      }
+
+      const oscillatingSpeeds = [60, 75, 60, 76, 61, 75, 60, 76, 61, 75, 60, 76, 61, 75, 60, 76];
+      for (const speedKmh of oscillatingSpeeds) {
+        await processSample(timeMs, speedKmh, 0.25);
+        timeMs += 1000;
+      }
+
+      for (let i = 0; i < 26; i++) {
+        await processSample(timeMs, 67, 0.05);
+        timeMs += 1000;
+      }
+
+      const oscillationCalls = (mockJourneyService.logEvent as jest.Mock).mock.calls.filter((call) => {
+        if (call[0] !== EventType.DrivingEvent) {
+          return false;
+        }
+        const details = call[4] as { family?: string; severity?: string; metadata?: Record<string, unknown> } | undefined;
+        return details?.family === 'oscillation';
+      });
+
+      expect(oscillationCalls).toHaveLength(1);
+      const details = oscillationCalls[0][4] as { severity?: string; metadata?: Record<string, unknown> };
+      expect(details.severity).toBe('harsh');
+      expect(details.metadata).toEqual(
+        expect.objectContaining({
+          episodeDurationMs: expect.any(Number),
+          speedStdDevKmh: expect.any(Number),
+          signFlipCount: expect.any(Number),
+          forceP90G: expect.any(Number),
+          forceMeanG: expect.any(Number),
+        })
+      );
     });
 
     it('does not detect events below speed threshold', async () => {
