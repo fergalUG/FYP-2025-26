@@ -127,19 +127,44 @@ describe('calculateEfficiencyScore', () => {
   it('applies oscillation penalties and de-bounces within cooldown', () => {
     const oneOscillation = [
       makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
-      makeEvent({ id: 2, timestamp: 10000, type: EventType.DrivingEvent, family: 'oscillation', severity: 'harsh' }),
+      makeEvent({
+        id: 2,
+        timestamp: 10000,
+        type: EventType.DrivingEvent,
+        family: 'oscillation',
+        severity: 'harsh',
+        metadata: { episodeDurationMs: 12000 },
+      }),
       makeEvent({ id: 3, timestamp: 600000, type: EventType.JourneyEnd }),
     ];
     const debouncedOscillation = [
       makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
-      makeEvent({ id: 2, timestamp: 10000, type: EventType.DrivingEvent, family: 'oscillation', severity: 'harsh' }),
-      makeEvent({ id: 3, timestamp: 25000, type: EventType.DrivingEvent, family: 'oscillation', severity: 'harsh' }),
+      makeEvent({
+        id: 2,
+        timestamp: 10000,
+        type: EventType.DrivingEvent,
+        family: 'oscillation',
+        severity: 'harsh',
+        metadata: { episodeDurationMs: 12000 },
+      }),
+      makeEvent({
+        id: 3,
+        timestamp: 25000,
+        type: EventType.DrivingEvent,
+        family: 'oscillation',
+        severity: 'harsh',
+        metadata: { episodeDurationMs: 6000 },
+      }),
       makeEvent({ id: 4, timestamp: 600000, type: EventType.JourneyEnd }),
     ];
 
     const a = calculateEfficiencyScore(oneOscillation, 0, baseConfig);
     const b = calculateEfficiencyScore(debouncedOscillation, 0, baseConfig);
 
+    expect(a.stats.harshOscillationEpisodeCount).toBe(1);
+    expect(a.stats.harshOscillationSeconds).toBe(12);
+    expect(b.stats.harshOscillationEpisodeCount).toBe(1);
+    expect(b.stats.harshOscillationSeconds).toBe(12);
     expect(b.score).toBe(a.score);
   });
 

@@ -310,6 +310,13 @@ describe('EfficiencyService', () => {
         moderateSpeedingSeconds: 0,
         harshSpeedingSeconds: 0,
 
+        lightOscillationEpisodeCount: 0,
+        moderateOscillationEpisodeCount: 0,
+        harshOscillationEpisodeCount: 0,
+        lightOscillationSeconds: 0,
+        moderateOscillationSeconds: 0,
+        harshOscillationSeconds: 0,
+
         avgSpeed: 0,
         maxSpeed: 0,
       });
