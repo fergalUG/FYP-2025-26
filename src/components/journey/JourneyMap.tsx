@@ -1,185 +1,18 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ViewStyle, StyleProp, DimensionValue } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, type ViewStyle, type StyleProp, type DimensionValue } from 'react-native';
+import MapView from 'react-native-maps';
 
+import type { Event } from '@types';
 import { useTheme } from '@hooks/useTheme';
-import type { Event, EventSeverity } from '@types';
-import { EventType } from '@types';
-import { DEFAULT_EFFICIENCY_SCORING_CONFIG } from '@utils/scoring/efficiencyScoringConfig';
-import { normalizeJourneyEvents } from '@utils/scoring/normalizeEvents';
-
-interface RoutePoint {
-  latitude: number;
-  longitude: number;
-  timestamp: number;
-}
-
-interface SpeedingSegment {
-  id: string;
-  severity: 'light' | 'moderate' | 'harsh';
-  coordinates: Array<{ latitude: number; longitude: number }>;
-}
-
-interface OscillationSegment {
-  id: string;
-  severity: 'light' | 'moderate' | 'harsh';
-  coordinates: Array<{ latitude: number; longitude: number }>;
-}
-
-interface IncidentMarker {
-  id: number;
-  event: Event;
-  family: 'braking' | 'acceleration' | 'cornering' | 'speeding' | null;
-  severity: EventSeverity | null;
-  latitude: number;
-  longitude: number;
-}
-
-const isValidCoordinate = (latitude: number, longitude: number): boolean => {
-  return Number.isFinite(latitude) && Number.isFinite(longitude);
-};
-
-const isRouteEventType = (type: EventType): boolean => {
-  return type === EventType.LocationUpdate || type === EventType.JourneyStart || type === EventType.JourneyEnd;
-};
-
-const isTieredSeverity = (value: unknown): value is 'light' | 'moderate' | 'harsh' => {
-  return value === 'light' || value === 'moderate' || value === 'harsh';
-};
-
-const resolveEventFamily = (event: Event): 'braking' | 'acceleration' | 'cornering' | 'speeding' | null => {
-  if (event.type === EventType.DrivingEvent) {
-    if (event.family === 'braking' || event.family === 'acceleration' || event.family === 'cornering' || event.family === 'speeding') {
-      return event.family;
-    }
-  }
-  return null;
-};
-
-const isIncidentType = (event: Event): boolean => {
-  if (event.type === EventType.StopAndGo) {
-    return true;
-  }
-  const family = resolveEventFamily(event);
-  return family === 'braking' || family === 'acceleration' || family === 'cornering';
-};
-
-const getIncidentLabel = (event: Event): string => {
-  if (event.type === EventType.StopAndGo) return 'Stop & Go';
-
-  const family = resolveEventFamily(event);
-  const severityPrefix =
-    event.severity === 'light' ? 'Light ' : event.severity === 'moderate' ? 'Moderate ' : event.severity === 'harsh' ? 'Harsh ' : '';
-
-  if (family === 'braking') return `${severityPrefix}Braking`;
-  if (family === 'acceleration') return `${severityPrefix}Acceleration`;
-  if (family === 'cornering') return `${severityPrefix}Cornering`;
-  return 'Driving Event';
-};
-
-const getIncidentColor = (event: Event, theme: ReturnType<typeof useTheme>['theme']): string => {
-  if (event.type === EventType.StopAndGo) return theme.colors.event.stopAndGo;
-  const family = resolveEventFamily(event);
-  if (family === 'braking') return theme.colors.event.brake;
-  if (family === 'acceleration') return theme.colors.event.accel;
-  return theme.colors.event.corner;
-};
-
-const getIncidentMarkerSize = (eventType: EventType, severity: EventSeverity | null): number => {
-  if (eventType === EventType.StopAndGo) {
-    return 12;
-  }
-  if (severity === 'harsh') {
-    return 18;
-  }
-  if (severity === 'moderate') {
-    return 14;
-  }
-  if (severity === 'light') {
-    return 10;
-  }
-  return 12;
-};
-
-const getSpeedingColor = (severity: SpeedingSegment['severity'], theme: ReturnType<typeof useTheme>['theme']): string => {
-  if (severity === 'harsh') return theme.colors.event.harshSpeeding;
-  if (severity === 'moderate') return theme.colors.event.moderateSpeeding;
-  return theme.colors.event.lightSpeeding;
-};
-
-const getOscillationColor = (severity: OscillationSegment['severity'], theme: ReturnType<typeof useTheme>['theme']): string => {
-  if (severity === 'harsh') return theme.colors.event.harshOscillation;
-  if (severity === 'moderate') return theme.colors.event.moderateOscillation;
-  return theme.colors.event.lightOscillation;
-};
-
-const getNumericMetadataField = (event: Event, key: string): number | null => {
-  const value = event.metadata?.[key];
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return null;
-  }
-  return value;
-};
-
-const getEpisodeRange = (event: Event): { startTimestamp: number; endTimestamp: number } => {
-  const eventTimestamp = Number.isFinite(event.timestamp) ? event.timestamp : 0;
-  const startTimestamp = getNumericMetadataField(event, 'episodeStartTs') ?? eventTimestamp;
-  const endTimestamp = getNumericMetadataField(event, 'episodeEndTs') ?? eventTimestamp;
-
-  if (startTimestamp <= endTimestamp) {
-    return { startTimestamp, endTimestamp };
-  }
-
-  return {
-    startTimestamp: endTimestamp,
-    endTimestamp: startTimestamp,
-  };
-};
-
-const findClosestIndex = (points: RoutePoint[], timestamp: number): number => {
-  if (points.length === 0) {
-    return 0;
-  }
-
-  let left = 0;
-  let right = points.length - 1;
-  let closestIndex = 0;
-  let closestDiff = Number.POSITIVE_INFINITY;
-
-  while (left <= right) {
-    const mid = Math.floor((left + right) / 2);
-    const midTimestamp = points[mid].timestamp;
-    const diff = Math.abs(midTimestamp - timestamp);
-
-    if (diff < closestDiff) {
-      closestDiff = diff;
-      closestIndex = mid;
-    }
-
-    if (midTimestamp < timestamp) {
-      left = mid + 1;
-    } else if (midTimestamp > timestamp) {
-      right = mid - 1;
-    } else {
-      return mid;
-    }
-  }
-
-  return closestIndex;
-};
-
-const buildRouteSegment = (points: RoutePoint[], startTimestamp: number, endTimestamp: number): RoutePoint[] => {
-  if (points.length < 2) {
-    return [];
-  }
-
-  const startIndex = findClosestIndex(points, startTimestamp);
-  const endIndex = findClosestIndex(points, endTimestamp);
-  const from = Math.min(startIndex, endIndex);
-  const to = Math.max(startIndex, endIndex);
-
-  return points.slice(from, to + 1);
-};
+import {
+  buildJourneyMapData,
+  buildMapRegion,
+  buildPinDetails,
+  findSelectedPinById,
+  JourneyMapLegend,
+  JourneyMapMarkers,
+  JourneyMapPinDetailsCard,
+} from '@components/journey/map';
 
 interface JourneyMapProps {
   events: Event[];
@@ -190,97 +23,43 @@ interface JourneyMapProps {
 }
 
 export const JourneyMap = (props: JourneyMapProps) => {
-  const { theme } = useTheme();
   const { events, height = 300, interactive = true, showLegend = true, style } = props;
+  const { theme } = useTheme();
   const styles = createStyles(theme);
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
+  const lastMarkerPressAtMsRef = useRef<number>(0);
 
-  const routePoints = useMemo<RoutePoint[]>(() => {
-    return events
-      .filter((event) => isRouteEventType(event.type))
-      .filter((event) => isValidCoordinate(event.latitude, event.longitude))
-      .sort((a, b) => a.timestamp - b.timestamp)
-      .map((event) => ({
-        latitude: event.latitude,
-        longitude: event.longitude,
-        timestamp: event.timestamp,
-      }));
-  }, [events]);
+  const data = useMemo(() => buildJourneyMapData(events), [events]);
+  const selectedPin = useMemo(() => findSelectedPinById(data, selectedPinId), [data, selectedPinId]);
 
-  const routeCoordinates = useMemo(() => {
-    return routePoints.map((point) => ({ latitude: point.latitude, longitude: point.longitude }));
-  }, [routePoints]);
+  useEffect(() => {
+    if (selectedPinId && !selectedPin) {
+      setSelectedPinId(null);
+    }
+  }, [selectedPin, selectedPinId]);
 
-  const incidentMarkers = useMemo<IncidentMarker[]>(() => {
-    return events
-      .filter((event) => isIncidentType(event))
-      .filter((event) => isValidCoordinate(event.latitude, event.longitude))
-      .map((event) => ({
-        id: event.id,
-        event,
-        family: resolveEventFamily(event),
-        severity: event.severity ?? null,
-        latitude: event.latitude,
-        longitude: event.longitude,
-      }));
-  }, [events]);
+  const selectedPinDetails = useMemo(() => {
+    return selectedPin ? buildPinDetails(selectedPin) : null;
+  }, [selectedPin]);
 
-  const speedingSegments = useMemo<SpeedingSegment[]>(() => {
-    if (routePoints.length < 2) {
-      return [];
+  const region = useMemo(() => buildMapRegion(data.routeCoordinates), [data.routeCoordinates]);
+
+  const handleSelectPin = useCallback((pinId: string) => {
+    lastMarkerPressAtMsRef.current = Date.now();
+    setSelectedPinId(pinId);
+  }, []);
+
+  const handleMapPress = useCallback(() => {
+    if (!interactive) {
+      return;
     }
 
-    const normalized = normalizeJourneyEvents(events, DEFAULT_EFFICIENCY_SCORING_CONFIG);
-    return normalized.speedingEpisodes
-      .map((episode, index) => {
-        const segmentPoints = buildRouteSegment(routePoints, episode.startTimestamp, episode.endTimestamp);
-        if (segmentPoints.length < 2) {
-          return null;
-        }
-        return {
-          id: `${episode.startTimestamp}-${index}`,
-          severity: episode.severity,
-          coordinates: segmentPoints.map((point) => ({ latitude: point.latitude, longitude: point.longitude })),
-        };
-      })
-      .filter((segment): segment is SpeedingSegment => Boolean(segment));
-  }, [events, routePoints]);
-
-  const oscillationSegments = useMemo<OscillationSegment[]>(() => {
-    if (routePoints.length < 2) {
-      return [];
+    if (Date.now() - lastMarkerPressAtMsRef.current < 250) {
+      return;
     }
 
-    return events
-      .filter((event) => event.type === EventType.DrivingEvent && event.family === 'oscillation' && isTieredSeverity(event.severity))
-      .map((event, index) => {
-        const { startTimestamp, endTimestamp } = getEpisodeRange(event);
-        const segmentPoints = buildRouteSegment(routePoints, startTimestamp, endTimestamp);
-        if (segmentPoints.length < 2) {
-          return null;
-        }
-
-        return {
-          id: `oscillation-${event.id}-${index}`,
-          severity: event.severity,
-          coordinates: segmentPoints.map((point) => ({ latitude: point.latitude, longitude: point.longitude })),
-        };
-      })
-      .filter((segment): segment is OscillationSegment => Boolean(segment));
-  }, [events, routePoints]);
-
-  const hasLightSpeeding = speedingSegments.some((segment) => segment.severity === 'light');
-  const hasModerateSpeeding = speedingSegments.some((segment) => segment.severity === 'moderate');
-  const hasHarshSpeeding = speedingSegments.some((segment) => segment.severity === 'harsh');
-  const hasLightOscillation = oscillationSegments.some((segment) => segment.severity === 'light');
-  const hasModerateOscillation = oscillationSegments.some((segment) => segment.severity === 'moderate');
-  const hasHarshOscillation = oscillationSegments.some((segment) => segment.severity === 'harsh');
-  const hasBraking = incidentMarkers.some((marker) => marker.family === 'braking');
-  const hasAcceleration = incidentMarkers.some((marker) => marker.family === 'acceleration');
-  const hasCornering = incidentMarkers.some((marker) => marker.family === 'cornering');
-  const hasStopAndGo = incidentMarkers.some((marker) => marker.event.type === EventType.StopAndGo);
-  const hasTieredIncidents = incidentMarkers.some(
-    (marker) => marker.severity === 'light' || marker.severity === 'moderate' || marker.severity === 'harsh'
-  );
+    setSelectedPinId(null);
+  }, [interactive]);
 
   if (events.length === 0) {
     return (
@@ -292,7 +71,7 @@ export const JourneyMap = (props: JourneyMapProps) => {
     );
   }
 
-  if (routeCoordinates.length === 0) {
+  if (data.routeCoordinates.length === 0 || !region) {
     return (
       <View style={[styles.container, { height }, style]}>
         <View style={styles.placeholderContainer}>
@@ -302,28 +81,8 @@ export const JourneyMap = (props: JourneyMapProps) => {
     );
   }
 
-  const startPoint = routePoints[0];
-  const endPoint = routePoints[routePoints.length - 1];
-
-  const latitudes = routeCoordinates.map((coord) => coord.latitude);
-  const longitudes = routeCoordinates.map((coord) => coord.longitude);
-
-  const minLat = Math.min(...latitudes);
-  const maxLat = Math.max(...latitudes);
-  const minLng = Math.min(...longitudes);
-  const maxLng = Math.max(...longitudes);
-
-  const midLat = (minLat + maxLat) / 2;
-  const midLng = (minLng + maxLng) / 2;
-  const deltaLat = Math.abs(maxLat - minLat) * 1.2;
-  const deltaLng = Math.abs(maxLng - minLng) * 1.2;
-
-  const region = {
-    latitude: midLat,
-    longitude: midLng,
-    latitudeDelta: Math.max(deltaLat, 0.01),
-    longitudeDelta: Math.max(deltaLng, 0.01),
-  };
+  const startPoint = data.routePoints[0];
+  const endPoint = data.routePoints[data.routePoints.length - 1];
 
   return (
     <View style={[{ height }, styles.container, style]} pointerEvents={interactive ? 'auto' : 'none'}>
@@ -337,157 +96,25 @@ export const JourneyMap = (props: JourneyMapProps) => {
         zoomEnabled={interactive}
         pitchEnabled={interactive}
         rotateEnabled={interactive}
+        onPress={handleMapPress}
       >
-        {routeCoordinates.length > 1 && (
-          <Polyline coordinates={routeCoordinates} strokeColor={theme.colors.primary} strokeWidth={4} lineCap="round" lineJoin="round" />
-        )}
-
-        {speedingSegments.map((segment) => (
-          <Polyline
-            key={segment.id}
-            coordinates={segment.coordinates}
-            strokeColor={getSpeedingColor(segment.severity, theme)}
-            strokeWidth={5}
-            lineCap="round"
-            lineJoin="round"
-          />
-        ))}
-
-        {oscillationSegments.map((segment) => (
-          <Polyline
-            key={segment.id}
-            coordinates={segment.coordinates}
-            strokeColor={getOscillationColor(segment.severity, theme)}
-            strokeWidth={5}
-            lineCap="round"
-            lineJoin="round"
-          />
-        ))}
-
-        {incidentMarkers.map((marker) => {
-          const markerSize = getIncidentMarkerSize(marker.event.type, marker.severity);
-          return (
-            <Marker
-              key={marker.id}
-              coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
-              title={getIncidentLabel(marker.event)}
-              anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={false}
-            >
-              <View
-                style={[
-                  styles.incidentMarker,
-                  {
-                    backgroundColor: getIncidentColor(marker.event, theme),
-                    width: markerSize,
-                    height: markerSize,
-                    borderRadius: markerSize / 2,
-                  },
-                ]}
-              />
-            </Marker>
-          );
-        })}
-
-        {startPoint && (
-          <Marker
-            coordinate={{
-              latitude: startPoint.latitude,
-              longitude: startPoint.longitude,
-            }}
-            title="Start"
-            description="Journey started here"
-            pinColor={theme.colors.event.start}
-          />
-        )}
-
-        {startPoint && endPoint && startPoint.timestamp !== endPoint.timestamp && (
-          <Marker
-            coordinate={{
-              latitude: endPoint.latitude,
-              longitude: endPoint.longitude,
-            }}
-            title="End"
-            description="Journey ended here"
-            pinColor={theme.colors.event.end}
-          />
-        )}
+        <JourneyMapMarkers
+          routeCoordinates={data.routeCoordinates}
+          speedingSegments={data.speedingSegments}
+          oscillationSegments={data.oscillationSegments}
+          incidentMarkers={data.incidentMarkers}
+          speedingEpisodeMarkers={data.speedingEpisodeMarkers}
+          oscillationEpisodeMarkers={data.oscillationEpisodeMarkers}
+          startPoint={startPoint}
+          endPoint={endPoint}
+          interactive={interactive}
+          selectedPinId={selectedPinId}
+          onSelectPin={handleSelectPin}
+        />
       </MapView>
 
-      {showLegend && (incidentMarkers.length > 0 || speedingSegments.length > 0 || oscillationSegments.length > 0) && (
-        <View style={styles.legend} pointerEvents="none">
-          {hasLightSpeeding && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendLine, { backgroundColor: theme.colors.event.lightSpeeding }]} />
-              <Text style={styles.legendText}>Light speeding</Text>
-            </View>
-          )}
-          {hasModerateSpeeding && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendLine, { backgroundColor: theme.colors.event.moderateSpeeding }]} />
-              <Text style={styles.legendText}>Moderate speeding</Text>
-            </View>
-          )}
-          {hasHarshSpeeding && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendLine, { backgroundColor: theme.colors.event.harshSpeeding }]} />
-              <Text style={styles.legendText}>Harsh speeding</Text>
-            </View>
-          )}
-          {hasLightOscillation && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendLine, { backgroundColor: theme.colors.event.lightOscillation }]} />
-              <Text style={styles.legendText}>Light oscillation</Text>
-            </View>
-          )}
-          {hasModerateOscillation && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendLine, { backgroundColor: theme.colors.event.moderateOscillation }]} />
-              <Text style={styles.legendText}>Moderate oscillation</Text>
-            </View>
-          )}
-          {hasHarshOscillation && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendLine, { backgroundColor: theme.colors.event.harshOscillation }]} />
-              <Text style={styles.legendText}>Harsh oscillation</Text>
-            </View>
-          )}
-          {hasBraking && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.brake }]} />
-              <Text style={styles.legendText}>Braking</Text>
-            </View>
-          )}
-          {hasAcceleration && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.accel }]} />
-              <Text style={styles.legendText}>Acceleration</Text>
-            </View>
-          )}
-          {hasCornering && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.corner }]} />
-              <Text style={styles.legendText}>Cornering</Text>
-            </View>
-          )}
-          {hasStopAndGo && (
-            <View style={styles.legendItem}>
-              <View style={[styles.legendSwatch, { backgroundColor: theme.colors.event.stopAndGo }]} />
-              <Text style={styles.legendText}>Stop & Go</Text>
-            </View>
-          )}
-          {hasTieredIncidents && (
-            <View style={styles.legendItem}>
-              <View style={styles.markerSizeLegend}>
-                <View style={[styles.legendDot, styles.legendDotLight]} />
-                <View style={[styles.legendDot, styles.legendDotModerate]} />
-                <View style={[styles.legendDot, styles.legendDotHarsh]} />
-              </View>
-              <Text style={styles.legendText}>Event severity</Text>
-            </View>
-          )}
-        </View>
-      )}
+      <JourneyMapPinDetailsCard interactive={interactive} details={selectedPinDetails} selectedPinId={selectedPinId} />
+      <JourneyMapLegend showLegend={showLegend} hasLegendContent={data.hasLegendContent} legendFlags={data.legendFlags} />
     </View>
   );
 };
@@ -517,71 +144,5 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontSize: 16,
       color: theme.colors.textSecondary,
       textAlign: 'center',
-    },
-    legend: {
-      position: 'absolute',
-      right: theme.spacing.sm,
-      top: theme.spacing.sm,
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.radius.md,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      padding: theme.spacing.sm,
-      gap: theme.spacing.xs,
-      opacity: 0.9,
-    },
-    legendItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.xs,
-    },
-    legendSwatch: {
-      width: 12,
-      height: 12,
-      borderRadius: 6,
-    },
-    legendLine: {
-      width: 18,
-      height: 4,
-      borderRadius: 2,
-    },
-    legendText: {
-      fontSize: 12,
-      color: theme.colors.onSurface,
-    },
-    incidentMarker: {
-      borderWidth: 1.5,
-      borderColor: theme.colors.surface,
-    },
-    markerSizeLegend: {
-      width: 24,
-      height: 12,
-      position: 'relative',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    legendDot: {
-      position: 'absolute',
-      backgroundColor: theme.colors.onSurface,
-      opacity: 0.8,
-      borderRadius: 999,
-    },
-    legendDotLight: {
-      width: 6,
-      height: 6,
-      top: 3,
-      left: 1,
-    },
-    legendDotModerate: {
-      width: 8,
-      height: 8,
-      top: 2,
-      left: 8,
-    },
-    legendDotHarsh: {
-      width: 10,
-      height: 10,
-      top: 1,
-      left: 14,
     },
   });
