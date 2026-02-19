@@ -558,8 +558,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
     for (const location of orderedLocations) {
       let locationForProcessing = location;
-      const previousLocation = state.lastLocation;
-      let effectiveSpeed = resolvePassiveEffectiveSpeed(previousLocation, location);
+      let effectiveSpeed: ValidatedSpeed;
 
       if (state.mode === 'ACTIVE') {
         const dropoutResult = handleGpsDropout(state.lastLocation, location, gpsDropoutState);
@@ -588,6 +587,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
           isInDropout: false,
           dropoutStartTime: null,
         };
+        effectiveSpeed = resolvePassiveEffectiveSpeed(state.lastLocation, location);
       }
 
       const rawSpeed = location.coords.speed;
