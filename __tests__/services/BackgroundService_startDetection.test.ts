@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 
 import { createBackgroundServiceController } from '@services/BackgroundService';
+import { PASSIVE_START_CONFIRMATION_WINDOW_MS } from '@constants/gpsConfig';
 
 import type { LocationObject } from 'expo-location';
 
@@ -113,5 +114,76 @@ describe('BackgroundService passive start detection', () => {
 
     expect(controller.getState().mode).toBe('ACTIVE');
     expect(mockJourneyService.startJourney).toHaveBeenCalledTimes(1);
+  });
+
+  it('resets passive start candidate after below-threshold sample and requires confirmation again', async () => {
+    await controller.startLocationMonitoring();
+    expect(controller.getState().mode).toBe('PASSIVE');
+
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.0, -6.0, -1, 5, nowMs)],
+      },
+    });
+
+    nowMs += 10000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.0, -5.9985, -1, 5, nowMs)],
+      },
+    });
+    expect(controller.getState().passiveStartCandidateCount).toBe(1);
+    expect(controller.getState().mode).toBe('PASSIVE');
+
+    nowMs += 10000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.0, -5.99845, -1, 5, nowMs)],
+      },
+    });
+    expect(controller.getState().passiveStartCandidateCount).toBe(0);
+    expect(controller.getState().passiveStartCandidateSince).toBeNull();
+    expect(controller.getState().mode).toBe('PASSIVE');
+
+    nowMs += 10000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.0, -5.99695, -1, 5, nowMs)],
+      },
+    });
+    expect(controller.getState().passiveStartCandidateCount).toBe(1);
+    expect(controller.getState().mode).toBe('PASSIVE');
+    expect(mockJourneyService.startJourney).toHaveBeenCalledTimes(0);
+  });
+
+  it('resets passive start candidate when confirmation gap exceeds window', async () => {
+    await controller.startLocationMonitoring();
+    expect(controller.getState().mode).toBe('PASSIVE');
+
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.0, -6.0, -1, 5, nowMs)],
+      },
+    });
+
+    nowMs += 10000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.0, -5.9985, -1, 5, nowMs)],
+      },
+    });
+    expect(controller.getState().passiveStartCandidateCount).toBe(1);
+    expect(controller.getState().mode).toBe('PASSIVE');
+
+    nowMs += PASSIVE_START_CONFIRMATION_WINDOW_MS + 1000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.0, -5.9895, -1, 5, nowMs)],
+      },
+    });
+
+    expect(controller.getState().passiveStartCandidateCount).toBe(1);
+    expect(controller.getState().mode).toBe('PASSIVE');
+    expect(mockJourneyService.startJourney).toHaveBeenCalledTimes(0);
   });
 });
