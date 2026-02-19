@@ -562,7 +562,9 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       }
 
       if (stopAndGoResult.detected) {
-        await deps.JourneyService.logEvent(EventType.StopAndGo, latitude, longitude, speedKmh);
+        await deps.JourneyService.logEvent(EventType.StopAndGo, latitude, longitude, speedKmh, {
+          metadata: stopAndGoResult.metadata ?? null,
+        });
         deps.logger.info('stop_and_go detected', {
           speedKmh: Number(speedKmh.toFixed(2)),
           ...(stopAndGoResult.metadata ?? {}),
