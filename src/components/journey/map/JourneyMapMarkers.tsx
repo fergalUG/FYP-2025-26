@@ -29,6 +29,12 @@ interface JourneyMapMarkersProps {
   onSelectPin: (pinId: string) => void;
 }
 
+const selectPin = (interactive: boolean, onSelectPin: (pinId: string) => void, pinId: string): void => {
+  if (interactive) {
+    onSelectPin(pinId);
+  }
+};
+
 const formatSeverityLabel = (severity: EventSeverity): string => {
   return severity.charAt(0).toUpperCase() + severity.slice(1);
 };
@@ -108,10 +114,12 @@ export const JourneyMapMarkers = (props: JourneyMapMarkersProps) => {
             description={marker.event.type === EventType.StopAndGo ? 'Traffic wave event' : 'Driving incident'}
             anchor={{ x: 0.5, y: 0.5 }}
             tracksViewChanges={false}
+            stopPropagation
             onPress={() => {
-              if (interactive) {
-                onSelectPin(marker.id);
-              }
+              selectPin(interactive, onSelectPin, marker.id);
+            }}
+            onSelect={() => {
+              selectPin(interactive, onSelectPin, marker.id);
             }}
           >
             <View
@@ -141,10 +149,12 @@ export const JourneyMapMarkers = (props: JourneyMapMarkersProps) => {
             description="Speeding episode"
             anchor={{ x: 0.5, y: 0.5 }}
             tracksViewChanges={false}
+            stopPropagation
             onPress={() => {
-              if (interactive) {
-                onSelectPin(marker.id);
-              }
+              selectPin(interactive, onSelectPin, marker.id);
+            }}
+            onSelect={() => {
+              selectPin(interactive, onSelectPin, marker.id);
             }}
           >
             <View
@@ -174,10 +184,12 @@ export const JourneyMapMarkers = (props: JourneyMapMarkersProps) => {
             description="Oscillation episode"
             anchor={{ x: 0.5, y: 0.5 }}
             tracksViewChanges={false}
+            stopPropagation
             onPress={() => {
-              if (interactive) {
-                onSelectPin(marker.id);
-              }
+              selectPin(interactive, onSelectPin, marker.id);
+            }}
+            onSelect={() => {
+              selectPin(interactive, onSelectPin, marker.id);
             }}
           >
             <View

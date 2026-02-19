@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, type ViewStyle, type StyleProp, type DimensionValue } from 'react-native';
-import MapView from 'react-native-maps';
+import MapView, { type MapPressEvent } from 'react-native-maps';
 
 import type { Event } from '@types';
 import { useTheme } from '@hooks/useTheme';
@@ -27,7 +27,6 @@ export const JourneyMap = (props: JourneyMapProps) => {
   const { theme } = useTheme();
   const styles = createStyles(theme);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
-  const lastMarkerPressAtMsRef = useRef<number>(0);
 
   const data = useMemo(() => buildJourneyMapData(events), [events]);
   const selectedPin = useMemo(() => findSelectedPinById(data, selectedPinId), [data, selectedPinId]);
@@ -45,21 +44,23 @@ export const JourneyMap = (props: JourneyMapProps) => {
   const region = useMemo(() => buildMapRegion(data.routeCoordinates), [data.routeCoordinates]);
 
   const handleSelectPin = useCallback((pinId: string) => {
-    lastMarkerPressAtMsRef.current = Date.now();
     setSelectedPinId(pinId);
   }, []);
 
-  const handleMapPress = useCallback(() => {
-    if (!interactive) {
-      return;
-    }
+  const handleMapPress = useCallback(
+    (event: MapPressEvent) => {
+      if (!interactive) {
+        return;
+      }
 
-    if (Date.now() - lastMarkerPressAtMsRef.current < 250) {
-      return;
-    }
+      if (event.nativeEvent.action === 'marker-press') {
+        return;
+      }
 
-    setSelectedPinId(null);
-  }, [interactive]);
+      setSelectedPinId(null);
+    },
+    [interactive]
+  );
 
   if (events.length === 0) {
     return (
