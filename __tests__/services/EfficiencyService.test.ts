@@ -216,7 +216,15 @@ describe('EfficiencyService', () => {
         EventType.StopAndGo,
         expect.any(Number),
         expect.any(Number),
-        expect.any(Number)
+        expect.any(Number),
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            cycleCount: 2,
+            detectionWindowMs: expect.any(Number),
+            stopSpeedThresholdKmh: expect.any(Number),
+            goSpeedThresholdKmh: expect.any(Number),
+          }),
+        })
       );
 
       await processAt(24000, 0);
