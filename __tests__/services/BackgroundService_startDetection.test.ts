@@ -186,4 +186,31 @@ describe('BackgroundService passive start detection', () => {
     expect(controller.getState().mode).toBe('PASSIVE');
     expect(mockJourneyService.startJourney).toHaveBeenCalledTimes(0);
   });
+
+  it('propagates calculated source during active dropout fallback', async () => {
+    await controller.startLocationMonitoring();
+    expect(controller.getState().mode).toBe('PASSIVE');
+
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.0, -6.0, 20, 5, nowMs)],
+      },
+    });
+    expect(controller.getState().mode).toBe('ACTIVE');
+
+    nowMs += 11000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.001, -6.0, -1, 5, nowMs)],
+      },
+    });
+
+    expect(mockEfficiencyService.processLocation).toHaveBeenCalledTimes(1);
+    const [, speedMetadata] = mockEfficiencyService.processLocation.mock.calls[0];
+    expect(speedMetadata).toEqual(
+      expect.objectContaining({
+        speedSource: 'calculated',
+      })
+    );
+  });
 });

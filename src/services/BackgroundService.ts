@@ -183,16 +183,13 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     }
 
     const calculatedSpeed = calculateSpeedFromLocations(previousLocation, currentLocation);
-    const calculatedValidated = validateGpsSpeed(calculatedSpeed, currentLocation.coords.accuracy, DEFAULT_GPS_OPTIONS);
+    const calculatedValidated = validateGpsSpeed(calculatedSpeed, currentLocation.coords.accuracy, DEFAULT_GPS_OPTIONS, 'calculated');
 
     if (!calculatedValidated.isValid) {
       return validatedSpeed;
     }
 
-    return {
-      ...calculatedValidated,
-      source: 'calculated',
-    };
+    return calculatedValidated;
   };
 
   const startPassiveTracking = async (): Promise<boolean> => {
@@ -361,12 +358,12 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     }
   };
 
-  const processActiveLocation = async (location: Location.LocationObject): Promise<void> => {
+  const processActiveLocation = async (location: Location.LocationObject, speedSource: 'gps' | 'calculated' = 'gps'): Promise<void> => {
     const { latitude, longitude, speed, accuracy } = location.coords;
     const timeDeltaSeconds = state.lastLocation ? (location.timestamp - state.lastLocation.timestamp) / 1000 : 0;
     let outlierThisUpdate = false;
 
-    const validatedSpeed = validateGpsSpeed(speed, accuracy, DEFAULT_GPS_OPTIONS);
+    const validatedSpeed = validateGpsSpeed(speed, accuracy, DEFAULT_GPS_OPTIONS, speedSource);
 
     if (!validatedSpeed.isValid) {
       state.consecutiveInvalidSpeeds++;
@@ -378,7 +375,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
       if (state.consecutiveInvalidSpeeds >= MAX_CONSECUTIVE_INVALID_SPEEDS && state.lastLocation) {
         const calculatedSpeed = calculateSpeedFromLocations(state.lastLocation, location);
-        const calculatedValidated = validateGpsSpeed(calculatedSpeed, accuracy, DEFAULT_GPS_OPTIONS);
+        const calculatedValidated = validateGpsSpeed(calculatedSpeed, accuracy, DEFAULT_GPS_OPTIONS, 'calculated');
 
         if (calculatedValidated.isValid) {
           const smoothed = speedSmoother.addSample(calculatedValidated.value, calculatedValidated.confidence, 'calculated');
@@ -559,6 +556,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     for (const location of orderedLocations) {
       let locationForProcessing = location;
       let effectiveSpeed: ValidatedSpeed;
+      let speedSource: 'gps' | 'calculated' = 'gps';
 
       if (state.mode === 'ACTIVE') {
         const dropoutResult = handleGpsDropout(state.lastLocation, location, gpsDropoutState);
@@ -576,12 +574,18 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
             ...location,
             coords: { ...location.coords, speed: calculatedSpeed },
           };
+          speedSource = 'calculated';
           deps.logger.debug('Using calculated speed during GPS dropout', {
             calculatedSpeed,
           });
         }
 
-        effectiveSpeed = validateGpsSpeed(locationForProcessing.coords.speed, locationForProcessing.coords.accuracy, DEFAULT_GPS_OPTIONS);
+        effectiveSpeed = validateGpsSpeed(
+          locationForProcessing.coords.speed,
+          locationForProcessing.coords.accuracy,
+          DEFAULT_GPS_OPTIONS,
+          speedSource
+        );
       } else {
         gpsDropoutState = {
           isInDropout: false,
@@ -591,11 +595,15 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       }
 
       const rawSpeed = location.coords.speed;
-      const rawSpeedKmh = convertMsToKmh(rawSpeed ?? 0);
+      const rawSpeedKmh = rawSpeed === null || rawSpeed === undefined ? null : convertMsToKmh(rawSpeed);
+      const rawSpeedLabelMs = rawSpeed === null || rawSpeed === undefined ? 'n/a' : rawSpeed.toFixed(3);
+      const rawSpeedLabelKmh = rawSpeedKmh === null ? 'n/a' : rawSpeedKmh.toFixed(3);
       const effectiveSpeedKmh = convertMsToKmh(effectiveSpeed.value);
       deps.logger.debug(
-        `Location received. Speed: ${rawSpeed?.toFixed(3)} m/s (${rawSpeedKmh.toFixed(3)} km/h) [${effectiveSpeed.confidence}]. Current Mode: ${state.mode}`,
+        `Location received. Mode: ${state.mode}. Raw speed: ${rawSpeedLabelMs} m/s (${rawSpeedLabelKmh} km/h). Effective speed: ${effectiveSpeed.value.toFixed(3)} m/s (${effectiveSpeedKmh.toFixed(3)} km/h) [${effectiveSpeed.confidence}, ${effectiveSpeed.source}].`,
         {
+          rawSpeedMs: rawSpeed ?? null,
+          rawSpeedKmh,
           effectiveSpeedMs: effectiveSpeed.value,
           effectiveSpeedKmh,
           effectiveSpeedSource: effectiveSpeed.source,
@@ -604,7 +612,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       );
 
       if (state.mode === 'ACTIVE' && state.currentJourneyId !== null && !state.isTransitioning) {
-        await processActiveLocation(locationForProcessing);
+        await processActiveLocation(locationForProcessing, speedSource);
       } else if (state.mode === 'ACTIVE' && state.currentJourneyId === null) {
         deps.logger.debug('Skipping active location processing: no current journey id.');
       }

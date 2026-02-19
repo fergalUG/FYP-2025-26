@@ -75,6 +75,18 @@ describe('gpsValidation', () => {
       expect(result.isValid).toBe(true);
       expect(result.confidence).toBe('high');
     });
+
+    it('respects calculated source when provided', () => {
+      const result = validateGpsSpeed(10, 8, undefined, 'calculated');
+      expect(result.isValid).toBe(true);
+      expect(result.source).toBe('calculated');
+    });
+
+    it('keeps none source for no-fix values even with calculated source hint', () => {
+      const result = validateGpsSpeed(-1, 8, undefined, 'calculated');
+      expect(result.isValid).toBe(false);
+      expect(result.source).toBe('none');
+    });
   });
 
   describe('calculateDistanceKm', () => {

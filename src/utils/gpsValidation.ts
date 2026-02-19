@@ -49,7 +49,8 @@ export const calculateDistanceKm = (lat1: number, lon1: number, lat2: number, lo
 export const validateGpsSpeed = (
   speed: number | null | undefined,
   accuracy: number | null | undefined,
-  options?: GpsValidationOptions
+  options?: GpsValidationOptions,
+  source: 'gps' | 'calculated' = 'gps'
 ): ValidatedSpeed => {
   const opts = { ...DEFAULT_VALIDATION_OPTIONS, ...options };
 
@@ -78,7 +79,7 @@ export const validateGpsSpeed = (
       value: speed,
       isValid: false,
       confidence: 'none',
-      source: 'gps',
+      source,
       reason: `Speed exceeds maximum valid threshold (${speed} > ${opts.maxValidSpeed} m/s)`,
     };
   }
@@ -89,7 +90,7 @@ export const validateGpsSpeed = (
         value: speed,
         isValid: false,
         confidence: 'none',
-        source: 'gps',
+        source,
         reason: `Accuracy exceeds maximum threshold (${accuracy}m > ${opts.maxAccuracy}m)`,
       };
     }
@@ -99,7 +100,7 @@ export const validateGpsSpeed = (
         value: speed,
         isValid: true,
         confidence: 'medium',
-        source: 'gps',
+        source,
         reason: `Accuracy is acceptable but not optimal (${accuracy}m)`,
       };
     }
@@ -110,7 +111,7 @@ export const validateGpsSpeed = (
       value: speed,
       isValid: true,
       confidence: 'low',
-      source: 'gps',
+      source,
       reason: `Speed below minimum reliable threshold (${speed} < ${opts.minValidSpeed} m/s)`,
     };
   }
@@ -119,7 +120,7 @@ export const validateGpsSpeed = (
     value: speed,
     isValid: true,
     confidence: 'high',
-    source: 'gps',
+    source,
   };
 };
 
