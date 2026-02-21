@@ -40,7 +40,7 @@ const isTieredSeverity = (value: unknown): value is 'light' | 'moderate' | 'hars
   return value === 'light' || value === 'moderate' || value === 'harsh';
 };
 
-const formatSeverityLabel = (severity: EventSeverity): string => {
+export const formatSeverityLabel = (severity: EventSeverity): string => {
   return severity.charAt(0).toUpperCase() + severity.slice(1);
 };
 

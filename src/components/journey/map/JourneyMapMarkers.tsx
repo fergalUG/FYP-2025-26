@@ -3,9 +3,9 @@ import { StyleSheet, View } from 'react-native';
 import { Marker, Polyline } from 'react-native-maps';
 
 import { useTheme } from '@hooks/useTheme';
-import { EventType, type Event, type EventSeverity } from '@types';
+import { EventType, type Event } from '@types';
 
-import { getIncidentLabel, getIncidentMarkerSize } from '@components/journey/map/model';
+import { getIncidentLabel, getIncidentMarkerSize, formatSeverityLabel } from '@components/journey/map/model';
 import type {
   IncidentMarker,
   OscillationEpisodeMarker,
@@ -33,10 +33,6 @@ const selectPin = (interactive: boolean, onSelectPin: (pinId: string) => void, p
   if (interactive) {
     onSelectPin(pinId);
   }
-};
-
-const formatSeverityLabel = (severity: EventSeverity): string => {
-  return severity.charAt(0).toUpperCase() + severity.slice(1);
 };
 
 const getIncidentColor = (event: Event, theme: ReturnType<typeof useTheme>['theme']): string => {
