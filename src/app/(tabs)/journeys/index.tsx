@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react';
 import { IconChip, ScoreBadge, AppButton } from '@components';
 
 import { getScoreColor } from '@utils/score';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function Journeys() {
   const { theme } = useTheme();
@@ -72,7 +73,7 @@ export default function Journeys() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <FlatList
         contentContainerStyle={styles.list}
         data={completedJourneys}
@@ -113,7 +114,7 @@ export default function Journeys() {
           />
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

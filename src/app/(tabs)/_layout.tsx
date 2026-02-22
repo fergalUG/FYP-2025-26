@@ -1,70 +1,30 @@
-import { Tabs } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { View, Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native-tabs';
 
 import { useTheme } from '@hooks';
 
-import { ServiceStatusIndicator, TabButton } from '@components';
-
-import { appHeaderOptions } from '@constants/navigation';
-
 export default function Layout() {
-  const router = useRouter();
   const { theme } = useTheme();
-  const headerOptions = appHeaderOptions(theme);
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: true,
-        tabBarButton: (props) => <TabButton {...props} />,
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.onSurface,
-        tabBarStyle: {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.outline,
-          height: 80,
-        },
-        ...headerOptions,
-        headerLeft: () => (
-          <View style={styles.headerLeft}>
-            <ServiceStatusIndicator />
-          </View>
-        ),
-        headerRight: () => (
-          <Pressable style={styles.headerRight} onPress={() => router.push('/settings')}>
-            <MaterialIcons name="account-circle" size={26} color={theme.colors.onSurface} />
-          </Pressable>
-        ),
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          headerTitle: 'VeloMetry',
-          tabBarIcon: ({ color, size }) => <MaterialIcons name="home" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="journeys"
-        options={{
-          title: 'Journeys',
-          headerTitle: 'My Journeys',
-          headerShown: true,
-          tabBarIcon: ({ color, size }) => <MaterialIcons name="directions-car" size={size} color={color} />,
-        }}
-      />
-    </Tabs>
+    <NativeTabs iconColor={{ default: theme.colors.onSurface, selected: theme.colors.primary }}>
+      <NativeTabs.Trigger name="index" options={{ title: 'Home' }}>
+        <Label>Home</Label>
+        <Icon src={<VectorIcon family={MaterialIcons} name="home" />} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="journeys" options={{ title: 'Journeys' }}>
+        <Label>Journeys</Label>
+        <Icon src={<VectorIcon family={MaterialIcons} name="directions-car" />} />
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="../settings" options={{ title: 'settings' }}>
+        <Label>Settings</Label>
+        <Icon src={<VectorIcon family={MaterialIcons} name="account-circle" />} />
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }
-
-const styles = StyleSheet.create({
-  headerLeft: {
-    marginLeft: 12,
-  },
-  headerRight: {
-    marginRight: 12,
-  },
-});

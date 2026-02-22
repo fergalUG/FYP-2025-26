@@ -66,7 +66,12 @@ const ThemedRootStack = () => {
     <>
       <StatusBar style={statusStyle} />
       <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: false,
+          }}
+        />
         <Stack.Screen
           name="settings"
           options={{
