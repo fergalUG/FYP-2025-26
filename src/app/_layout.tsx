@@ -73,14 +73,6 @@ const ThemedRootStack = () => {
           }}
         />
         <Stack.Screen
-          name="settings"
-          options={{
-            title: 'Settings',
-            headerBackButtonDisplayMode: 'minimal',
-            ...headerOptions,
-          }}
-        />
-        <Stack.Screen
           name="journey/[journeyId]"
           options={{
             presentation: 'card',
