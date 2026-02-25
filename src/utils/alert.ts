@@ -1,16 +1,6 @@
 import { Alert } from 'react-native';
 
-export interface AlertConfig {
-  title: string;
-  message: string;
-  onPress?: () => void;
-}
-
 export const showSuccessAlert = (title: string, message: string, onPress?: () => void): void => {
-  Alert.alert(title, message, onPress ? [{ text: 'OK', onPress }] : undefined);
-};
-
-export const showErrorAlert = (title: string, message: string, onPress?: () => void): void => {
   Alert.alert(title, message, onPress ? [{ text: 'OK', onPress }] : undefined);
 };
 

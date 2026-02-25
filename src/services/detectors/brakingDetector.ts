@@ -2,7 +2,7 @@ import { BRAKING_TIER_THRESHOLDS, DETECTION_COOLDOWN_MS, SEVERITY_ORDER_DESC } f
 
 import type { DetectorContext, DetectorResult } from '@types';
 
-export interface BrakingDetector {
+interface BrakingDetector {
   detect: (context: DetectorContext) => DetectorResult;
   reset: () => void;
 }

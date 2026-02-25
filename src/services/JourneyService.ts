@@ -19,7 +19,7 @@ import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.JourneyService);
 
-export const createJourneyServiceController = (deps: JourneyServiceDeps): JourneyServiceController => {
+const createJourneyServiceController = (deps: JourneyServiceDeps): JourneyServiceController => {
   const fileSystem = deps.FileSystem ?? { File, Directory, Paths };
   const sharing = deps.Sharing ?? Sharing;
 

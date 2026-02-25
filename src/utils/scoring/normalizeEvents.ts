@@ -3,7 +3,7 @@ import { EventType } from '@types';
 
 import type { EfficiencyScoringConfig, IncidentFamily, SpeedingSeverity } from '@utils/scoring/efficiencyScoringConfig';
 
-export interface NormalizedIncident {
+interface NormalizedIncident {
   family: IncidentFamily;
   severity: EventSeverity | null;
   timestamp: number;
@@ -16,7 +16,7 @@ export interface SpeedingEpisode {
   severity: SpeedingSeverity;
 }
 
-export interface NormalizedJourneyEvents {
+interface NormalizedJourneyEvents {
   incidents: NormalizedIncident[];
   speedingEpisodes: SpeedingEpisode[];
 

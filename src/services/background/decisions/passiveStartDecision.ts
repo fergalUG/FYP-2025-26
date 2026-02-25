@@ -1,6 +1,6 @@
 import type { ValidatedSpeed } from '@utils/gpsValidation';
 
-export interface PassiveStartDecisionInput {
+interface PassiveStartDecisionInput {
   effectiveSpeed: ValidatedSpeed;
   locationTimestamp: number;
   candidateSince: number | null;
@@ -10,9 +10,9 @@ export interface PassiveStartDecisionInput {
   confirmationWindowMs: number;
 }
 
-export type PassiveStartDecisionAction = 'NONE' | 'RESET_CANDIDATE' | 'UPDATE_CANDIDATE' | 'START_ACTIVE_GPS' | 'START_ACTIVE_CALCULATED';
+type PassiveStartDecisionAction = 'NONE' | 'RESET_CANDIDATE' | 'UPDATE_CANDIDATE' | 'START_ACTIVE_GPS' | 'START_ACTIVE_CALCULATED';
 
-export interface PassiveStartDecisionResult {
+interface PassiveStartDecisionResult {
   action: PassiveStartDecisionAction;
   nextCandidateSince: number | null;
   nextCandidateCount: number;

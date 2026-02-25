@@ -6,7 +6,7 @@ import type { ValidatedSpeed } from '@utils/gpsValidation';
 import type { createLogger } from '@utils/logger';
 import type * as Location from 'expo-location';
 
-export interface ActiveStopEndOptions {
+interface ActiveStopEndOptions {
   tailPruneFromTimestamp?: number | null;
   finalDistanceKm?: number;
   finalLocation?: Location.LocationObject | null;
@@ -21,7 +21,7 @@ interface ProcessActiveStopDecisionInput {
   logger: ReturnType<typeof createLogger>;
 }
 
-export type ActiveStopProcessingResult = 'CONTINUE' | 'NEXT_LOCATION' | 'ENDED_ACTIVE';
+type ActiveStopProcessingResult = 'CONTINUE' | 'NEXT_LOCATION' | 'ENDED_ACTIVE';
 
 export const processActiveStopDecision = async (input: ProcessActiveStopDecisionInput): Promise<ActiveStopProcessingResult> => {
   const { state, effectiveSpeed, nowMs, isAutomotiveConfirmedForReset, endActiveTracking, logger } = input;

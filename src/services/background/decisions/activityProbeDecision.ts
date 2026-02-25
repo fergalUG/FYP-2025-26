@@ -6,7 +6,7 @@ import type { TrackingMode } from '@/types/tracking';
 import type { ValidatedSpeed } from '@utils/gpsValidation';
 import type * as Location from 'expo-location';
 
-export interface ActivityProbeDecisionInput {
+interface ActivityProbeDecisionInput {
   mode: TrackingMode;
   isTransitioning: boolean;
   passiveTrackingProfile: PassiveTrackingProfile;
@@ -19,9 +19,9 @@ export interface ActivityProbeDecisionInput {
   cooldownMs: number;
 }
 
-export type ActivityProbeDecisionAction = 'NONE' | 'SET_CANDIDATE' | 'RESET_CANDIDATE' | 'TRIGGER_PROBE';
+type ActivityProbeDecisionAction = 'NONE' | 'SET_CANDIDATE' | 'RESET_CANDIDATE' | 'TRIGGER_PROBE';
 
-export interface ActivityProbeDecisionResult {
+interface ActivityProbeDecisionResult {
   action: ActivityProbeDecisionAction;
   nextCandidateSince: number | null;
   nextLastTriggerAt: number | null;

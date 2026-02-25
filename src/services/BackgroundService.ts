@@ -38,7 +38,6 @@ import { checkSpeedOutlier } from '@utils/tracking/outlierDetection';
 import { checkServiceHealth } from '@utils/tracking/healthMonitor';
 import { createSpeedSmoother } from '@utils/tracking/speedSmoother';
 import {
-  ACTIVE_SPEED_THRESHOLD,
   MAX_ACCURACY,
   MAX_CONSECUTIVE_INVALID_SPEEDS,
   MAX_VALID_SPEED,
@@ -46,10 +45,6 @@ import {
   MIN_VALID_SPEED,
   PASSIVE_ACTIVITY_PROBE_COOLDOWN_MS,
   PASSIVE_ACTIVITY_PROBE_MIN_CONFIDENCE_SCORE,
-  PASSIVE_SPEED_THRESHOLD,
-  PASSIVE_START_CONFIRMATION_COUNT,
-  PASSIVE_START_CONFIRMATION_WINDOW_MS,
-  PASSIVE_TIMEOUT_MS,
   SPEED_BUFFER_SIZE,
 } from '@constants/gpsConfig';
 import { MAX_GPS_DROPOUT_DURATION_MS, RETRY_BASE_DELAY_MS, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY_MS } from '@constants/tracking';
@@ -778,12 +773,3 @@ export const stopLocationMonitoring = async (): Promise<void> => singleton.stopL
 export const ManualStartActiveTracking = async (): Promise<void> => singleton.manualStartActiveTracking();
 
 export const ManualStopActiveTracking = async (): Promise<void> => singleton.manualStopActiveTracking();
-
-export const __internal = {
-  BACKGROUND_LOCATION_TASK,
-  ACTIVE_SPEED_THRESHOLD,
-  PASSIVE_SPEED_THRESHOLD,
-  PASSIVE_TIMEOUT_MS,
-  PASSIVE_START_CONFIRMATION_COUNT,
-  PASSIVE_START_CONFIRMATION_WINDOW_MS,
-};

@@ -1,4 +1,4 @@
-export interface GpsConfig {
+interface GpsConfig {
   // Speed validation thresholds (in m/s)
   MIN_VALID_SPEED: number;
   MAX_VALID_SPEED: number;

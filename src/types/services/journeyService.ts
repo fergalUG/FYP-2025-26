@@ -46,7 +46,7 @@ export interface EventLogDetails {
   metadata?: EventMetadata | null;
 }
 
-export type JourneyChangeType = 'journey-started' | 'journey-ended' | 'journey-updated' | 'journey-deleted';
+type JourneyChangeType = 'journey-started' | 'journey-ended' | 'journey-updated' | 'journey-deleted';
 
 export interface JourneyChangeEvent {
   type: JourneyChangeType;

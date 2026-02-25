@@ -2,7 +2,7 @@ import { ACCELERATION_TIER_THRESHOLDS, DETECTION_COOLDOWN_MS, SEVERITY_ORDER_DES
 
 import type { DetectorContext, DetectorResult } from '@types';
 
-export interface AccelerationDetector {
+interface AccelerationDetector {
   detect: (context: DetectorContext) => DetectorResult;
   reset: () => void;
 }

@@ -27,9 +27,9 @@ export interface EfficiencyScoringConfig {
 export const DEFAULT_EFFICIENCY_SCORING_CONFIG: EfficiencyScoringConfig = {
   minScore: 0,
   maxScore: 100,
-  recoveryTauMs: 4 * 60 * 1000,
+  recoveryTauMs: 5 * 60 * 1000,
 
-  shortJourneyPriorMs: 5 * 60 * 1000,
+  shortJourneyPriorMs: 2 * 60 * 1000,
 
   dropPoints: {
     driving: {
@@ -49,9 +49,9 @@ export const DEFAULT_EFFICIENCY_SCORING_CONFIG: EfficiencyScoringConfig = {
         harsh: 6,
       },
       oscillation: {
-        light: 2,
-        moderate: 5,
-        harsh: 8,
+        light: 3,
+        moderate: 6,
+        harsh: 9,
       },
       speeding: {
         light: 1,
@@ -59,7 +59,7 @@ export const DEFAULT_EFFICIENCY_SCORING_CONFIG: EfficiencyScoringConfig = {
         harsh: 8,
       },
     },
-    stopAndGo: 5,
+    stopAndGo: 6,
   },
 
   incidentCooldownMs: {

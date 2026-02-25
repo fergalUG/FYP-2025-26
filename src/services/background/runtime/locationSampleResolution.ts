@@ -15,7 +15,7 @@ interface ResolveLocationSampleInput {
   logger: ReturnType<typeof createLogger>;
 }
 
-export interface ResolvedLocationSample {
+interface ResolvedLocationSample {
   locationForProcessing: Location.LocationObject;
   effectiveSpeed: ValidatedSpeed;
   speedSource: 'gps' | 'calculated';

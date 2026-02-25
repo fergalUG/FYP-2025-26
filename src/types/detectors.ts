@@ -46,7 +46,7 @@ export interface StopAndGoDetectorResult {
   metadata?: EventMetadata;
 }
 
-export type DetectorRejectionReason =
+type DetectorRejectionReason =
   | 'rate'
   | 'force'
   | 'heading'

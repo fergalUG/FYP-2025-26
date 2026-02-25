@@ -10,7 +10,7 @@ export type MotionData = {
   horizontalMagnitude: number;
 };
 
-export type ActivityConfidence = 'low' | 'medium' | 'high' | 'unknown';
+type ActivityConfidence = 'low' | 'medium' | 'high' | 'unknown';
 
 export type ActivityData = {
   automotive: boolean;

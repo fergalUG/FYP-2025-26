@@ -25,7 +25,7 @@ interface ProcessPassiveLocationInput {
   logger: ReturnType<typeof createLogger>;
 }
 
-export type PassiveLocationProcessingResult = 'CONTINUE' | 'STARTED_ACTIVE';
+type PassiveLocationProcessingResult = 'CONTINUE' | 'STARTED_ACTIVE';
 
 export const processPassiveLocation = async (input: ProcessPassiveLocationInput): Promise<PassiveLocationProcessingResult> => {
   const { state, location, locationForProcessing, effectiveSpeed, nowMs, switchPassiveTrackingProfile, startActiveTracking, logger } =

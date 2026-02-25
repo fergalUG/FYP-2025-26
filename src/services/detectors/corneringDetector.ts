@@ -7,7 +7,7 @@ import {
 
 import type { CorneringDetectorContext, DetectorResult } from '@types';
 
-export interface CorneringDetector {
+interface CorneringDetector {
   detect: (context: CorneringDetectorContext) => DetectorResult;
   reset: () => void;
 }

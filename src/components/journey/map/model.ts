@@ -17,7 +17,7 @@ import type {
   SpeedingSegment,
 } from '@components/journey/map/types';
 
-export interface JourneyMapRegion {
+interface JourneyMapRegion {
   latitude: number;
   longitude: number;
   latitudeDelta: number;

@@ -1,6 +1,6 @@
 import type { ValidatedSpeed } from '@utils/gpsValidation';
 
-export interface ActiveStopDecisionInput {
+interface ActiveStopDecisionInput {
   effectiveSpeed: ValidatedSpeed;
   now: number;
   totalDistanceKm: number;
@@ -12,7 +12,7 @@ export interface ActiveStopDecisionInput {
   progressResetDistanceKm: number;
 }
 
-export type ActiveStopDecisionAction =
+type ActiveStopDecisionAction =
   | 'NONE'
   | 'START_CANDIDATE'
   | 'RESET_CANDIDATE_PROGRESS'
@@ -21,7 +21,7 @@ export type ActiveStopDecisionAction =
   | 'TIMEOUT'
   | 'CANCEL_CANDIDATE';
 
-export interface ActiveStopDecisionResult {
+interface ActiveStopDecisionResult {
   action: ActiveStopDecisionAction;
   finalDistanceKm?: number;
   secondsLeft?: number;

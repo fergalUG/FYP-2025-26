@@ -16,7 +16,7 @@ import type {
   StopAndGoPhase,
 } from '@types';
 
-export interface StopAndGoDetector {
+interface StopAndGoDetector {
   detect: (context: StopAndGoDetectorContext) => StopAndGoDetectorResult;
   getState: () => StopAndGoDetectorState;
   isSuppressionActive: () => boolean;

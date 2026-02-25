@@ -21,7 +21,7 @@ interface PassiveActivityMonitoringDeps {
   logger: ReturnType<typeof createLogger>;
 }
 
-export interface PassiveActivityMonitoringController {
+interface PassiveActivityMonitoringController {
   start: () => void;
   stop: () => void;
 }

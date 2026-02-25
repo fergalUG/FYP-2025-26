@@ -2,7 +2,7 @@ import { SEVERITY_ORDER_DESC, SPEEDING_THRESHOLD_KMH } from '@utils/tracking/sev
 
 import type { EventSeverity } from '@/types/db';
 
-export interface SpeedingDetector {
+interface SpeedingDetector {
   detect: (speedKmh: number) => EventSeverity | null;
 }
 

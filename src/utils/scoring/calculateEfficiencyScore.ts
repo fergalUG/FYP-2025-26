@@ -7,7 +7,7 @@ import { DEFAULT_EFFICIENCY_SCORING_CONFIG } from '@utils/scoring/efficiencyScor
 import { normalizeJourneyEvents } from '@utils/scoring/normalizeEvents';
 import { simulateScoreTimeline } from '@utils/scoring/simulateScore';
 
-export interface EfficiencyScoreResult {
+interface EfficiencyScoreResult {
   score: number;
   stats: ScoringStats;
 }
