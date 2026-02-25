@@ -31,6 +31,7 @@ export interface JourneyServiceController {
   updateJourney: (id: number, updates: Partial<Journey>) => Promise<Journey | undefined>;
   updateJourneyTitle: (journeyId: number, title: string) => Promise<boolean>;
   logEvent: (type: EventType, latitude: number, longitude: number, speed: number, details?: EventLogDetails) => Promise<void>;
+  deleteEventsSince: (journeyId: number, timestamp: number) => Promise<void>;
   getJourneyById: (id: number) => Promise<Journey | null>;
   getAllJourneys: () => Promise<Journey[]>;
   deleteJourney: (journeyId: number) => Promise<boolean>;

@@ -41,24 +41,6 @@ class SignalProcessor {
 
     init() {}
 
-    func setFilterAlpha(_ val: Double) {
-        let clamped = max(0.05, min(0.8, val))
-        let t = (clamped - 0.05) / (0.8 - 0.05)
-        self.fcScale = 0.6 + t * 1.0
-    }
-    
-    func setFcMin(_ val: Double) {
-        self.fcMin = max(0.01, min(2.0, val))
-    }
-    
-    func setFcMax(_ val: Double) {
-        self.fcMax = max(0.5, min(10.0, val))
-    }
-    
-    func setGyroRef(_ val: Double) {
-        self.gyroRef = max(0.1, min(5.0, val))
-    }
-
     func reset() {
         linearEstimate = nil
     }
