@@ -1,9 +1,32 @@
 import { calculateDistanceKm } from '@utils/gpsValidation';
 
 import type { ActivityData } from '@modules/vehicle-motion/src/VehicleMotion.types';
-import type { ActivityProbeDecisionInput, ActivityProbeDecisionResult } from '@/types/services/background/decisions';
+import type { PassiveTrackingProfile } from '@/types/services/backgroundService';
+import type { TrackingMode } from '@/types/tracking';
 import type { ValidatedSpeed } from '@utils/gpsValidation';
 import type * as Location from 'expo-location';
+
+export interface ActivityProbeDecisionInput {
+  mode: TrackingMode;
+  isTransitioning: boolean;
+  passiveTrackingProfile: PassiveTrackingProfile;
+  passiveActivityCandidateSince: number | null;
+  lastActivityProbeTriggerAt: number | null;
+  now: number;
+  activity: ActivityData;
+  minConfidenceScore: number;
+  debounceMs: number;
+  cooldownMs: number;
+}
+
+export type ActivityProbeDecisionAction = 'NONE' | 'SET_CANDIDATE' | 'RESET_CANDIDATE' | 'TRIGGER_PROBE';
+
+export interface ActivityProbeDecisionResult {
+  action: ActivityProbeDecisionAction;
+  nextCandidateSince: number | null;
+  nextLastTriggerAt: number | null;
+  shouldSwitchToProbe: boolean;
+}
 
 export const resolveActivityConfidenceScore = (confidence: ActivityData['confidence']): number => {
   switch (confidence) {

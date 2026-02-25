@@ -1,4 +1,33 @@
-import type { ActiveStopDecisionInput, ActiveStopDecisionResult } from '@/types/services/background/decisions';
+import type { ValidatedSpeed } from '@utils/gpsValidation';
+
+export interface ActiveStopDecisionInput {
+  effectiveSpeed: ValidatedSpeed;
+  now: number;
+  totalDistanceKm: number;
+  lowSpeedStartTime: number | null;
+  lowSpeedStartDistanceKm: number | null;
+  isAutomotiveConfirmedForReset: boolean;
+  passiveSpeedThreshold: number;
+  timeoutMs: number;
+  progressResetDistanceKm: number;
+}
+
+export type ActiveStopDecisionAction =
+  | 'NONE'
+  | 'START_CANDIDATE'
+  | 'RESET_CANDIDATE_PROGRESS'
+  | 'END_UNCONFIRMED_ACTIVITY'
+  | 'ONGOING'
+  | 'TIMEOUT'
+  | 'CANCEL_CANDIDATE';
+
+export interface ActiveStopDecisionResult {
+  action: ActiveStopDecisionAction;
+  finalDistanceKm?: number;
+  secondsLeft?: number;
+  timeoutMinutes?: number;
+  distanceSinceCandidateStartKm?: number;
+}
 
 export const evaluateActiveStopDecision = (input: ActiveStopDecisionInput): ActiveStopDecisionResult => {
   const {

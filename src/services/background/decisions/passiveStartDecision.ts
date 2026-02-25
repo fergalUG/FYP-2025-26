@@ -1,4 +1,22 @@
-import type { PassiveStartDecisionInput, PassiveStartDecisionResult } from '@/types/services/background/decisions';
+import type { ValidatedSpeed } from '@utils/gpsValidation';
+
+export interface PassiveStartDecisionInput {
+  effectiveSpeed: ValidatedSpeed;
+  locationTimestamp: number;
+  candidateSince: number | null;
+  candidateCount: number;
+  activeSpeedThreshold: number;
+  confirmationCount: number;
+  confirmationWindowMs: number;
+}
+
+export type PassiveStartDecisionAction = 'NONE' | 'RESET_CANDIDATE' | 'UPDATE_CANDIDATE' | 'START_ACTIVE_GPS' | 'START_ACTIVE_CALCULATED';
+
+export interface PassiveStartDecisionResult {
+  action: PassiveStartDecisionAction;
+  nextCandidateSince: number | null;
+  nextCandidateCount: number;
+}
 
 export const evaluatePassiveStartDecision = (input: PassiveStartDecisionInput): PassiveStartDecisionResult => {
   const {
