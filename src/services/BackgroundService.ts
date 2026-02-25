@@ -17,7 +17,10 @@ import { JourneyService } from '@services/JourneyService';
 import { EfficiencyService } from '@services/EfficiencyService';
 import { evaluateActiveStopDecision } from '@services/background/decisions/activeStopDecision';
 import { evaluatePassiveStartDecision } from '@services/background/decisions/passiveStartDecision';
-import { shouldTriggerPassiveProbeFromLocation } from '@services/background/decisions/activityProbeDecision';
+import {
+  resolveActivityConfidenceScore,
+  shouldTriggerPassiveProbeFromLocation,
+} from '@services/background/decisions/activityProbeDecision';
 import { buildPassiveTrackingOptions } from '@services/background/location/passiveProfileOptions';
 import { resolvePassiveEffectiveSpeed } from '@services/background/location/passiveSpeed';
 import { createPassiveActivityMonitoringController } from '@services/background/runtime/activityMonitoring';
@@ -45,9 +48,11 @@ import {
   MIN_ACCURACY,
   MIN_VALID_SPEED,
   LOW_SPEED_PROGRESS_RESET_DISTANCE_KM,
+  PASSIVE_ACTIVITY_PROBE_COOLDOWN_MS,
   PASSIVE_PROBE_DURATION_MS,
   PASSIVE_PROBE_MIN_DISPLACEMENT_KM,
   PASSIVE_PROBE_TRIGGER_SPEED_THRESHOLD,
+  PASSIVE_ACTIVITY_PROBE_MIN_CONFIDENCE_SCORE,
   PASSIVE_SPEED_THRESHOLD,
   PASSIVE_START_CONFIRMATION_COUNT,
   PASSIVE_START_CONFIRMATION_WINDOW_MS,
@@ -57,6 +62,7 @@ import {
 import { MAX_GPS_DROPOUT_DURATION_MS, RETRY_BASE_DELAY_MS, RETRY_MAX_ATTEMPTS, RETRY_MAX_DELAY_MS } from '@constants/tracking';
 
 import type { GpsDropoutState, ServiceHealth } from '@/types/tracking';
+import type { ActivityData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 
 const BACKGROUND_LOCATION_TASK: string = 'BACKGROUND-LOCATION-TASK';
 
@@ -138,8 +144,28 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
   let lastHealthIssuesKey: string | null = null;
   let isOutlierSeriesActive = false;
   let isPassiveProfileSwitching = false;
+  let latestActivityUpdate: ActivityData | null = null;
+  let latestActivityObservedAtMs: number | null = null;
 
   const listeners = new Set<(state: TrackingState) => void>();
+
+  const recordActivityUpdate = (activity: ActivityData): void => {
+    latestActivityUpdate = activity;
+    latestActivityObservedAtMs = deps.now();
+  };
+
+  const hasConfirmedAutomotiveActivity = (nowMs: number): boolean => {
+    if (!latestActivityUpdate || latestActivityObservedAtMs === null) {
+      return false;
+    }
+
+    if (nowMs - latestActivityObservedAtMs > PASSIVE_ACTIVITY_PROBE_COOLDOWN_MS) {
+      return false;
+    }
+
+    const confidenceScore = resolveActivityConfidenceScore(latestActivityUpdate.confidence);
+    return latestActivityUpdate.automotive && confidenceScore >= PASSIVE_ACTIVITY_PROBE_MIN_CONFIDENCE_SCORE;
+  };
 
   const emitStateChange = () => {
     const currentState = { ...state };
@@ -234,6 +260,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     now: deps.now,
     emitStateChange,
     switchPassiveTrackingProfile,
+    onActivityUpdate: recordActivityUpdate,
     logger: deps.logger,
   });
 
@@ -289,7 +316,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       resetPassiveStartCandidate(state);
       resetPassiveActivityCandidate(state);
       state.passiveProbeStartedAt = null;
-      passiveActivityMonitoring.stop();
+      passiveActivityMonitoring.start();
       speedSmoother.reset();
 
       await deps.JourneyService.startJourney();
@@ -747,12 +774,14 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
       if (state.mode === 'ACTIVE' && !state.isTransitioning) {
         const now = deps.now();
+        const automotiveConfirmedForReset = hasConfirmedAutomotiveActivity(now);
         const activeStopDecision = evaluateActiveStopDecision({
           effectiveSpeed,
           now,
           totalDistanceKm: state.totalDistance,
           lowSpeedStartTime: state.lowSpeedStartTime,
           lowSpeedStartDistanceKm: state.lowSpeedStartDistanceKm,
+          isAutomotiveConfirmedForReset: automotiveConfirmedForReset,
           passiveSpeedThreshold: PASSIVE_SPEED_THRESHOLD,
           timeoutMs: PASSIVE_TIMEOUT_MS,
           progressResetDistanceKm: LOW_SPEED_PROGRESS_RESET_DISTANCE_KM,
@@ -776,6 +805,18 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
             `Low-speed timeout reset: vehicle moved ${((activeStopDecision.distanceSinceCandidateStartKm ?? 0) * 1000).toFixed(0)}m during candidate window.`
           );
           continue;
+        }
+
+        if (activeStopDecision.action === 'END_UNCONFIRMED_ACTIVITY') {
+          deps.logger.info(
+            `Low-speed progress detected (${((activeStopDecision.distanceSinceCandidateStartKm ?? 0) * 1000).toFixed(0)}m) without confirmed automotive activity; ending journey.`
+          );
+          await endActiveTracking({
+            tailPruneFromTimestamp: state.lowSpeedStartEventTimestamp,
+            finalDistanceKm: activeStopDecision.finalDistanceKm ?? state.totalDistance,
+            finalLocation: state.lowSpeedStartLocation ?? state.lastLocation,
+          });
+          return;
         }
 
         if (activeStopDecision.action === 'TIMEOUT') {
@@ -848,6 +889,8 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       registerBackgroundTask();
       await deps.Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       passiveActivityMonitoring.stop();
+      latestActivityUpdate = null;
+      latestActivityObservedAtMs = null;
       state.isMonitoring = false;
       emitStateChange();
     },

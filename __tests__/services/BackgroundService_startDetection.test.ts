@@ -2,9 +2,10 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 
 import { createBackgroundServiceController } from '@services/BackgroundService';
-import { PASSIVE_START_CONFIRMATION_WINDOW_MS } from '@constants/gpsConfig';
+import { PASSIVE_ACTIVITY_PROBE_DEBOUNCE_MS, PASSIVE_START_CONFIRMATION_WINDOW_MS } from '@constants/gpsConfig';
 
 import type { LocationObject } from 'expo-location';
+import type { ActivityData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 
 const makeLocation = (latitude: number, longitude: number, speed: number, accuracy: number, timestamp: number): LocationObject =>
   ({
@@ -49,6 +50,13 @@ describe('BackgroundService passive start detection', () => {
     error: jest.fn(),
   };
 
+  const mockVehicleMotion: any = {
+    startActivityUpdates: jest.fn(),
+    stopActivityUpdates: jest.fn(),
+    addListener: jest.fn(),
+    removeAllListeners: jest.fn(),
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     nowMs = 1000000;
@@ -65,6 +73,7 @@ describe('BackgroundService passive start detection', () => {
       TaskManager,
       JourneyService: mockJourneyService,
       EfficiencyService: mockEfficiencyService,
+      VehicleMotion: mockVehicleMotion,
       now,
       logger: mockLogger,
     });
@@ -212,5 +221,55 @@ describe('BackgroundService passive start detection', () => {
         speedSource: 'calculated',
       })
     );
+  });
+
+  it('switches to probe profile from sustained automotive activity and uses non-deferred probe settings', async () => {
+    await controller.startLocationMonitoring();
+
+    const listener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (data: ActivityData) => Promise<void> | void;
+    const activity: ActivityData = {
+      automotive: true,
+      walking: false,
+      running: false,
+      cycling: false,
+      stationary: false,
+      unknown: false,
+      confidence: 'high',
+      timestamp: nowMs,
+    };
+
+    await listener(activity);
+    expect(controller.getState().passiveTrackingProfile).toBe('COARSE');
+
+    nowMs += PASSIVE_ACTIVITY_PROBE_DEBOUNCE_MS + 10;
+    await listener({ ...activity, timestamp: nowMs });
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve();
+    }
+
+    expect(controller.getState().passiveTrackingProfile).toBe('PROBE');
+    expect(Location.startLocationUpdatesAsync).toHaveBeenLastCalledWith(
+      'BACKGROUND-LOCATION-TASK',
+      expect.objectContaining({
+        distanceInterval: 10,
+        deferredUpdatesInterval: 0,
+        deferredUpdatesDistance: 0,
+      })
+    );
+  });
+
+  it('keeps activity monitoring active when switching to active mode', async () => {
+    await controller.startLocationMonitoring();
+    expect(mockVehicleMotion.startActivityUpdates).toHaveBeenCalledTimes(1);
+
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.0, -6.0, 20, 5, nowMs)],
+      },
+    });
+
+    expect(controller.getState().mode).toBe('ACTIVE');
+    expect(mockVehicleMotion.removeAllListeners).not.toHaveBeenCalledWith('onActivityUpdate');
+    expect(mockVehicleMotion.stopActivityUpdates).not.toHaveBeenCalled();
   });
 });

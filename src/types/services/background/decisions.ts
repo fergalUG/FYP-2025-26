@@ -49,12 +49,20 @@ export interface ActiveStopDecisionInput {
   totalDistanceKm: number;
   lowSpeedStartTime: number | null;
   lowSpeedStartDistanceKm: number | null;
+  isAutomotiveConfirmedForReset: boolean;
   passiveSpeedThreshold: number;
   timeoutMs: number;
   progressResetDistanceKm: number;
 }
 
-export type ActiveStopDecisionAction = 'NONE' | 'START_CANDIDATE' | 'RESET_CANDIDATE_PROGRESS' | 'ONGOING' | 'TIMEOUT' | 'CANCEL_CANDIDATE';
+export type ActiveStopDecisionAction =
+  | 'NONE'
+  | 'START_CANDIDATE'
+  | 'RESET_CANDIDATE_PROGRESS'
+  | 'END_UNCONFIRMED_ACTIVITY'
+  | 'ONGOING'
+  | 'TIMEOUT'
+  | 'CANCEL_CANDIDATE';
 
 export interface ActiveStopDecisionResult {
   action: ActiveStopDecisionAction;

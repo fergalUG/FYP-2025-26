@@ -7,6 +7,7 @@ export const evaluateActiveStopDecision = (input: ActiveStopDecisionInput): Acti
     totalDistanceKm,
     lowSpeedStartTime,
     lowSpeedStartDistanceKm,
+    isAutomotiveConfirmedForReset,
     passiveSpeedThreshold,
     timeoutMs,
     progressResetDistanceKm,
@@ -23,6 +24,14 @@ export const evaluateActiveStopDecision = (input: ActiveStopDecisionInput): Acti
     const distanceSinceCandidateStartKm = Math.max(0, totalDistanceKm - distanceAtCandidateStart);
 
     if (distanceSinceCandidateStartKm >= progressResetDistanceKm) {
+      if (!isAutomotiveConfirmedForReset) {
+        return {
+          action: 'END_UNCONFIRMED_ACTIVITY',
+          finalDistanceKm: lowSpeedStartDistanceKm ?? totalDistanceKm,
+          distanceSinceCandidateStartKm,
+        };
+      }
+
       return {
         action: 'RESET_CANDIDATE_PROGRESS',
         distanceSinceCandidateStartKm,

@@ -17,6 +17,7 @@ interface PassiveActivityMonitoringDeps {
   now: () => number;
   emitStateChange: () => void;
   switchPassiveTrackingProfile: (profile: PassiveTrackingProfile, reason: string) => Promise<void>;
+  onActivityUpdate?: (data: ActivityData) => void;
   logger: ReturnType<typeof createLogger>;
 }
 
@@ -29,6 +30,8 @@ export const createPassiveActivityMonitoringController = (deps: PassiveActivityM
   let isMonitoring = false;
 
   const processActivityUpdate = async (data: ActivityData): Promise<void> => {
+    deps.onActivityUpdate?.(data);
+
     const decision = evaluateActivityProbeDecision({
       mode: deps.state.mode,
       isTransitioning: deps.state.isTransitioning,
