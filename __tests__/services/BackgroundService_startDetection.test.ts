@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 
 import { createBackgroundServiceController } from '@services/BackgroundService';
 import { PASSIVE_ACTIVITY_PROBE_DEBOUNCE_MS, PASSIVE_START_CONFIRMATION_WINDOW_MS } from '@constants/gpsConfig';
+import { EventType } from '@types';
 
 import type { LocationObject } from 'expo-location';
 import type { ActivityData } from '@modules/vehicle-motion/src/VehicleMotion.types';
@@ -269,5 +270,23 @@ describe('BackgroundService passive start detection', () => {
     expect(controller.getState().mode).toBe('ACTIVE');
     expect(mockVehicleMotion.removeAllListeners).not.toHaveBeenCalledWith('onActivityUpdate');
     expect(mockVehicleMotion.stopActivityUpdates).not.toHaveBeenCalled();
+  });
+
+  it('logs JourneyStart before first LocationUpdate when bootstrap location is unavailable', async () => {
+    (Location.getCurrentPositionAsync as jest.Mock).mockRejectedValueOnce(new Error('no bootstrap fix'));
+
+    await controller.manualStartActiveTracking();
+    expect(controller.getState().mode).toBe('ACTIVE');
+
+    nowMs += 1000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [makeLocation(53.0, -6.0, 12, 5, nowMs)],
+      },
+    });
+
+    const eventTypes = mockJourneyService.logEvent.mock.calls.map((call: any[]) => call[0]);
+    expect(eventTypes[0]).toBe(EventType.JourneyStart);
+    expect(eventTypes[1]).toBe(EventType.LocationUpdate);
   });
 });

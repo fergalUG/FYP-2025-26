@@ -2,7 +2,7 @@ import { LOW_SPEED_PROGRESS_RESET_DISTANCE_KM, PASSIVE_SPEED_THRESHOLD, PASSIVE_
 import { evaluateActiveStopDecision } from '@services/background/decisions/activeStopDecision';
 import { clearLowSpeedCandidate } from '@services/background/state/mutators';
 import type { TrackingState } from '@types';
-import type { ValidatedSpeed } from '@utils/gpsValidation';
+import { convertMsToKmh, type ValidatedSpeed } from '@utils/gpsValidation';
 import type { createLogger } from '@utils/logger';
 import type * as Location from 'expo-location';
 
@@ -72,7 +72,8 @@ export const processActiveStopDecision = async (input: ProcessActiveStopDecision
 
   if (activeStopDecision.action === 'TIMEOUT') {
     const timeoutMinutes = activeStopDecision.timeoutMinutes ?? Math.round(PASSIVE_TIMEOUT_MS / 60000);
-    logger.info(`Speed remained below 10km/h for ${timeoutMinutes} minutes; switching to PASSIVE tracking mode.`);
+    const thresholdSpeedKmh = convertMsToKmh(PASSIVE_SPEED_THRESHOLD).toFixed(1);
+    logger.info(`Speed remained below ${thresholdSpeedKmh}km/h for ${timeoutMinutes} minutes; switching to PASSIVE tracking mode.`);
     await endActiveTracking({
       tailPruneFromTimestamp: state.lowSpeedStartEventTimestamp,
       finalDistanceKm: activeStopDecision.finalDistanceKm ?? state.totalDistance,

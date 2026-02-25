@@ -53,6 +53,7 @@ import type { GpsDropoutState, ServiceHealth } from '@/types/tracking';
 import type { ActivityData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 
 const BACKGROUND_LOCATION_TASK: string = 'BACKGROUND-LOCATION-TASK';
+const ACTIVE_START_BOOTSTRAP_LOCATION_TIMEOUT_MS = 2000;
 
 const DEFAULT_GPS_OPTIONS: GpsValidationOptions = {
   minValidSpeed: MIN_VALID_SPEED,
@@ -112,6 +113,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
   let isPassiveProfileSwitching = false;
   let latestActivityUpdate: ActivityData | null = null;
   let latestActivityObservedAtMs: number | null = null;
+  let isActiveJourneyStartLogged = false;
 
   const listeners = new Set<(state: TrackingState) => void>();
 
@@ -259,6 +261,62 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     resetPassiveStartCandidate(state);
     state.passiveProbeStartedAt = null;
     speedSmoother.reset();
+    isActiveJourneyStartLogged = false;
+  };
+
+  const resolveBootstrapLocationWithTimeout = async (): Promise<Location.LocationObject | null> => {
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const location = await Promise.race<Location.LocationObject | null>([
+        deps.Location.getCurrentPositionAsync({
+          accuracy: deps.Location.Accuracy.BestForNavigation,
+        }),
+        new Promise<null>((resolve) => {
+          timeoutHandle = setTimeout(() => {
+            resolve(null);
+          }, ACTIVE_START_BOOTSTRAP_LOCATION_TIMEOUT_MS);
+        }),
+      ]);
+      return location;
+    } catch (error) {
+      deps.logger.warn('Could not get initial location for journey start:', error);
+      return null;
+    } finally {
+      if (timeoutHandle !== null) {
+        clearTimeout(timeoutHandle);
+      }
+    }
+  };
+
+  const logJourneyStartForLocation = async (journeyId: number, location: Location.LocationObject): Promise<void> => {
+    if (state.currentJourneyId !== journeyId) {
+      return;
+    }
+
+    await deps.JourneyService.logEvent(EventType.JourneyStart, location.coords.latitude, location.coords.longitude, 0);
+    isActiveJourneyStartLogged = true;
+    state.lastLocation = location;
+
+    void getLocationLabel(location.coords.latitude, location.coords.longitude)
+      .then((label) => {
+        if (state.currentJourneyId !== journeyId) {
+          return;
+        }
+        state.startLocationLabel = label;
+        emitStateChange();
+      })
+      .catch((error) => {
+        deps.logger.warn('Could not resolve start location label:', error);
+      });
+  };
+
+  const ensureActiveJourneyStartLogged = async (location: Location.LocationObject): Promise<void> => {
+    if (isActiveJourneyStartLogged || state.currentJourneyId === null) {
+      return;
+    }
+
+    await logJourneyStartForLocation(state.currentJourneyId, location);
+    deps.logger.info('JourneyStart was anchored using first ACTIVE location update.');
   };
 
   const rollbackFailedActiveStart = async (journeyId: number, message: string, error?: unknown): Promise<void> => {
@@ -334,42 +392,16 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       try {
         const bootstrapLocation = triggerLocation ?? state.lastLocation;
         if (bootstrapLocation) {
-          await deps.JourneyService.logEvent(
-            EventType.JourneyStart,
-            bootstrapLocation.coords.latitude,
-            bootstrapLocation.coords.longitude,
-            0
-          );
-          state.lastLocation = bootstrapLocation;
-          void getLocationLabel(bootstrapLocation.coords.latitude, bootstrapLocation.coords.longitude)
-            .then((label) => {
-              if (state.currentJourneyId !== journeyId || state.mode !== 'ACTIVE') {
-                return;
-              }
-              state.startLocationLabel = label;
-              emitStateChange();
-            })
-            .catch((error) => {
-              deps.logger.warn('Could not resolve start location label:', error);
-            });
+          await logJourneyStartForLocation(journeyId, bootstrapLocation);
         } else {
-          void (async () => {
-            try {
-              const location = await deps.Location.getCurrentPositionAsync({
-                accuracy: deps.Location.Accuracy.BestForNavigation,
-              });
-              if (state.currentJourneyId !== journeyId || state.mode !== 'ACTIVE') {
-                return;
-              }
-
-              await deps.JourneyService.logEvent(EventType.JourneyStart, location.coords.latitude, location.coords.longitude, 0);
-              state.lastLocation = location;
-              state.startLocationLabel = await getLocationLabel(location.coords.latitude, location.coords.longitude);
-              emitStateChange();
-            } catch (error) {
-              deps.logger.warn('Could not get initial location for journey start:', error);
-            }
-          })();
+          const resolvedBootstrapLocation = await resolveBootstrapLocationWithTimeout();
+          if (resolvedBootstrapLocation) {
+            await logJourneyStartForLocation(journeyId, resolvedBootstrapLocation);
+          } else {
+            deps.logger.warn(
+              'Could not resolve bootstrap location before ACTIVE processing; JourneyStart will be anchored on first ACTIVE location update.'
+            );
+          }
         }
 
         deps.EfficiencyService.startTracking();
@@ -634,6 +666,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       );
 
       if (state.mode === 'ACTIVE' && state.currentJourneyId !== null && !state.isTransitioning) {
+        await ensureActiveJourneyStartLogged(resolvedLocation.locationForProcessing);
         await processActiveLocation(resolvedLocation.locationForProcessing, resolvedLocation.speedSource);
       } else if (state.mode === 'ACTIVE' && state.currentJourneyId === null) {
         deps.logger.debug('Skipping active location processing: no current journey id.');

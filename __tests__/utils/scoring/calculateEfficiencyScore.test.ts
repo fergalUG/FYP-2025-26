@@ -223,4 +223,16 @@ describe('calculateEfficiencyScore', () => {
     expect(result.stats.avgSpeed).toBe(60);
     expect(result.stats.maxSpeed).toBe(80);
   });
+
+  it('uses earliest event timestamp when JourneyStart arrives late', () => {
+    const events = [
+      makeEvent({ id: 1, timestamp: 0, type: EventType.LocationUpdate, speed: 40 }),
+      makeEvent({ id: 2, timestamp: 100000, type: EventType.JourneyStart, speed: 0 }),
+      makeEvent({ id: 3, timestamp: 200000, type: EventType.DrivingEvent, family: 'braking', severity: 'harsh' }),
+      makeEvent({ id: 4, timestamp: 600000, type: EventType.JourneyEnd, speed: 0 }),
+    ];
+
+    const result = calculateEfficiencyScore(events, 0, baseConfig);
+    expect(result.stats.durationMs).toBe(600000);
+  });
 });
