@@ -56,7 +56,6 @@ export const createPassiveActivityMonitoringController = (deps: PassiveActivityM
     if (decision.shouldSwitchToProbe) {
       deps.logger.info(`Passive automotive activity detected (${data.confidence}); switching to probe profile.`);
       await deps.switchPassiveTrackingProfile('PROBE', `automotive activity (${data.confidence})`);
-      deps.emitStateChange();
     }
   };
 
