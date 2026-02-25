@@ -1,5 +1,4 @@
 import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
 import { createBackgroundServiceController } from '@services/BackgroundService';
 import { PASSIVE_TIMEOUT_MS } from '@constants/gpsConfig';
 
@@ -50,7 +49,6 @@ describe('BackgroundService Timeout Logic', () => {
 
     controller = createBackgroundServiceController({
       Location,
-      TaskManager,
       JourneyService: mockJourneyService,
       EfficiencyService: mockEfficiencyService,
       now,

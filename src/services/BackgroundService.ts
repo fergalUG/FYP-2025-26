@@ -15,15 +15,13 @@ import {
 } from '@types';
 import { JourneyService } from '@services/JourneyService';
 import { EfficiencyService } from '@services/EfficiencyService';
-import { evaluateActiveStopDecision } from '@services/background/decisions/activeStopDecision';
-import { evaluatePassiveStartDecision } from '@services/background/decisions/passiveStartDecision';
-import {
-  resolveActivityConfidenceScore,
-  shouldTriggerPassiveProbeFromLocation,
-} from '@services/background/decisions/activityProbeDecision';
+import { resolveActivityConfidenceScore } from '@services/background/decisions/activityProbeDecision';
 import { buildPassiveTrackingOptions } from '@services/background/location/passiveProfileOptions';
-import { resolvePassiveEffectiveSpeed } from '@services/background/location/passiveSpeed';
+import { processActiveStopDecision } from '@services/background/runtime/activeStopProcessing';
 import { createPassiveActivityMonitoringController } from '@services/background/runtime/activityMonitoring';
+import { resolveLocationSample } from '@services/background/runtime/locationSampleResolution';
+import { processPassiveLocation } from '@services/background/runtime/passiveLocationProcessing';
+import { ensureBackgroundLocationTaskRegistered } from '@services/background/runtime/taskRegistration';
 import { clearLowSpeedCandidate, resetPassiveActivityCandidate, resetPassiveStartCandidate } from '@services/background/state/mutators';
 import { createLogger, LogModule } from '@utils/logger';
 import {
@@ -37,7 +35,6 @@ import {
 } from '@utils/gpsValidation';
 import { withRetry } from '@utils/async/retry';
 import { checkSpeedOutlier } from '@utils/tracking/outlierDetection';
-import { handleGpsDropout } from '@utils/tracking/gpsDropoutHandler';
 import { checkServiceHealth } from '@utils/tracking/healthMonitor';
 import { createSpeedSmoother } from '@utils/tracking/speedSmoother';
 import {
@@ -47,11 +44,7 @@ import {
   MAX_VALID_SPEED,
   MIN_ACCURACY,
   MIN_VALID_SPEED,
-  LOW_SPEED_PROGRESS_RESET_DISTANCE_KM,
   PASSIVE_ACTIVITY_PROBE_COOLDOWN_MS,
-  PASSIVE_PROBE_DURATION_MS,
-  PASSIVE_PROBE_MIN_DISPLACEMENT_KM,
-  PASSIVE_PROBE_TRIGGER_SPEED_THRESHOLD,
   PASSIVE_ACTIVITY_PROBE_MIN_CONFIDENCE_SCORE,
   PASSIVE_SPEED_THRESHOLD,
   PASSIVE_START_CONFIRMATION_COUNT,
@@ -89,26 +82,6 @@ interface EndActiveTrackingOptions {
   finalLocation?: Location.LocationObject | null;
 }
 
-//declare this outside the controller so startLocationTracking can use it to not crash
-const getLocationPermissions = async () => {
-  try {
-    const foreground = await Location.getForegroundPermissionsAsync();
-    if (!foreground.granted) {
-      return foreground.canAskAgain ? 'unknown' : 'denied';
-    }
-
-    const background = await Location.getBackgroundPermissionsAsync();
-    if (!background.granted) {
-      return background.canAskAgain ? 'unknown' : 'denied';
-    }
-
-    return 'granted';
-  } catch (error) {
-    logger.warn('Error checking location permission status:', error);
-    return 'unknown';
-  }
-};
-
 export const createBackgroundServiceController = (deps: BackgroundServiceDeps): BackgroundServiceController => {
   const state: TrackingState = {
     mode: 'PASSIVE',
@@ -135,8 +108,6 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
   const speedSmoother = createSpeedSmoother(SPEED_BUFFER_SIZE);
 
-  let isInited = false;
-  let isTaskRegistered = false;
   let gpsDropoutState: GpsDropoutState = {
     isInDropout: false,
     dropoutStartTime: null,
@@ -196,6 +167,25 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     if (lastHealthIssuesKey !== null) {
       deps.logger.info('Tracking health recovered');
       lastHealthIssuesKey = null;
+    }
+  };
+
+  const getLocationPermissions = async (): Promise<PermissionState> => {
+    try {
+      const foreground = await deps.Location.getForegroundPermissionsAsync();
+      if (!foreground.granted) {
+        return foreground.canAskAgain ? 'unknown' : 'denied';
+      }
+
+      const background = await deps.Location.getBackgroundPermissionsAsync();
+      if (!background.granted) {
+        return background.canAskAgain ? 'unknown' : 'denied';
+      }
+
+      return 'granted';
+    } catch (error) {
+      deps.logger.warn('Error checking location permission state:', error);
+      return 'unknown';
     }
   };
 
@@ -264,6 +254,33 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     logger: deps.logger,
   });
 
+  const resetJourneyTrackingRuntime = (lastLocation: Location.LocationObject | null): void => {
+    state.totalDistance = 0;
+    state.lastLocation = lastLocation;
+    state.startLocationLabel = null;
+    clearLowSpeedCandidate(state);
+    state.lastValidSpeed = 0;
+    state.consecutiveInvalidSpeeds = 0;
+    resetPassiveStartCandidate(state);
+    state.passiveProbeStartedAt = null;
+    speedSmoother.reset();
+  };
+
+  const rollbackFailedActiveStart = async (journeyId: number, message: string, error?: unknown): Promise<void> => {
+    if (error) {
+      deps.logger.error(message, error);
+    } else {
+      deps.logger.error(message);
+    }
+
+    deps.EfficiencyService.stopTracking();
+    await deps.JourneyService.endJourney(100, 0, null);
+    await deps.JourneyService.deleteJourney(journeyId);
+    state.currentJourneyId = null;
+    resetJourneyTrackingRuntime(null);
+    await startPassiveTracking('COARSE');
+  };
+
   const startPassiveTracking = async (profile: PassiveTrackingProfile = 'COARSE'): Promise<boolean> => {
     const previousMode = state.mode;
     const previousProfile = state.passiveTrackingProfile;
@@ -307,17 +324,9 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     state.isTransitioning = true;
 
     try {
-      state.totalDistance = 0;
-      state.lastLocation = triggerLocation;
-      clearLowSpeedCandidate(state);
-      state.startLocationLabel = null;
-      state.lastValidSpeed = 0;
-      state.consecutiveInvalidSpeeds = 0;
-      resetPassiveStartCandidate(state);
+      resetJourneyTrackingRuntime(triggerLocation);
       resetPassiveActivityCandidate(state);
-      state.passiveProbeStartedAt = null;
       passiveActivityMonitoring.start();
-      speedSmoother.reset();
 
       await deps.JourneyService.startJourney();
       state.currentJourneyId = deps.JourneyService.getCurrentJourneyId();
@@ -392,21 +401,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
         );
 
         if (!started) {
-          deps.logger.error('Failed to start active tracking after retries. Rolling back active journey start.');
-          deps.EfficiencyService.stopTracking();
-          await deps.JourneyService.endJourney(100, 0, null);
-          await deps.JourneyService.deleteJourney(journeyId);
-          state.currentJourneyId = null;
-          state.totalDistance = 0;
-          state.lastLocation = null;
-          state.startLocationLabel = null;
-          clearLowSpeedCandidate(state);
-          state.lastValidSpeed = 0;
-          state.consecutiveInvalidSpeeds = 0;
-          resetPassiveStartCandidate(state);
-          state.passiveProbeStartedAt = null;
-          speedSmoother.reset();
-          await startPassiveTracking('COARSE');
+          await rollbackFailedActiveStart(journeyId, 'Failed to start active tracking after retries. Rolling back active journey start.');
           return;
         }
 
@@ -425,21 +420,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
         emitStateChange();
         deps.logger.info('Active tracking started.');
       } catch (error) {
-        deps.logger.error('Unexpected error while starting active tracking:', error);
-        deps.EfficiencyService.stopTracking();
-        await deps.JourneyService.endJourney(100, 0, null);
-        await deps.JourneyService.deleteJourney(journeyId);
-        state.currentJourneyId = null;
-        state.totalDistance = 0;
-        state.lastLocation = null;
-        state.startLocationLabel = null;
-        clearLowSpeedCandidate(state);
-        state.lastValidSpeed = 0;
-        state.consecutiveInvalidSpeeds = 0;
-        resetPassiveStartCandidate(state);
-        state.passiveProbeStartedAt = null;
-        speedSmoother.reset();
-        await startPassiveTracking('COARSE');
+        await rollbackFailedActiveStart(journeyId, 'Unexpected error while starting active tracking.', error);
       }
     } finally {
       state.isTransitioning = false;
@@ -584,16 +565,8 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
       state.mode = 'PASSIVE';
       state.currentJourneyId = null;
-      state.totalDistance = 0;
-      state.lastLocation = null;
-      state.startLocationLabel = null;
-      clearLowSpeedCandidate(state);
-      state.lastValidSpeed = 0;
-      state.consecutiveInvalidSpeeds = 0;
-      resetPassiveStartCandidate(state);
-      state.passiveProbeStartedAt = null;
+      resetJourneyTrackingRuntime(null);
       state.lastStateChange = deps.now();
-      speedSmoother.reset();
 
       await startPassiveTracking('COARSE');
     } finally {
@@ -601,34 +574,30 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     }
   };
 
-  const init = () => {
-    if (isInited) return;
-    isInited = true;
+  const logLocationSpeedSample = (
+    location: Location.LocationObject,
+    effectiveSpeedMs: number,
+    speedConfidence: ValidatedSpeed['confidence'],
+    speedSource: ValidatedSpeed['source'],
+    reason?: ValidatedSpeed['reason']
+  ) => {
+    const rawSpeed = location.coords.speed;
+    const rawSpeedKmh = rawSpeed === null || rawSpeed === undefined ? null : convertMsToKmh(rawSpeed);
+    const rawSpeedLabelMs = rawSpeed === null || rawSpeed === undefined ? 'n/a' : rawSpeed.toFixed(3);
+    const rawSpeedLabelKmh = rawSpeedKmh === null ? 'n/a' : rawSpeedKmh.toFixed(3);
+    const effectiveSpeedKmh = convertMsToKmh(effectiveSpeedMs);
 
-    // deps.Notifications.setNotificationHandler({
-    //   handleNotification: async () => ({
-    //     shouldPlaySound: true,
-    //     shouldSetBadge: false,
-    //     shouldShowBanner: true,
-    //     shouldShowList: true,
-    //   }),
-    // });
-  };
-
-  const registerBackgroundTask = () => {
-    if (isTaskRegistered) return;
-
-    const isDefined =
-      typeof deps.TaskManager.isTaskDefined === 'function' ? deps.TaskManager.isTaskDefined(BACKGROUND_LOCATION_TASK) : false;
-
-    if (!isDefined) {
-      deps.logger.warn('Background location task is not defined in TaskManager. Registering now.');
-      deps.TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
-        await controller.handleLocationTask({ data, error });
-      });
-    }
-
-    isTaskRegistered = true;
+    deps.logger.debug(
+      `Location received. Mode: ${state.mode}. Raw speed: ${rawSpeedLabelMs} m/s (${rawSpeedLabelKmh} km/h). Effective speed: ${effectiveSpeedMs.toFixed(3)} m/s (${effectiveSpeedKmh.toFixed(3)} km/h) [${speedConfidence}, ${speedSource}].`,
+      {
+        rawSpeedMs: rawSpeed ?? null,
+        rawSpeedKmh,
+        effectiveSpeedMs,
+        effectiveSpeedKmh,
+        effectiveSpeedSource: speedSource,
+        effectiveSpeedReason: reason,
+      }
+    );
   };
 
   const handleLocationTask = async ({ data, error }: { data?: LocationTaskData; error?: unknown }): Promise<void> => {
@@ -645,201 +614,68 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     const orderedLocations = [...data.locations].sort((a, b) => a.timestamp - b.timestamp);
 
     for (const location of orderedLocations) {
-      let locationForProcessing = location;
-      let effectiveSpeed: ValidatedSpeed;
-      let speedSource: 'gps' | 'calculated' = 'gps';
+      const resolvedLocation = resolveLocationSample({
+        mode: state.mode,
+        lastLocation: state.lastLocation,
+        location,
+        gpsDropoutState,
+        gpsValidationOptions: DEFAULT_GPS_OPTIONS,
+        logger: deps.logger,
+      });
+      gpsDropoutState = resolvedLocation.nextGpsDropoutState;
 
-      if (state.mode === 'ACTIVE') {
-        const dropoutResult = handleGpsDropout(state.lastLocation, location, gpsDropoutState);
-        gpsDropoutState = dropoutResult.updatedState;
-
-        if (dropoutResult.shouldEndJourney && !state.isTransitioning) {
-          deps.logger.warn(`GPS dropout exceeded ${Math.round(MAX_GPS_DROPOUT_DURATION_MS / 60000)} minutes. Ending journey as completed.`);
-          await endActiveTracking();
-          return;
-        }
-
-        if (dropoutResult.useCalculatedSpeed && state.lastLocation) {
-          const calculatedSpeed = calculateSpeedFromLocations(state.lastLocation, location);
-          locationForProcessing = {
-            ...location,
-            coords: { ...location.coords, speed: calculatedSpeed },
-          };
-          speedSource = 'calculated';
-          deps.logger.debug('Using calculated speed during GPS dropout', {
-            calculatedSpeed,
-          });
-        }
-
-        effectiveSpeed = validateGpsSpeed(
-          locationForProcessing.coords.speed,
-          locationForProcessing.coords.accuracy,
-          DEFAULT_GPS_OPTIONS,
-          speedSource
-        );
-      } else {
-        gpsDropoutState = {
-          isInDropout: false,
-          dropoutStartTime: null,
-        };
-        effectiveSpeed = resolvePassiveEffectiveSpeed(state.lastLocation, location, DEFAULT_GPS_OPTIONS);
+      if (resolvedLocation.shouldEndJourneyForDropout && !state.isTransitioning) {
+        deps.logger.warn(`GPS dropout exceeded ${Math.round(MAX_GPS_DROPOUT_DURATION_MS / 60000)} minutes. Ending journey as completed.`);
+        await endActiveTracking();
+        return;
       }
 
-      const rawSpeed = location.coords.speed;
-      const rawSpeedKmh = rawSpeed === null || rawSpeed === undefined ? null : convertMsToKmh(rawSpeed);
-      const rawSpeedLabelMs = rawSpeed === null || rawSpeed === undefined ? 'n/a' : rawSpeed.toFixed(3);
-      const rawSpeedLabelKmh = rawSpeedKmh === null ? 'n/a' : rawSpeedKmh.toFixed(3);
-      const effectiveSpeedKmh = convertMsToKmh(effectiveSpeed.value);
-      deps.logger.debug(
-        `Location received. Mode: ${state.mode}. Raw speed: ${rawSpeedLabelMs} m/s (${rawSpeedLabelKmh} km/h). Effective speed: ${effectiveSpeed.value.toFixed(3)} m/s (${effectiveSpeedKmh.toFixed(3)} km/h) [${effectiveSpeed.confidence}, ${effectiveSpeed.source}].`,
-        {
-          rawSpeedMs: rawSpeed ?? null,
-          rawSpeedKmh,
-          effectiveSpeedMs: effectiveSpeed.value,
-          effectiveSpeedKmh,
-          effectiveSpeedSource: effectiveSpeed.source,
-          effectiveSpeedReason: effectiveSpeed.reason,
-        }
+      logLocationSpeedSample(
+        location,
+        resolvedLocation.effectiveSpeed.value,
+        resolvedLocation.effectiveSpeed.confidence,
+        resolvedLocation.effectiveSpeed.source,
+        resolvedLocation.effectiveSpeed.reason
       );
 
       if (state.mode === 'ACTIVE' && state.currentJourneyId !== null && !state.isTransitioning) {
-        await processActiveLocation(locationForProcessing, speedSource);
+        await processActiveLocation(resolvedLocation.locationForProcessing, resolvedLocation.speedSource);
       } else if (state.mode === 'ACTIVE' && state.currentJourneyId === null) {
         deps.logger.debug('Skipping active location processing: no current journey id.');
       }
 
       if (state.mode === 'PASSIVE' && !state.isTransitioning) {
-        if (
-          state.passiveTrackingProfile === 'COARSE' &&
-          shouldTriggerPassiveProbeFromLocation(
-            state.lastLocation,
-            location,
-            effectiveSpeed,
-            PASSIVE_PROBE_TRIGGER_SPEED_THRESHOLD,
-            PASSIVE_PROBE_MIN_DISPLACEMENT_KM
-          )
-        ) {
-          await switchPassiveTrackingProfile('PROBE', 'movement signal detected');
-        } else if (
-          state.passiveTrackingProfile === 'PROBE' &&
-          state.passiveProbeStartedAt !== null &&
-          deps.now() - state.passiveProbeStartedAt >= PASSIVE_PROBE_DURATION_MS
-        ) {
-          await switchPassiveTrackingProfile('COARSE', 'probe timeout reached without active confirmation');
-        }
-
-        const passiveStartDecision = evaluatePassiveStartDecision({
-          effectiveSpeed,
-          locationTimestamp: location.timestamp,
-          candidateSince: state.passiveStartCandidateSince,
-          candidateCount: state.passiveStartCandidateCount,
-          activeSpeedThreshold: ACTIVE_SPEED_THRESHOLD,
-          confirmationCount: PASSIVE_START_CONFIRMATION_COUNT,
-          confirmationWindowMs: PASSIVE_START_CONFIRMATION_WINDOW_MS,
+        const passiveResult = await processPassiveLocation({
+          state,
+          location,
+          locationForProcessing: resolvedLocation.locationForProcessing,
+          effectiveSpeed: resolvedLocation.effectiveSpeed,
+          nowMs: deps.now(),
+          switchPassiveTrackingProfile,
+          startActiveTracking,
+          logger: deps.logger,
         });
-        state.passiveStartCandidateSince = passiveStartDecision.nextCandidateSince;
-        state.passiveStartCandidateCount = passiveStartDecision.nextCandidateCount;
-
-        if (passiveStartDecision.action === 'START_ACTIVE_GPS') {
-          const speedLabelKmh = convertMsToKmh(effectiveSpeed.value).toFixed(1);
-          deps.logger.info(`Speed > 15km/h (valid: ${speedLabelKmh} km/h); Switching to ACTIVE tracking mode.`);
-          await startActiveTracking(locationForProcessing);
+        if (passiveResult === 'STARTED_ACTIVE') {
           return;
         }
-
-        if (passiveStartDecision.action === 'UPDATE_CANDIDATE') {
-          const speedLabelKmh = convertMsToKmh(effectiveSpeed.value).toFixed(1);
-          deps.logger.debug(
-            `Passive start candidate ${state.passiveStartCandidateCount}/${PASSIVE_START_CONFIRMATION_COUNT} from calculated speed (${speedLabelKmh} km/h).`,
-            {
-              candidateSince: state.passiveStartCandidateSince,
-              candidateWindowMs: PASSIVE_START_CONFIRMATION_WINDOW_MS,
-            }
-          );
-        }
-
-        if (passiveStartDecision.action === 'START_ACTIVE_CALCULATED') {
-          const speedLabelKmh = convertMsToKmh(effectiveSpeed.value).toFixed(1);
-          deps.logger.info(`Calculated speed confirmed > 15km/h (valid: ${speedLabelKmh} km/h); Switching to ACTIVE tracking mode.`);
-          await startActiveTracking(locationForProcessing);
-          return;
-        }
-
-        if (passiveStartDecision.action === 'RESET_CANDIDATE') {
-          deps.logger.debug('Passive start candidate reset: speed dropped below threshold or became invalid.');
-        }
-
-        state.lastLocation = location;
       }
 
       if (state.mode === 'ACTIVE' && !state.isTransitioning) {
-        const now = deps.now();
-        const automotiveConfirmedForReset = hasConfirmedAutomotiveActivity(now);
-        const activeStopDecision = evaluateActiveStopDecision({
-          effectiveSpeed,
-          now,
-          totalDistanceKm: state.totalDistance,
-          lowSpeedStartTime: state.lowSpeedStartTime,
-          lowSpeedStartDistanceKm: state.lowSpeedStartDistanceKm,
-          isAutomotiveConfirmedForReset: automotiveConfirmedForReset,
-          passiveSpeedThreshold: PASSIVE_SPEED_THRESHOLD,
-          timeoutMs: PASSIVE_TIMEOUT_MS,
-          progressResetDistanceKm: LOW_SPEED_PROGRESS_RESET_DISTANCE_KM,
+        const nowMs = deps.now();
+        const activeStopResult = await processActiveStopDecision({
+          state,
+          effectiveSpeed: resolvedLocation.effectiveSpeed,
+          nowMs,
+          isAutomotiveConfirmedForReset: hasConfirmedAutomotiveActivity(nowMs),
+          endActiveTracking,
+          logger: deps.logger,
         });
 
-        if (activeStopDecision.action === 'START_CANDIDATE') {
-          state.lowSpeedStartTime = now;
-          state.lowSpeedStartDistanceKm = state.totalDistance;
-          state.lowSpeedStartEventTimestamp = now;
-          state.lowSpeedStartLocation = state.lastLocation;
-          deps.logger.debug(`Low speed or invalid speed detected (${effectiveSpeed.reason}), monitoring for timeout...`);
-          continue;
-        }
-
-        if (activeStopDecision.action === 'RESET_CANDIDATE_PROGRESS') {
-          state.lowSpeedStartTime = now;
-          state.lowSpeedStartDistanceKm = state.totalDistance;
-          state.lowSpeedStartEventTimestamp = now;
-          state.lowSpeedStartLocation = state.lastLocation;
-          deps.logger.info(
-            `Low-speed timeout reset: vehicle moved ${((activeStopDecision.distanceSinceCandidateStartKm ?? 0) * 1000).toFixed(0)}m during candidate window.`
-          );
-          continue;
-        }
-
-        if (activeStopDecision.action === 'END_UNCONFIRMED_ACTIVITY') {
-          deps.logger.info(
-            `Low-speed progress detected (${((activeStopDecision.distanceSinceCandidateStartKm ?? 0) * 1000).toFixed(0)}m) without confirmed automotive activity; ending journey.`
-          );
-          await endActiveTracking({
-            tailPruneFromTimestamp: state.lowSpeedStartEventTimestamp,
-            finalDistanceKm: activeStopDecision.finalDistanceKm ?? state.totalDistance,
-            finalLocation: state.lowSpeedStartLocation ?? state.lastLocation,
-          });
+        if (activeStopResult === 'ENDED_ACTIVE') {
           return;
         }
-
-        if (activeStopDecision.action === 'TIMEOUT') {
-          const timeoutMinutes = activeStopDecision.timeoutMinutes ?? Math.round(PASSIVE_TIMEOUT_MS / 60000);
-          deps.logger.info(`Speed < 10km/h for ${timeoutMinutes} minutes; Switching to PASSIVE tracking mode.`);
-          await endActiveTracking({
-            tailPruneFromTimestamp: state.lowSpeedStartEventTimestamp,
-            finalDistanceKm: activeStopDecision.finalDistanceKm ?? state.totalDistance,
-            finalLocation: state.lowSpeedStartLocation ?? state.lastLocation,
-          });
-          return;
-        }
-
-        if (activeStopDecision.action === 'ONGOING') {
-          deps.logger.debug(
-            `Low speed ongoing, ${activeStopDecision.secondsLeft ?? Math.ceil(PASSIVE_TIMEOUT_MS / 1000)} seconds left before switching to PASSIVE mode.`
-          );
+        if (activeStopResult === 'NEXT_LOCATION') {
           continue;
-        }
-
-        if (activeStopDecision.action === 'CANCEL_CANDIDATE') {
-          clearLowSpeedCandidate(state);
-          deps.logger.info('Speed increased above threshold, low speed monitoring cancelled.');
         }
       }
     }
@@ -849,8 +685,6 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
   };
 
   const controller: BackgroundServiceController = {
-    init,
-    registerBackgroundTask,
     getTrackingStatus: () => ({ mode: state.mode, isMonitoring: state.isMonitoring }),
     getState: () => ({ ...state }),
     requestLocationPermissions: async () => {
@@ -873,7 +707,6 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
         deps.logger.warn('Cannot start location monitoring: permissions not granted.');
         return;
       }
-      registerBackgroundTask();
       if (state.isMonitoring) return;
       const started = await startPassiveTracking();
       if (!started) {
@@ -885,8 +718,6 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       emitStateChange();
     },
     stopLocationMonitoring: async () => {
-      init();
-      registerBackgroundTask();
       await deps.Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       passiveActivityMonitoring.stop();
       latestActivityUpdate = null;
@@ -904,14 +735,10 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       };
     },
     manualStartActiveTracking: async () => {
-      init();
-      registerBackgroundTask();
       deps.logger.info('Manual start of ACTIVE tracking requested.');
       await startActiveTracking();
     },
     manualStopActiveTracking: async () => {
-      init();
-      registerBackgroundTask();
       deps.logger.info('Manual stop of ACTIVE tracking requested.');
       await endActiveTracking();
     },
@@ -924,7 +751,6 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 export const singleton = createBackgroundServiceController({
   Location,
   // Notifications,
-  TaskManager,
   JourneyService,
   EfficiencyService,
   VehicleMotion,
@@ -932,12 +758,12 @@ export const singleton = createBackgroundServiceController({
   logger,
 });
 
-singleton.registerBackgroundTask();
-
-export const initBackgroundService = (): void => {
-  singleton.init();
-  singleton.registerBackgroundTask();
-};
+ensureBackgroundLocationTaskRegistered({
+  taskManager: TaskManager,
+  taskName: BACKGROUND_LOCATION_TASK,
+  logger,
+  handleLocationTask: singleton.handleLocationTask,
+});
 
 export const getTrackingStatus = (): TrackingStatus => singleton.getTrackingStatus();
 

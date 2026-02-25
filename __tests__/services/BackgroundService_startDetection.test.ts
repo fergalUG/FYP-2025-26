@@ -1,5 +1,4 @@
 import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
 
 import { createBackgroundServiceController } from '@services/BackgroundService';
 import { PASSIVE_ACTIVITY_PROBE_DEBOUNCE_MS, PASSIVE_START_CONFIRMATION_WINDOW_MS } from '@constants/gpsConfig';
@@ -70,7 +69,6 @@ describe('BackgroundService passive start detection', () => {
 
     controller = createBackgroundServiceController({
       Location,
-      TaskManager,
       JourneyService: mockJourneyService,
       EfficiencyService: mockEfficiencyService,
       VehicleMotion: mockVehicleMotion,

@@ -42,8 +42,6 @@ export const BackgroundServiceProvider = ({ children }: { children: ReactNode })
   }, []);
 
   useEffect(() => {
-    BackgroundService.init();
-
     checkPermissions();
 
     const unsubscribeService = BackgroundService.addStateListener((newState) => {

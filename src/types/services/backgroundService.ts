@@ -1,5 +1,4 @@
 // import type * as Notifications from 'expo-notifications';
-import type * as TaskManager from 'expo-task-manager';
 import type * as Location from 'expo-location';
 
 import type { PermissionState, TrackingMode, TrackingStatus } from '@/types/tracking';
@@ -47,7 +46,6 @@ export interface BackgroundServiceVehicleMotionDeps {
 export interface BackgroundServiceDeps {
   Location: typeof Location;
   // Notifications: typeof Notifications;
-  TaskManager: typeof TaskManager;
   JourneyService: Pick<
     JourneyServiceController,
     'startJourney' | 'getCurrentJourneyId' | 'logEvent' | 'updateJourneyTitle' | 'endJourney' | 'deleteJourney' | 'deleteEventsSince'
@@ -62,8 +60,6 @@ export interface BackgroundServiceDeps {
 }
 
 export interface BackgroundServiceController {
-  init: () => void;
-  registerBackgroundTask: () => void;
   getTrackingStatus: () => TrackingStatus;
   getState: () => TrackingState;
   requestLocationPermissions: () => Promise<boolean>;
