@@ -12,11 +12,29 @@ interface ActiveStopEndOptions {
   finalLocation?: Location.LocationObject | null;
 }
 
+export interface ActiveStopDebugContext {
+  activityAgeMs: number | null;
+  activityFresh: boolean;
+  activityConfidence: string | null;
+  activityConfidenceScore: number | null;
+  activityAutomotive: boolean | null;
+  activityWalking: boolean | null;
+  activityRunning: boolean | null;
+  activityCycling: boolean | null;
+  activityStationary: boolean | null;
+  nonAutomotiveCandidateSinceMs: number | null;
+  nonAutomotiveCandidateAgeMs: number | null;
+  nonAutomotiveConfirmationMs: number;
+  nonAutomotiveMaxSpeedKmh: number;
+  shouldEndForConfirmedNonAutomotiveProgress: boolean;
+}
+
 interface ProcessActiveStopDecisionInput {
   state: TrackingState;
   effectiveSpeed: ValidatedSpeed;
   nowMs: number;
-  isAutomotiveConfirmedForReset: boolean;
+  shouldEndForConfirmedNonAutomotiveProgress: boolean;
+  debugContext?: ActiveStopDebugContext;
   endActiveTracking: (options?: ActiveStopEndOptions) => Promise<void>;
   logger: ReturnType<typeof createLogger>;
 }
@@ -24,7 +42,7 @@ interface ProcessActiveStopDecisionInput {
 type ActiveStopProcessingResult = 'CONTINUE' | 'NEXT_LOCATION' | 'ENDED_ACTIVE';
 
 export const processActiveStopDecision = async (input: ProcessActiveStopDecisionInput): Promise<ActiveStopProcessingResult> => {
-  const { state, effectiveSpeed, nowMs, isAutomotiveConfirmedForReset, endActiveTracking, logger } = input;
+  const { state, effectiveSpeed, nowMs, shouldEndForConfirmedNonAutomotiveProgress, debugContext, endActiveTracking, logger } = input;
 
   const activeStopDecision = evaluateActiveStopDecision({
     effectiveSpeed,
@@ -32,11 +50,22 @@ export const processActiveStopDecision = async (input: ProcessActiveStopDecision
     totalDistanceKm: state.totalDistance,
     lowSpeedStartTime: state.lowSpeedStartTime,
     lowSpeedStartDistanceKm: state.lowSpeedStartDistanceKm,
-    isAutomotiveConfirmedForReset,
+    shouldEndForConfirmedNonAutomotiveProgress,
     passiveSpeedThreshold: PASSIVE_SPEED_THRESHOLD,
     timeoutMs: PASSIVE_TIMEOUT_MS,
     progressResetDistanceKm: LOW_SPEED_PROGRESS_RESET_DISTANCE_KM,
   });
+
+  if (debugContext) {
+    logger.debug('Active stop decision evaluated', {
+      action: activeStopDecision.action,
+      speedKmh: convertMsToKmh(effectiveSpeed.value),
+      speedValid: effectiveSpeed.isValid,
+      lowSpeedStartTime: state.lowSpeedStartTime,
+      distanceSinceCandidateStartM: (activeStopDecision.distanceSinceCandidateStartKm ?? 0) * 1000,
+      ...debugContext,
+    });
+  }
 
   if (activeStopDecision.action === 'START_CANDIDATE') {
     state.lowSpeedStartTime = nowMs;
@@ -58,9 +87,10 @@ export const processActiveStopDecision = async (input: ProcessActiveStopDecision
     return 'NEXT_LOCATION';
   }
 
-  if (activeStopDecision.action === 'END_UNCONFIRMED_ACTIVITY') {
+  if (activeStopDecision.action === 'END_CONFIRMED_NON_AUTOMOTIVE') {
     logger.info(
-      `Low-speed progress detected (${((activeStopDecision.distanceSinceCandidateStartKm ?? 0) * 1000).toFixed(0)}m) without confirmed automotive activity; ending journey.`
+      `Low-speed progress detected (${((activeStopDecision.distanceSinceCandidateStartKm ?? 0) * 1000).toFixed(0)}m) with confirmed non-automotive activity; ending journey.`,
+      debugContext
     );
     await endActiveTracking({
       tailPruneFromTimestamp: state.lowSpeedStartEventTimestamp,

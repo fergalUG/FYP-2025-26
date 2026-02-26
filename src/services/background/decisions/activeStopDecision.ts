@@ -6,7 +6,7 @@ interface ActiveStopDecisionInput {
   totalDistanceKm: number;
   lowSpeedStartTime: number | null;
   lowSpeedStartDistanceKm: number | null;
-  isAutomotiveConfirmedForReset: boolean;
+  shouldEndForConfirmedNonAutomotiveProgress: boolean;
   passiveSpeedThreshold: number;
   timeoutMs: number;
   progressResetDistanceKm: number;
@@ -16,7 +16,7 @@ type ActiveStopDecisionAction =
   | 'NONE'
   | 'START_CANDIDATE'
   | 'RESET_CANDIDATE_PROGRESS'
-  | 'END_UNCONFIRMED_ACTIVITY'
+  | 'END_CONFIRMED_NON_AUTOMOTIVE'
   | 'ONGOING'
   | 'TIMEOUT'
   | 'CANCEL_CANDIDATE';
@@ -36,7 +36,7 @@ export const evaluateActiveStopDecision = (input: ActiveStopDecisionInput): Acti
     totalDistanceKm,
     lowSpeedStartTime,
     lowSpeedStartDistanceKm,
-    isAutomotiveConfirmedForReset,
+    shouldEndForConfirmedNonAutomotiveProgress,
     passiveSpeedThreshold,
     timeoutMs,
     progressResetDistanceKm,
@@ -53,9 +53,9 @@ export const evaluateActiveStopDecision = (input: ActiveStopDecisionInput): Acti
     const distanceSinceCandidateStartKm = Math.max(0, totalDistanceKm - distanceAtCandidateStart);
 
     if (distanceSinceCandidateStartKm >= progressResetDistanceKm) {
-      if (!isAutomotiveConfirmedForReset) {
+      if (shouldEndForConfirmedNonAutomotiveProgress) {
         return {
-          action: 'END_UNCONFIRMED_ACTIVITY',
+          action: 'END_CONFIRMED_NON_AUTOMOTIVE',
           finalDistanceKm: lowSpeedStartDistanceKm ?? totalDistanceKm,
           distanceSinceCandidateStartKm,
         };

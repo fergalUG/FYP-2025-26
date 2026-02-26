@@ -18,7 +18,7 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2,
       lowSpeedStartTime: null,
       lowSpeedStartDistanceKm: null,
-      isAutomotiveConfirmedForReset: false,
+      shouldEndForConfirmedNonAutomotiveProgress: false,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
@@ -34,7 +34,7 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2.2,
       lowSpeedStartTime: 5000,
       lowSpeedStartDistanceKm: 2.0,
-      isAutomotiveConfirmedForReset: true,
+      shouldEndForConfirmedNonAutomotiveProgress: false,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
@@ -44,20 +44,20 @@ describe('evaluateActiveStopDecision', () => {
     expect(result.distanceSinceCandidateStartKm).toBeCloseTo(0.2, 5);
   });
 
-  it('ends journey when distance progress exceeds threshold without confirmed automotive activity', () => {
+  it('ends journey when distance progress exceeds threshold with confirmed non-automotive activity', () => {
     const result = evaluateActiveStopDecision({
       effectiveSpeed: makeSpeed({ isValid: true, value: 1, source: 'gps' }),
       now: 10000,
       totalDistanceKm: 2.2,
       lowSpeedStartTime: 5000,
       lowSpeedStartDistanceKm: 2.0,
-      isAutomotiveConfirmedForReset: false,
+      shouldEndForConfirmedNonAutomotiveProgress: true,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
     });
 
-    expect(result.action).toBe('END_UNCONFIRMED_ACTIVITY');
+    expect(result.action).toBe('END_CONFIRMED_NON_AUTOMOTIVE');
     expect(result.finalDistanceKm).toBeCloseTo(2.0, 5);
     expect(result.distanceSinceCandidateStartKm).toBeCloseTo(0.2, 5);
   });
@@ -69,7 +69,7 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2.1,
       lowSpeedStartTime: 90000,
       lowSpeedStartDistanceKm: 2.0,
-      isAutomotiveConfirmedForReset: true,
+      shouldEndForConfirmedNonAutomotiveProgress: false,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
@@ -87,7 +87,7 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2.05,
       lowSpeedStartTime: 100000,
       lowSpeedStartDistanceKm: 2.0,
-      isAutomotiveConfirmedForReset: true,
+      shouldEndForConfirmedNonAutomotiveProgress: false,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
@@ -104,7 +104,7 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2.05,
       lowSpeedStartTime: 100000,
       lowSpeedStartDistanceKm: 2.0,
-      isAutomotiveConfirmedForReset: true,
+      shouldEndForConfirmedNonAutomotiveProgress: false,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,

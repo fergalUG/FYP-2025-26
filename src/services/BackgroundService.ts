@@ -17,7 +17,7 @@ import { JourneyService } from '@services/JourneyService';
 import { EfficiencyService } from '@services/EfficiencyService';
 import { resolveActivityConfidenceScore } from '@services/background/decisions/activityProbeDecision';
 import { buildPassiveTrackingOptions } from '@services/background/location/passiveProfileOptions';
-import { processActiveStopDecision } from '@services/background/runtime/activeStopProcessing';
+import { processActiveStopDecision, type ActiveStopDebugContext } from '@services/background/runtime/activeStopProcessing';
 import { createPassiveActivityMonitoringController } from '@services/background/runtime/activityMonitoring';
 import { resolveLocationSample } from '@services/background/runtime/locationSampleResolution';
 import { processPassiveLocation } from '@services/background/runtime/passiveLocationProcessing';
@@ -39,6 +39,8 @@ import { checkServiceHealth } from '@utils/tracking/healthMonitor';
 import { createSpeedSmoother } from '@utils/tracking/speedSmoother';
 import {
   MAX_ACCURACY,
+  ACTIVE_STOP_NON_AUTOMOTIVE_CONFIRMATION_MS,
+  ACTIVE_STOP_NON_AUTOMOTIVE_MAX_SPEED_MS,
   MAX_CONSECUTIVE_INVALID_SPEEDS,
   MAX_VALID_SPEED,
   MIN_ACCURACY,
@@ -113,26 +115,74 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
   let isPassiveProfileSwitching = false;
   let latestActivityUpdate: ActivityData | null = null;
   let latestActivityObservedAtMs: number | null = null;
+  let nonAutomotiveActivityCandidateSinceMs: number | null = null;
   let isActiveJourneyStartLogged = false;
 
   const listeners = new Set<(state: TrackingState) => void>();
 
   const recordActivityUpdate = (activity: ActivityData): void => {
+    const nowMs = deps.now();
     latestActivityUpdate = activity;
-    latestActivityObservedAtMs = deps.now();
+    latestActivityObservedAtMs = nowMs;
+
+    const confidenceScore = resolveActivityConfidenceScore(activity.confidence);
+    const isNonAutomotiveSignal =
+      confidenceScore >= PASSIVE_ACTIVITY_PROBE_MIN_CONFIDENCE_SCORE &&
+      !activity.automotive &&
+      (activity.walking || activity.running || activity.cycling);
+
+    if (isNonAutomotiveSignal) {
+      nonAutomotiveActivityCandidateSinceMs = nonAutomotiveActivityCandidateSinceMs ?? nowMs;
+      return;
+    }
+
+    nonAutomotiveActivityCandidateSinceMs = null;
   };
 
-  const hasConfirmedAutomotiveActivity = (nowMs: number): boolean => {
-    if (!latestActivityUpdate || latestActivityObservedAtMs === null) {
-      return false;
-    }
+  const resolveActiveStopNonAutomotiveContext = (
+    nowMs: number,
+    effectiveSpeed: ValidatedSpeed
+  ): { shouldEndForConfirmedNonAutomotiveProgress: boolean; debugContext: ActiveStopDebugContext } => {
+    const activityAgeMs = latestActivityObservedAtMs === null ? null : Math.max(0, nowMs - latestActivityObservedAtMs);
+    const activityFresh = activityAgeMs !== null && activityAgeMs <= PASSIVE_ACTIVITY_PROBE_COOLDOWN_MS;
+    const activityConfidenceScore = latestActivityUpdate ? resolveActivityConfidenceScore(latestActivityUpdate.confidence) : null;
+    const hasConfidence = activityConfidenceScore !== null && activityConfidenceScore >= PASSIVE_ACTIVITY_PROBE_MIN_CONFIDENCE_SCORE;
 
-    if (nowMs - latestActivityObservedAtMs > PASSIVE_ACTIVITY_PROBE_COOLDOWN_MS) {
-      return false;
-    }
+    const nonAutomotiveSignal =
+      !!latestActivityUpdate &&
+      hasConfidence &&
+      !latestActivityUpdate.automotive &&
+      (latestActivityUpdate.walking || latestActivityUpdate.running || latestActivityUpdate.cycling);
 
-    const confidenceScore = resolveActivityConfidenceScore(latestActivityUpdate.confidence);
-    return latestActivityUpdate.automotive && confidenceScore >= PASSIVE_ACTIVITY_PROBE_MIN_CONFIDENCE_SCORE;
+    const nonAutomotiveCandidateAgeMs =
+      nonAutomotiveActivityCandidateSinceMs === null ? null : Math.max(0, nowMs - nonAutomotiveActivityCandidateSinceMs);
+
+    const withinNonAutomotiveSpeedCap = effectiveSpeed.isValid && effectiveSpeed.value <= ACTIVE_STOP_NON_AUTOMOTIVE_MAX_SPEED_MS;
+    const sustainedNonAutomotive =
+      nonAutomotiveCandidateAgeMs !== null && nonAutomotiveCandidateAgeMs >= ACTIVE_STOP_NON_AUTOMOTIVE_CONFIRMATION_MS;
+
+    const shouldEndForConfirmedNonAutomotiveProgress =
+      activityFresh && nonAutomotiveSignal && sustainedNonAutomotive && withinNonAutomotiveSpeedCap;
+
+    return {
+      shouldEndForConfirmedNonAutomotiveProgress,
+      debugContext: {
+        activityAgeMs,
+        activityFresh,
+        activityConfidence: latestActivityUpdate?.confidence ?? null,
+        activityConfidenceScore,
+        activityAutomotive: latestActivityUpdate?.automotive ?? null,
+        activityWalking: latestActivityUpdate?.walking ?? null,
+        activityRunning: latestActivityUpdate?.running ?? null,
+        activityCycling: latestActivityUpdate?.cycling ?? null,
+        activityStationary: latestActivityUpdate?.stationary ?? null,
+        nonAutomotiveCandidateSinceMs: nonAutomotiveActivityCandidateSinceMs,
+        nonAutomotiveCandidateAgeMs,
+        nonAutomotiveConfirmationMs: ACTIVE_STOP_NON_AUTOMOTIVE_CONFIRMATION_MS,
+        nonAutomotiveMaxSpeedKmh: convertMsToKmh(ACTIVE_STOP_NON_AUTOMOTIVE_MAX_SPEED_MS),
+        shouldEndForConfirmedNonAutomotiveProgress,
+      },
+    };
   };
 
   const emitStateChange = () => {
@@ -260,6 +310,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     state.consecutiveInvalidSpeeds = 0;
     resetPassiveStartCandidate(state);
     state.passiveProbeStartedAt = null;
+    nonAutomotiveActivityCandidateSinceMs = null;
     speedSmoother.reset();
     isActiveJourneyStartLogged = false;
   };
@@ -690,11 +741,13 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
       if (state.mode === 'ACTIVE' && !state.isTransitioning) {
         const nowMs = deps.now();
+        const activeStopNonAutomotiveContext = resolveActiveStopNonAutomotiveContext(nowMs, resolvedLocation.effectiveSpeed);
         const activeStopResult = await processActiveStopDecision({
           state,
           effectiveSpeed: resolvedLocation.effectiveSpeed,
           nowMs,
-          isAutomotiveConfirmedForReset: hasConfirmedAutomotiveActivity(nowMs),
+          shouldEndForConfirmedNonAutomotiveProgress: activeStopNonAutomotiveContext.shouldEndForConfirmedNonAutomotiveProgress,
+          debugContext: activeStopNonAutomotiveContext.debugContext,
           endActiveTracking,
           logger: deps.logger,
         });
@@ -750,6 +803,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
       passiveActivityMonitoring.stop();
       latestActivityUpdate = null;
       latestActivityObservedAtMs = null;
+      nonAutomotiveActivityCandidateSinceMs = null;
       state.isMonitoring = false;
       emitStateChange();
     },
