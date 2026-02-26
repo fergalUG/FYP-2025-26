@@ -74,6 +74,8 @@ export const createPassiveActivityMonitoringController = (deps: PassiveActivityM
       isMonitoring = true;
       deps.logger.info('Passive activity monitoring started.');
     } catch (error) {
+      deps.vehicleMotion.removeAllListeners('onActivityUpdate');
+      isMonitoring = false;
       deps.logger.warn('Failed to start passive activity monitoring:', error);
     }
   };
