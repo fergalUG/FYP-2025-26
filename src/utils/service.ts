@@ -4,11 +4,11 @@ import type { Theme } from '@theme';
 export const getServiceStatusText = (serviceState: ServiceState): string => {
   switch (serviceState) {
     case 'stopped':
-      return 'Service Stopped';
+      return 'Stopped';
     case 'passive':
-      return 'Passive Monitoring';
+      return 'Passive';
     case 'active':
-      return 'Active Tracking';
+      return 'Active';
     default:
       return 'Unknown';
   }

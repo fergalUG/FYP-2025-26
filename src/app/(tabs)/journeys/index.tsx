@@ -4,52 +4,147 @@ import Swipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { useJourneys, useTheme } from '@hooks';
-import { useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
+import type { ListRenderItem } from 'react-native';
+import type { Journey } from '@/types/db';
 
 import { IconChip, ScoreBadge, AppButton } from '@components';
 
 import { getScoreColor } from '@utils/score';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+type JourneysStyles = ReturnType<typeof createStyles>;
+
+interface JourneyListItemProps {
+  actionForegroundColor: string;
+  isDeleting: boolean;
+  journey: Journey;
+  onDeleteJourney: (journeyId: number) => void;
+  scoreColor: string;
+  styles: JourneysStyles;
+}
+
+const JourneyListItem = memo(
+  ({ actionForegroundColor, isDeleting, journey, onDeleteJourney, scoreColor, styles }: JourneyListItemProps) => {
+    const journeyDate = useMemo(() => (journey.startTime ? new Date(journey.startTime).toLocaleDateString() : 'Time'), [journey.startTime]);
+    const journeyDistance = useMemo(() => `${(journey.distanceKm ?? 0).toFixed(2)} km`, [journey.distanceKm]);
+    const deleteLabel = isDeleting ? 'Deleting' : 'Delete';
+
+    const handleDeletePress = useCallback(() => {
+      onDeleteJourney(journey.id);
+    }, [journey.id, onDeleteJourney]);
+
+    const renderRightActions = useCallback(
+      () => (
+        <View>
+          <AppButton style={styles.deleteAction} onPress={handleDeletePress} disabled={isDeleting}>
+            {isDeleting ? (
+              <ActivityIndicator size="small" color={actionForegroundColor} />
+            ) : (
+              <MaterialIcons name="delete" size={22} color={actionForegroundColor} />
+            )}
+            <Text style={styles.deleteActionText}>{deleteLabel}</Text>
+          </AppButton>
+        </View>
+      ),
+      [actionForegroundColor, deleteLabel, handleDeletePress, isDeleting, styles.deleteAction, styles.deleteActionText]
+    );
+
+    return (
+      <Swipeable renderRightActions={renderRightActions} overshootRight={false}>
+        <Link href={{ pathname: '/journey/[journeyId]', params: { journeyId: journey.id } }} asChild>
+          <AppButton style={styles.card}>
+            <View style={styles.cardTopRow}>
+              <ScoreBadge score={journey.score ?? 0} color={scoreColor} />
+              <View style={styles.cardBody}>
+                <Text style={styles.title} numberOfLines={2}>
+                  {journey.title}
+                </Text>
+                <View style={styles.metaRow}>
+                  <IconChip icon="calendar-month" text={journeyDate} />
+                  <IconChip icon="route" text={journeyDistance} />
+                </View>
+              </View>
+            </View>
+          </AppButton>
+        </Link>
+      </Swipeable>
+    );
+  },
+  (prev, next) =>
+    prev.actionForegroundColor === next.actionForegroundColor &&
+    prev.isDeleting === next.isDeleting &&
+    prev.journey === next.journey &&
+    prev.scoreColor === next.scoreColor &&
+    prev.styles === next.styles
+);
+
 export default function Journeys() {
   const { theme } = useTheme();
   const { journeys, loading, error, refetch, deleteJourney } = useJourneys();
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const styles = createStyles(theme);
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const actionForegroundColor = theme.colors.background;
 
   const completedJourneys = useMemo(() => journeys.filter((journey) => journey.endTime && journey.distanceKm != null), [journeys]);
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
-  };
+  }, [refetch]);
 
-  const handleDeleteJourney = async (journeyId: number) => {
-    setDeletingId(journeyId);
-    try {
-      await deleteJourney(journeyId);
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  const handleDeleteJourney = useCallback(
+    async (journeyId: number) => {
+      setDeletingId(journeyId);
+      try {
+        await deleteJourney(journeyId);
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [deleteJourney]
+  );
 
-  const renderRightActions = (journeyId: number) => (
-    <View style={{}}>
-      <AppButton
-        style={[styles.deleteAction, { height: '100%' }]}
-        onPress={() => handleDeleteJourney(journeyId)}
-        disabled={deletingId === journeyId}
-      >
-        {deletingId === journeyId ? (
-          <ActivityIndicator size="small" color={theme.colors.background} />
-        ) : (
-          <MaterialIcons name="delete" size={22} color={theme.colors.background} />
-        )}
-        <Text style={styles.deleteActionText}>{deletingId === journeyId ? 'Deleting' : 'Delete'}</Text>
-      </AppButton>
-    </View>
+  const keyExtractor = useCallback((item: Journey) => item.id.toString(), []);
+
+  const renderItem = useCallback<ListRenderItem<Journey>>(
+    ({ item }) => (
+      <JourneyListItem
+        actionForegroundColor={actionForegroundColor}
+        isDeleting={deletingId === item.id}
+        journey={item}
+        onDeleteJourney={handleDeleteJourney}
+        scoreColor={getScoreColor(item.score ?? 0, theme)}
+        styles={styles}
+      />
+    ),
+    [actionForegroundColor, deletingId, handleDeleteJourney, styles, theme]
+  );
+
+  const renderItemSeparator = useCallback(() => <View style={styles.separator} />, [styles.separator]);
+
+  const listEmptyComponent = useMemo(
+    () => (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No journeys yet</Text>
+        <Text style={styles.emptySubtext}>Your driving sessions will appear here</Text>
+      </View>
+    ),
+    [styles.emptyContainer, styles.emptySubtext, styles.emptyText]
+  );
+
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        tintColor={theme.colors.primary}
+        titleColor={theme.colors.onSurface}
+      />
+    ),
+    [handleRefresh, refreshing, theme.colors.onSurface, theme.colors.primary]
   );
 
   if (loading && !refreshing) {
@@ -77,42 +172,15 @@ export default function Journeys() {
       <FlatList
         contentContainerStyle={styles.list}
         data={completedJourneys}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <Swipeable renderRightActions={() => renderRightActions(item.id)} overshootRight={false}>
-            <Link href={{ pathname: '/journey/[journeyId]', params: { journeyId: item.id } }} asChild>
-              <AppButton style={styles.card}>
-                <View style={styles.cardTopRow}>
-                  <ScoreBadge score={item.score ?? 0} color={getScoreColor(item.score ?? 0, theme)} />
-                  <View style={styles.cardBody}>
-                    <Text style={styles.title} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-                    <View style={styles.metaRow}>
-                      <IconChip icon="calendar-month" text={item.startTime ? new Date(item.startTime).toLocaleDateString() : 'Time'} />
-                      <IconChip icon="route" text={`${(item.distanceKm ?? 0).toFixed(2)} km`} />
-                    </View>
-                  </View>
-                </View>
-              </AppButton>
-            </Link>
-          </Swipeable>
-        )}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No journeys yet</Text>
-            <Text style={styles.emptySubtext}>Your driving sessions will appear here</Text>
-          </View>
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={theme.colors.primary}
-            titleColor={theme.colors.onSurface}
-          />
-        }
+        extraData={deletingId}
+        initialNumToRender={8}
+        ItemSeparatorComponent={renderItemSeparator}
+        keyExtractor={keyExtractor}
+        ListEmptyComponent={listEmptyComponent}
+        maxToRenderPerBatch={8}
+        refreshControl={refreshControl}
+        renderItem={renderItem}
+        windowSize={9}
       />
     </SafeAreaView>
   );
@@ -166,6 +234,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       justifyContent: 'center',
       alignItems: 'center',
       gap: theme.spacing.xs,
+      height: '100%',
       marginVertical: 0,
     },
     deleteActionPressed: {

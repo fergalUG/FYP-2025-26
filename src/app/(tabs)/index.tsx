@@ -63,6 +63,7 @@ export default function Page() {
       <HomeHeroCard
         driverName={driverName}
         permissionState={backgroundService.permissionState}
+        serviceState={backgroundService.serviceState}
         trackingEnabled={trackingEnabled}
         onOpenSettings={handleOpenSettings}
         onPressJourneys={() => router.push('/journeys')}

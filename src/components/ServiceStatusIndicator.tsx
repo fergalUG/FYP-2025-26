@@ -1,17 +1,19 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { useBackgroundService } from '@hooks/useBackgroundService';
+import { View, StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import { useTheme } from '@hooks/useTheme';
 import { getServiceStatusColor } from '@utils/service';
+import type { PermissionState, ServiceState } from '@types';
 
 interface ServiceStatusIndicatorProps {
   size?: number;
+  serviceState: ServiceState;
+  permissionState: PermissionState;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
 export const ServiceStatusIndicator = (props: ServiceStatusIndicatorProps) => {
-  const { size = 12 } = props;
+  const { size = 12, serviceState, permissionState, containerStyle } = props;
   const { theme } = useTheme();
-  const { serviceState, permissionState } = useBackgroundService();
 
   const getIndicatorColor = (): string => {
     if (permissionState !== 'granted') {
@@ -31,7 +33,7 @@ export const ServiceStatusIndicator = (props: ServiceStatusIndicatorProps) => {
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, containerStyle]}>
       <View style={getIndicatorStyle()} />
     </View>
   );
@@ -42,7 +44,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     container: {
       justifyContent: 'center',
       alignItems: 'center',
-      paddingHorizontal: 8,
     },
     indicator: {
       borderRadius: 50,
