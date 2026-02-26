@@ -1,18 +1,27 @@
 import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
 import { createBackgroundServiceController } from '@services/BackgroundService';
+import { ACTIVE_STOP_NON_AUTOMOTIVE_CONFIRMATION_MS, PASSIVE_TIMEOUT_MS } from '@constants/gpsConfig';
+
+import type { ActivityData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 
 describe('BackgroundService Timeout Logic', () => {
   let controller: any;
   let nowMs = 1000000;
   const now = () => nowMs;
+  const flushActivityQueue = async (): Promise<void> => {
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve();
+    }
+  };
 
   const mockJourneyService: any = {
     startJourney: jest.fn().mockResolvedValue(undefined),
     endJourney: jest.fn().mockResolvedValue(undefined),
     logEvent: jest.fn().mockResolvedValue(undefined),
-    getCurrentJourneyId: jest.fn().mockReturnValue('journey-123'),
+    getCurrentJourneyId: jest.fn().mockReturnValue(123),
     updateJourneyTitle: jest.fn().mockResolvedValue(undefined),
+    deleteJourney: jest.fn().mockResolvedValue(undefined),
+    deleteEventsSince: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockEfficiencyService: any = {
@@ -28,6 +37,13 @@ describe('BackgroundService Timeout Logic', () => {
     warn: jest.fn(),
     debug: jest.fn(),
     error: jest.fn(),
+  };
+
+  const mockVehicleMotion: any = {
+    startActivityUpdates: jest.fn(),
+    stopActivityUpdates: jest.fn(),
+    addListener: jest.fn(),
+    removeAllListeners: jest.fn(),
   };
 
   beforeEach(() => {
@@ -47,9 +63,9 @@ describe('BackgroundService Timeout Logic', () => {
 
     controller = createBackgroundServiceController({
       Location,
-      TaskManager,
       JourneyService: mockJourneyService,
       EfficiencyService: mockEfficiencyService,
+      VehicleMotion: mockVehicleMotion,
       now,
       logger: mockLogger,
     });
@@ -78,19 +94,24 @@ describe('BackgroundService Timeout Logic', () => {
     });
     expect(controller.getState().mode).toBe('ACTIVE');
     expect(controller.getState().lowSpeedStartTime).toBe(nowMs);
+    const lowSpeedStartTimestamp = nowMs;
 
-    // Advance time past the timeout threshold
-    nowMs += 121000;
-
-    // Send another low speed location update to trigger the timeout check
-    await controller.handleLocationTask({
-      data: {
-        locations: [{ coords: { latitude: 0, longitude: 0, speed: 1, accuracy: 5 }, timestamp: nowMs }],
-      },
-    });
+    // Keep receiving low-speed updates so this resolves as stop-timeout (not GPS dropout).
+    for (let elapsed = 5000; elapsed <= PASSIVE_TIMEOUT_MS + 1000; elapsed += 5000) {
+      nowMs = lowSpeedStartTimestamp + elapsed;
+      await controller.handleLocationTask({
+        data: {
+          locations: [{ coords: { latitude: 0, longitude: 0, speed: 1, accuracy: 5 }, timestamp: nowMs }],
+        },
+      });
+      if (controller.getState().mode === 'PASSIVE') {
+        break;
+      }
+    }
 
     expect(controller.getState().mode).toBe('PASSIVE');
     expect(mockJourneyService.endJourney).toHaveBeenCalled();
+    expect(mockJourneyService.deleteEventsSince).toHaveBeenCalledWith(123, lowSpeedStartTimestamp);
   });
 
   it('cancels timeout if speed increases', async () => {
@@ -123,6 +144,151 @@ describe('BackgroundService Timeout Logic', () => {
     for (let i = 0; i < 10; i++) {
       await Promise.resolve();
     }
+
+    expect(controller.getState().mode).toBe('ACTIVE');
+    expect(mockJourneyService.endJourney).not.toHaveBeenCalled();
+  });
+
+  it('does not end journey when low-speed distance progresses without confirmed non-automotive activity', async () => {
+    await controller.startLocationMonitoring();
+    expect(controller.getState().mode).toBe('PASSIVE');
+
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0, speed: 20, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
+    expect(controller.getState().mode).toBe('ACTIVE');
+
+    nowMs += 1000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0.001, speed: 1, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
+    expect(controller.getState().mode).toBe('ACTIVE');
+    expect(controller.getState().lowSpeedStartTime).toBe(nowMs);
+
+    nowMs += 1000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0.003, speed: 1, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
+
+    expect(controller.getState().mode).toBe('ACTIVE');
+    expect(controller.getState().lowSpeedStartTime).toBe(nowMs);
+    expect(controller.getState().lowSpeedStartEventTimestamp).toBe(nowMs);
+    expect(mockJourneyService.endJourney).not.toHaveBeenCalled();
+    expect(mockJourneyService.deleteEventsSince).not.toHaveBeenCalled();
+  });
+
+  it('ends journey when low-speed distance progresses with sustained confirmed non-automotive activity', async () => {
+    await controller.startLocationMonitoring();
+    expect(controller.getState().mode).toBe('PASSIVE');
+
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0, speed: 20, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
+    expect(controller.getState().mode).toBe('ACTIVE');
+
+    const listener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (data: ActivityData) => Promise<void> | void;
+    const walkingActivity: ActivityData = {
+      automotive: false,
+      walking: true,
+      running: false,
+      cycling: false,
+      stationary: false,
+      unknown: false,
+      confidence: 'high',
+      timestamp: nowMs,
+    };
+
+    await listener(walkingActivity);
+    await flushActivityQueue();
+    nowMs += ACTIVE_STOP_NON_AUTOMOTIVE_CONFIRMATION_MS + 1000;
+    await listener({ ...walkingActivity, timestamp: nowMs });
+    await flushActivityQueue();
+
+    nowMs += 1000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0.001, speed: 1, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
+
+    nowMs += 1000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0.003, speed: 1, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
+    const lowSpeedStartTimestamp = controller.getState().lowSpeedStartEventTimestamp;
+
+    nowMs += 1000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0.005, speed: 1, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
+
+    expect(lowSpeedStartTimestamp).not.toBeNull();
+    expect(controller.getState().mode).toBe('PASSIVE');
+    expect(mockJourneyService.endJourney).toHaveBeenCalled();
+    expect(mockJourneyService.deleteEventsSince).toHaveBeenCalledWith(123, lowSpeedStartTimestamp);
+  });
+
+  it('keeps journey active when non-automotive activity is confirmed but speed exceeds walking cap', async () => {
+    await controller.startLocationMonitoring();
+    expect(controller.getState().mode).toBe('PASSIVE');
+
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0, speed: 20, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
+    expect(controller.getState().mode).toBe('ACTIVE');
+
+    const listener = (mockVehicleMotion.addListener as jest.Mock).mock.calls[0][1] as (data: ActivityData) => Promise<void> | void;
+    const walkingActivity: ActivityData = {
+      automotive: false,
+      walking: true,
+      running: false,
+      cycling: false,
+      stationary: false,
+      unknown: false,
+      confidence: 'high',
+      timestamp: nowMs,
+    };
+
+    await listener(walkingActivity);
+    await flushActivityQueue();
+    nowMs += ACTIVE_STOP_NON_AUTOMOTIVE_CONFIRMATION_MS + 1000;
+    await listener({ ...walkingActivity, timestamp: nowMs });
+    await flushActivityQueue();
+
+    nowMs += 1000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0.001, speed: 2.5, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
+
+    nowMs += 1000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0.003, speed: 2.5, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
+
+    nowMs += 1000;
+    await controller.handleLocationTask({
+      data: {
+        locations: [{ coords: { latitude: 0, longitude: 0.005, speed: 2.5, accuracy: 5 }, timestamp: nowMs }],
+      },
+    });
 
     expect(controller.getState().mode).toBe('ACTIVE');
     expect(mockJourneyService.endJourney).not.toHaveBeenCalled();

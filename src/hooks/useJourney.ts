@@ -6,7 +6,7 @@ import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.Hooks);
 
-export const useJourney = (id: number) => {
+const useJourney = (id: number) => {
   const [journey, setJourney] = useState<Journey | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export const useJourney = (id: number) => {
   };
 };
 
-export const useJourneyEvents = (journeyId: number) => {
+const useJourneyEvents = (journeyId: number) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

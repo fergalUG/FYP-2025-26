@@ -3,7 +3,7 @@ import { File, Directory, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { db, resetDatabase } from '@/db/client';
 import { journeys, events } from '@/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { and, desc, eq, gte } from 'drizzle-orm';
 
 import { EventType } from '@types';
 import type {
@@ -19,7 +19,7 @@ import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.JourneyService);
 
-export const createJourneyServiceController = (deps: JourneyServiceDeps): JourneyServiceController => {
+const createJourneyServiceController = (deps: JourneyServiceDeps): JourneyServiceController => {
   const fileSystem = deps.FileSystem ?? { File, Directory, Paths };
   const sharing = deps.Sharing ?? Sharing;
 
@@ -190,6 +190,20 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     }
   };
 
+  const deleteEventsSince = async (journeyId: number, timestamp: number): Promise<void> => {
+    if (!Number.isFinite(timestamp)) {
+      deps.logger.warn('Skipping deleteEventsSince: invalid timestamp provided.', { journeyId, timestamp });
+      return;
+    }
+
+    try {
+      await db.delete(events).where(and(eq(events.journeyId, journeyId), gte(events.timestamp, timestamp)));
+      deps.logger.info(`Deleted journey events since ${timestamp} for journey (${journeyId}).`);
+    } catch (error) {
+      deps.logger.error('Error deleting journey events since timestamp:', error);
+    }
+  };
+
   const getJourneyById = async (id: number): Promise<Journey | null> => {
     try {
       const result = await db.select().from(journeys).where(eq(journeys.id, id));
@@ -279,6 +293,7 @@ export const createJourneyServiceController = (deps: JourneyServiceDeps): Journe
     updateJourney,
     updateJourneyTitle,
     logEvent,
+    deleteEventsSince,
     getJourneyById,
     getAllJourneys,
     deleteJourney,

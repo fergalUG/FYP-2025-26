@@ -25,7 +25,7 @@ const appendToFile = (file: File, content: string): void => {
   }
 };
 
-export const createLogServiceController = (deps: LogServiceDeps): LogServiceController => {
+const createLogServiceController = (deps: LogServiceDeps): LogServiceController => {
   const fileSystem = deps.FileSystem ?? { File, Directory, Paths };
   const sharing = deps.Sharing ?? Sharing;
   const serviceLogger = deps.logger;

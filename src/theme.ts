@@ -28,7 +28,7 @@ const baseColors = {
   black: '#000000',
 };
 
-export interface ThemeColors {
+interface ThemeColors {
   baseColors: typeof baseColors;
   primary: string;
   secondary: string;
@@ -130,7 +130,7 @@ export const lightTheme: Theme = {
   dimensions,
 };
 
-export const darkTheme: Theme = {
+const darkTheme: Theme = {
   colors: {
     baseColors: {
       ...baseColors,

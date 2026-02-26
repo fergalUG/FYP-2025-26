@@ -26,7 +26,7 @@ export interface Event {
 
 export type EventSeverity = 'light' | 'moderate' | 'harsh';
 export type DrivingEventFamily = 'braking' | 'acceleration' | 'cornering' | 'speeding' | 'oscillation';
-export type EventMetadataValue = string | number | boolean;
+type EventMetadataValue = string | number | boolean;
 export type EventMetadata = Record<string, EventMetadataValue>;
 
 export enum EventType {

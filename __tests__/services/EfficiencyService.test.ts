@@ -271,7 +271,7 @@ describe('EfficiencyService', () => {
 
       expect(score).toBeGreaterThanOrEqual(0);
       expect(score).toBeLessThanOrEqual(100);
-      expect(score).toBe(98);
+      expect(score).toBe(97);
     });
 
     it('returns 0 on error', async () => {

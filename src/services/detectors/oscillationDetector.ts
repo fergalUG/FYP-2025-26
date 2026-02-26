@@ -66,7 +66,7 @@ const maxSeverity = (a: EventSeverity, b: EventSeverity): EventSeverity => {
   return severityWeight[a] >= severityWeight[b] ? a : b;
 };
 
-export interface OscillationDetector {
+interface OscillationDetector {
   addForceSample: (nowMs: number, forceG: number) => void;
   detect: (context: OscillationDetectorContext) => DetectorResult;
   reset: () => void;

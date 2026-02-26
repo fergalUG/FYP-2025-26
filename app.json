@@ -20,7 +20,8 @@
         "UIBackgroundModes": ["fetch", "location"],
         "NSLocationWhenInUseUsageDescription": "Allow VeloMetry to access your location while you are using the app.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow VeloMetry to access your location even when you are not using the app.",
-        "NSLocationAlwaysUsageDescription": "Allow VeloMetry to access your location even when you are not using the app."
+        "NSLocationAlwaysUsageDescription": "Allow VeloMetry to access your location even when you are not using the app.",
+        "NSMotionUsageDescription": "Allow VeloMetry to detect driving activity to improve trip start detection."
       }
     },
     "plugins": [

@@ -17,6 +17,7 @@ jest.mock('@/utils/logger', () => ({
   createLogger: () => ({
     info: jest.fn(),
     error: jest.fn(),
+    warn: jest.fn(),
     debug: jest.fn(),
   }),
   LogModule: { JourneyService: 'JourneyService' },
@@ -251,6 +252,26 @@ describe('JourneyService', () => {
       expect(db.delete).toHaveBeenCalledWith(journeys);
       expect(chain.where).toHaveBeenCalled();
       expect(success).toBe(true);
+    });
+  });
+
+  describe('deleteEventsSince', () => {
+    it('should delete events for a journey since a given timestamp', async () => {
+      const chain = mockQuery();
+      (db.delete as jest.Mock).mockReturnValue(chain);
+
+      const journeyId = 5;
+      const timestamp = 1620000000000;
+      await JourneyService.deleteEventsSince(journeyId, timestamp);
+
+      expect(db.delete).toHaveBeenCalledWith(events);
+      expect(chain.where).toHaveBeenCalled();
+    });
+
+    it('should not attempt deletion if timestamp is invalid', async () => {
+      await JourneyService.deleteEventsSince(5, NaN);
+
+      expect(db.delete).not.toHaveBeenCalled();
     });
   });
 });

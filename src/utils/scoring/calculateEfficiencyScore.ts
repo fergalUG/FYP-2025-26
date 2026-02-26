@@ -7,7 +7,7 @@ import { DEFAULT_EFFICIENCY_SCORING_CONFIG } from '@utils/scoring/efficiencyScor
 import { normalizeJourneyEvents } from '@utils/scoring/normalizeEvents';
 import { simulateScoreTimeline } from '@utils/scoring/simulateScore';
 
-export interface EfficiencyScoreResult {
+interface EfficiencyScoreResult {
   score: number;
   stats: ScoringStats;
 }
@@ -24,7 +24,8 @@ const getJourneyBounds = (events: Event[]): { startTimestamp: number; endTimesta
   const startEvent = sorted.find((e) => e.type === EventType.JourneyStart);
   const endEvent = [...sorted].reverse().find((e) => e.type === EventType.JourneyEnd);
 
-  const startTimestamp = startEvent?.timestamp ?? sorted[0].timestamp;
+  const earliestTimestamp = sorted[0].timestamp;
+  const startTimestamp = startEvent ? Math.min(startEvent.timestamp, earliestTimestamp) : earliestTimestamp;
   const endTimestamp = endEvent?.timestamp ?? sorted[sorted.length - 1].timestamp;
 
   return { startTimestamp, endTimestamp };

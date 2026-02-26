@@ -3,13 +3,13 @@ import type { DrivingEventFamily, EventSeverity } from '@types';
 import type { EfficiencyScoringConfig, SpeedingSeverity } from '@utils/scoring/efficiencyScoringConfig';
 import type { SpeedingEpisode } from '@utils/scoring/normalizeEvents';
 
-export interface PenaltyAction {
+interface PenaltyAction {
   family: DrivingEventFamily | 'stop_and_go';
   severity?: EventSeverity;
   timestamp: number;
 }
 
-export interface ScoreSimulationResult {
+interface ScoreSimulationResult {
   durationMs: number;
   avgScore: number;
   endScore: number;

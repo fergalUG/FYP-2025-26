@@ -91,6 +91,8 @@ jest.mock('./modules/vehicle-motion', () => ({
   default: {
     startTracking: jest.fn(),
     stopTracking: jest.fn(),
+    startActivityUpdates: jest.fn(),
+    stopActivityUpdates: jest.fn(),
     addListener: jest.fn(),
     removeAllListeners: jest.fn(),
     setFilterAlpha: jest.fn(),

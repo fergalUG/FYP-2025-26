@@ -1,17 +1,17 @@
 import type { DrivingEventFamily, EventSeverity } from '@/types/db';
 import type { SpeedBand } from '@/types/tracking';
 
-export interface LongitudinalTierThreshold {
+interface LongitudinalTierThreshold {
   minForceG: number;
   minRateKmhPerSec: number;
 }
 
-export interface CorneringTierThreshold {
+interface CorneringTierThreshold {
   minForceG: number;
   minHeadingChangeDeg: number;
 }
 
-export interface OscillationTierThreshold {
+interface OscillationTierThreshold {
   minSpeedStdDevKmh: number;
   minSignFlipCount: number;
   minForceP90G: number;

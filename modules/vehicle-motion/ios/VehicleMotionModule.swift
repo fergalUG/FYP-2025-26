@@ -3,12 +3,13 @@ import ExpoModulesCore
 
 public class VehicleMotionModule: Module {
     private let motionManager = CMMotionManager()
+    private let activityManager = CMMotionActivityManager()
     private let signalProcessor = SignalProcessor()
 
     public func definition() -> ModuleDefinition {
         Name("VehicleMotion")
         
-        Events("onMotionUpdate")
+        Events("onMotionUpdate", "onActivityUpdate")
         
         Function("startTracking") {
             startTracking()
@@ -17,23 +18,13 @@ public class VehicleMotionModule: Module {
         Function("stopTracking") {
             motionManager.stopDeviceMotionUpdates()
         }
-
-        Function("setFilterAlpha") { (value: Double) in
-            signalProcessor.setFilterAlpha(value)
-            
-            print("VehicleMotion: Filter Alpha updated to \(value)")
+        
+        Function("startActivityUpdates") {
+            startActivityUpdates()
         }
         
-        Function("setFcMin") { (value: Double) in
-            signalProcessor.setFcMin(value)
-        }
-        
-        Function("setFcMax") { (value: Double) in
-            signalProcessor.setFcMax(value)
-        }
-        
-        Function("setGyroRef") { (value: Double) in
-            signalProcessor.setGyroRef(value)
+        Function("stopActivityUpdates") {
+            activityManager.stopActivityUpdates()
         }
     }
     
@@ -74,6 +65,39 @@ public class VehicleMotionModule: Module {
                     "horizontalMagnitude": horizontalMagnitude
                 ])
             }
+        }
+    }
+
+    private func startActivityUpdates() {
+        if !CMMotionActivityManager.isActivityAvailable() {
+            return
+        }
+        
+        activityManager.startActivityUpdates(to: .main) { [weak self] activity in
+            guard let activity = activity, let self = self else { return }
+            
+            let confidence: String
+            switch activity.confidence {
+            case .high:
+                confidence = "high"
+            case .medium:
+                confidence = "medium"
+            case .low:
+                confidence = "low"
+            @unknown default:
+                confidence = "unknown"
+            }
+            
+            self.sendEvent("onActivityUpdate", [
+                "automotive": activity.automotive,
+                "walking": activity.walking,
+                "running": activity.running,
+                "cycling": activity.cycling,
+                "stationary": activity.stationary,
+                "unknown": activity.unknown,
+                "confidence": confidence,
+                "timestamp": Int(activity.startDate.timeIntervalSince1970 * 1000)
+            ])
         }
     }
 }

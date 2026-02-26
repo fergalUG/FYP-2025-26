@@ -31,6 +31,7 @@ export interface JourneyServiceController {
   updateJourney: (id: number, updates: Partial<Journey>) => Promise<Journey | undefined>;
   updateJourneyTitle: (journeyId: number, title: string) => Promise<boolean>;
   logEvent: (type: EventType, latitude: number, longitude: number, speed: number, details?: EventLogDetails) => Promise<void>;
+  deleteEventsSince: (journeyId: number, timestamp: number) => Promise<void>;
   getJourneyById: (id: number) => Promise<Journey | null>;
   getAllJourneys: () => Promise<Journey[]>;
   deleteJourney: (journeyId: number) => Promise<boolean>;
@@ -45,7 +46,7 @@ export interface EventLogDetails {
   metadata?: EventMetadata | null;
 }
 
-export type JourneyChangeType = 'journey-started' | 'journey-ended' | 'journey-updated' | 'journey-deleted';
+type JourneyChangeType = 'journey-started' | 'journey-ended' | 'journey-updated' | 'journey-deleted';
 
 export interface JourneyChangeEvent {
   type: JourneyChangeType;

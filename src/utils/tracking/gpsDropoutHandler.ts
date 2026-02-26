@@ -4,7 +4,7 @@ import { GPS_DROPOUT_START_MS, MAX_GPS_DROPOUT_DURATION_MS } from '@constants/tr
 
 import type { GpsDropoutState } from '@/types/tracking';
 
-export interface GpsDropoutResult {
+interface GpsDropoutResult {
   shouldEndJourney: boolean;
   useCalculatedSpeed: boolean;
   updatedState: GpsDropoutState;
