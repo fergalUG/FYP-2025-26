@@ -59,10 +59,12 @@ export const resolveLocationSample = (input: ResolveLocationSampleInput): Resolv
     };
   }
 
+  const passiveEffectiveSpeed = resolvePassiveEffectiveSpeed(lastLocation, location, gpsValidationOptions);
+
   return {
     locationForProcessing: location,
-    effectiveSpeed: resolvePassiveEffectiveSpeed(lastLocation, location, gpsValidationOptions),
-    speedSource: 'gps',
+    effectiveSpeed: passiveEffectiveSpeed,
+    speedSource: passiveEffectiveSpeed.source === 'calculated' ? 'calculated' : 'gps',
     nextGpsDropoutState: {
       isInDropout: false,
       dropoutStartTime: null,
