@@ -64,7 +64,7 @@ export const processPassiveLocation = async (input: ProcessPassiveLocationInput)
 
   if (passiveStartDecision.action === 'START_ACTIVE_GPS') {
     const speedLabelKmh = convertMsToKmh(effectiveSpeed.value).toFixed(1);
-    logger.info(`Speed exceeded ${ACTIVE_SPEED_THRESHOLD}km/h (valid: ${speedLabelKmh} km/h); switching to ACTIVE tracking mode.`);
+    logger.info(`Speed exceeded ${convertMsToKmh(ACTIVE_SPEED_THRESHOLD).toFixed(1)}km/h (valid: ${speedLabelKmh} km/h); switching to ACTIVE tracking mode.`);
     await startActiveTracking(locationForProcessing);
     return 'STARTED_ACTIVE';
   }
@@ -83,7 +83,7 @@ export const processPassiveLocation = async (input: ProcessPassiveLocationInput)
   if (passiveStartDecision.action === 'START_ACTIVE_CALCULATED') {
     const speedLabelKmh = convertMsToKmh(effectiveSpeed.value).toFixed(1);
     logger.info(
-      `Calculated speed confirmed above ${ACTIVE_SPEED_THRESHOLD}km/h (valid: ${speedLabelKmh} km/h); switching to ACTIVE tracking mode.`
+      `Calculated speed confirmed above ${convertMsToKmh(ACTIVE_SPEED_THRESHOLD).toFixed(1)}km/h (valid: ${speedLabelKmh} km/h); switching to ACTIVE tracking mode.`
     );
     await startActiveTracking(locationForProcessing);
     return 'STARTED_ACTIVE';
