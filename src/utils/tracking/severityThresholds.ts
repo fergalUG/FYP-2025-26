@@ -88,11 +88,14 @@ export const CORNERING_TIER_THRESHOLDS: Record<SpeedBand, Record<EventSeverity, 
   },
 };
 
-export const SPEEDING_THRESHOLD_KMH: Record<EventSeverity, number> = {
-  light: 90,
-  moderate: 100,
-  harsh: 120,
+export const SPEEDING_OVER_LIMIT_THRESHOLD_KMH: Record<EventSeverity, number> = {
+  light: 5,
+  moderate: 10,
+  harsh: 15,
 };
+
+export const SPEEDING_HYSTERESIS_MARGIN_KMH = 3;
+export const SPEEDING_PERSISTENCE_MS = 2000;
 
 export const CORNERING_MAX_ABS_SPEED_CHANGE_KMH_PER_SEC = 10;
 

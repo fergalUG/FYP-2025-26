@@ -22,6 +22,7 @@ import {
   type StopAndGoPhase,
 } from '@types';
 import { JourneyService } from '@services/JourneyService';
+import { RoadSpeedLimitService } from '@services/RoadSpeedLimitService';
 import { createLogger, isDebugEnabled, LogModule } from '@utils/logger';
 import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
 import { convertMsToKmh, type SpeedConfidence, type SpeedSource } from '@utils/gpsValidation';
@@ -178,14 +179,37 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     });
   };
 
-  const checkSpeeding = async (location: Location.LocationObject, speedKmh: number): Promise<void> => {
-    const severity = speedingDetector.detect(speedKmh);
-    if (!severity) {
+  const checkSpeeding = async (location: Location.LocationObject, speedKmh: number, nowMs: number): Promise<void> => {
+    const speedLimit = await deps.RoadSpeedLimitService.getSpeedLimit({
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      nowMs,
+    });
+    if (!speedLimit) {
+      deps.logger.debug('Skipping speeding check: no road speed limit available', {
+        latitude: Number(location.coords.latitude.toFixed(6)),
+        longitude: Number(location.coords.longitude.toFixed(6)),
+      });
       return;
     }
 
-    await logDrivingEvent('speeding', severity, location, speedKmh, {
+    const speedingResult = speedingDetector.detect({
+      nowMs,
+      speedKmh,
+      speedLimitKmh: speedLimit.speedLimitKmh,
+    });
+    if (!speedingResult.detected || !speedingResult.severity) {
+      return;
+    }
+
+    await logDrivingEvent('speeding', speedingResult.severity, location, speedKmh, {
       speedKmh: Number(speedKmh.toFixed(2)),
+      speedLimitKmh: Number(speedLimit.speedLimitKmh.toFixed(1)),
+      speedLimitSource: speedLimit.source,
+      speedLimitFromCache: speedLimit.fromCache,
+      ...(typeof speedLimit.wayId === 'number' ? { speedLimitWayId: speedLimit.wayId } : {}),
+      ...(speedLimit.rawMaxspeed ? { speedLimitRaw: speedLimit.rawMaxspeed } : {}),
+      ...(speedingResult.metadata ?? {}),
     });
   };
 
@@ -470,6 +494,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     brakingDetector.reset();
     accelerationDetector.reset();
     corneringDetector.reset();
+    speedingDetector.reset();
     oscillationDetector.reset();
     stopAndGoDetector.reset();
     resetDebugSummary();
@@ -499,6 +524,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     brakingDetector.reset();
     accelerationDetector.reset();
     corneringDetector.reset();
+    speedingDetector.reset();
     oscillationDetector.reset();
     stopAndGoDetector.reset();
     resetDebugSummary();
@@ -574,8 +600,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
         }
       }
 
-      if (speedConfidence !== 'low') {
-        await checkSpeeding(location, speedKmh);
+      if (speedConfidence !== 'low' && speedConfidence !== 'none') {
+        await checkSpeeding(location, speedKmh, currentTime);
       } else {
         deps.logger.debug('Skipping speeding check due to low speed confidence', {
           speedKmh: speedKmh.toFixed(1),
@@ -649,6 +675,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
 export const EfficiencyService = createEfficiencyServiceController({
   JourneyService,
+  RoadSpeedLimitService,
   VehicleMotion,
   now: () => Date.now(),
   logger,
