@@ -199,6 +199,7 @@ const createJourneyServiceController = (deps: JourneyServiceDeps): JourneyServic
     try {
       await db.delete(events).where(and(eq(events.journeyId, journeyId), gte(events.timestamp, timestamp)));
       deps.logger.info(`Deleted journey events since ${timestamp} for journey (${journeyId}).`);
+      emitChange({ type: 'journey-updated', journeyId });
     } catch (error) {
       deps.logger.error('Error deleting journey events since timestamp:', error);
     }

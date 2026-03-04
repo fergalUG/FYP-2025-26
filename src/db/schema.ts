@@ -32,3 +32,16 @@ export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
 });
+
+export const roadSpeedLimitCache = sqliteTable('road_speed_limit_cache', {
+  key: text('key').primaryKey(),
+  kind: text('kind').$type<'hit' | 'miss'>().notNull(),
+  latitude: real('latitude').notNull(),
+  longitude: real('longitude').notNull(),
+  speedLimitKmh: real('speedLimitKmh'),
+  source: text('source').$type<'overpass' | null>(),
+  wayId: integer('wayId'),
+  rawMaxspeed: text('rawMaxspeed'),
+  expiresAtMs: integer('expiresAtMs').notNull(),
+  updatedAtMs: integer('updatedAtMs').notNull(),
+});

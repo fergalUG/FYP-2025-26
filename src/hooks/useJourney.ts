@@ -27,6 +27,29 @@ const useJourney = (id: number) => {
     fetchJourney();
   }, [fetchJourney]);
 
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+
+    const unsubscribe = JourneyService.addJourneyListener((event) => {
+      if (event.journeyId !== id) {
+        return;
+      }
+
+      if (event.type === 'journey-deleted') {
+        setJourney(null);
+        return;
+      }
+
+      if (event.type === 'journey-updated' || event.type === 'journey-ended') {
+        fetchJourney();
+      }
+    });
+
+    return unsubscribe;
+  }, [id, fetchJourney]);
+
   const updateJourney = async (updates: Partial<Journey>) => {
     try {
       const updatedJourney = await JourneyService.updateJourney(id, updates);
@@ -71,6 +94,29 @@ const useJourneyEvents = (journeyId: number) => {
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
+
+  useEffect(() => {
+    if (!journeyId) {
+      return;
+    }
+
+    const unsubscribe = JourneyService.addJourneyListener((event) => {
+      if (event.journeyId !== journeyId) {
+        return;
+      }
+
+      if (event.type === 'journey-deleted') {
+        setEvents([]);
+        return;
+      }
+
+      if (event.type === 'journey-updated' || event.type === 'journey-ended') {
+        fetchEvents();
+      }
+    });
+
+    return unsubscribe;
+  }, [journeyId, fetchEvents]);
 
   return {
     events,

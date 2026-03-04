@@ -23,45 +23,45 @@ export const BRAKING_TIER_THRESHOLDS: Record<SpeedBand, Record<EventSeverity, Lo
   low: {
     light: { minForceG: 0.16, minRateKmhPerSec: 7 },
     moderate: { minForceG: 0.24, minRateKmhPerSec: 10 },
-    harsh: { minForceG: 0.34, minRateKmhPerSec: 14 },
+    harsh: { minForceG: 0.3, minRateKmhPerSec: 12 },
   },
   mid: {
     light: { minForceG: 0.14, minRateKmhPerSec: 6 },
     moderate: { minForceG: 0.22, minRateKmhPerSec: 9 },
-    harsh: { minForceG: 0.32, minRateKmhPerSec: 12 },
+    harsh: { minForceG: 0.28, minRateKmhPerSec: 10.5 },
   },
   high: {
     light: { minForceG: 0.12, minRateKmhPerSec: 5 },
     moderate: { minForceG: 0.2, minRateKmhPerSec: 8 },
-    harsh: { minForceG: 0.3, minRateKmhPerSec: 10 },
+    harsh: { minForceG: 0.26, minRateKmhPerSec: 9 },
   },
   very_high: {
     light: { minForceG: 0.1, minRateKmhPerSec: 4 },
     moderate: { minForceG: 0.18, minRateKmhPerSec: 7 },
-    harsh: { minForceG: 0.28, minRateKmhPerSec: 8 },
+    harsh: { minForceG: 0.24, minRateKmhPerSec: 8 },
   },
 };
 
 export const ACCELERATION_TIER_THRESHOLDS: Record<SpeedBand, Record<EventSeverity, LongitudinalTierThreshold>> = {
   low: {
     light: { minForceG: 0.14, minRateKmhPerSec: 7 },
-    moderate: { minForceG: 0.22, minRateKmhPerSec: 10 },
-    harsh: { minForceG: 0.32, minRateKmhPerSec: 15 },
+    moderate: { minForceG: 0.19, minRateKmhPerSec: 8.5 },
+    harsh: { minForceG: 0.27, minRateKmhPerSec: 11.5 },
   },
   mid: {
     light: { minForceG: 0.12, minRateKmhPerSec: 6 },
-    moderate: { minForceG: 0.2, minRateKmhPerSec: 9 },
-    harsh: { minForceG: 0.28, minRateKmhPerSec: 12 },
+    moderate: { minForceG: 0.17, minRateKmhPerSec: 7.5 },
+    harsh: { minForceG: 0.24, minRateKmhPerSec: 10 },
   },
   high: {
     light: { minForceG: 0.1, minRateKmhPerSec: 5 },
-    moderate: { minForceG: 0.18, minRateKmhPerSec: 7 },
-    harsh: { minForceG: 0.26, minRateKmhPerSec: 9 },
+    moderate: { minForceG: 0.16, minRateKmhPerSec: 6.5 },
+    harsh: { minForceG: 0.23, minRateKmhPerSec: 8 },
   },
   very_high: {
     light: { minForceG: 0.09, minRateKmhPerSec: 4 },
-    moderate: { minForceG: 0.16, minRateKmhPerSec: 6 },
-    harsh: { minForceG: 0.24, minRateKmhPerSec: 7 },
+    moderate: { minForceG: 0.14, minRateKmhPerSec: 5.5 },
+    harsh: { minForceG: 0.2, minRateKmhPerSec: 7 },
   },
 };
 
@@ -94,7 +94,7 @@ export const SPEEDING_OVER_LIMIT_THRESHOLD_KMH: Record<EventSeverity, number> = 
   harsh: 15,
 };
 
-export const SPEEDING_HYSTERESIS_MARGIN_KMH = 3;
+export const SPEEDING_HYSTERESIS_MARGIN_KMH = 1.5;
 export const SPEEDING_PERSISTENCE_MS = 2000;
 
 export const CORNERING_MAX_ABS_SPEED_CHANGE_KMH_PER_SEC = 10;

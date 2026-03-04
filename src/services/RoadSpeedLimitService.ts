@@ -1,12 +1,26 @@
-import type { RoadSpeedLimitServiceController, RoadSpeedLimitServiceDeps, RoadSpeedLimitLookupArgs, RoadSpeedLimitValue } from '@/types';
-import { createLogger, LogModule } from '@utils/logger';
+import { db, ensureRoadSpeedLimitCacheTable } from '@db/client';
+import { roadSpeedLimitCache } from '@db/schema';
 import { calculateDistanceKm } from '@utils/gpsValidation';
+import { createLogger, LogModule } from '@utils/logger';
+import { eq, lte } from 'drizzle-orm';
+
+import type {
+  RoadSpeedLimitCacheStore,
+  RoadSpeedLimitCacheStoreEntry,
+  RoadSpeedLimitLookupArgs,
+  RoadSpeedLimitServiceController,
+  RoadSpeedLimitServiceDeps,
+  RoadSpeedLimitValue,
+} from '@/types';
 
 const DEFAULT_OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const DEFAULT_QUERY_RADIUS_METERS = 60;
 const CACHE_CELL_PRECISION = 3;
-const HIT_CACHE_TTL_MS = 10 * 60 * 1000;
-const MISS_CACHE_TTL_MS = 2 * 60 * 1000;
+const MEMORY_HIT_CACHE_TTL_MS = 10 * 60 * 1000;
+const MEMORY_MISS_CACHE_TTL_MS = 2 * 60 * 1000;
+const PERSISTED_HIT_CACHE_TTL_MS = 180 * 24 * 60 * 60 * 1000;
+const PERSISTED_MISS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const PERSISTED_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const NEARBY_REUSE_DISTANCE_METERS = 120;
 const OVERPASS_TIMEOUT_MS = 2000;
 
@@ -82,10 +96,190 @@ way(around:${DEFAULT_QUERY_RADIUS_METERS},${latitude.toFixed(6)},${longitude.toF
 out tags center 20;`;
 };
 
+const toPersistentEntry = (key: string, entry: CacheEntry, nowMs: number): RoadSpeedLimitCacheStoreEntry => {
+  if (entry.kind === 'miss') {
+    return {
+      key,
+      kind: 'miss',
+      latitude: entry.latitude,
+      longitude: entry.longitude,
+      speedLimitKmh: null,
+      source: null,
+      wayId: null,
+      rawMaxspeed: null,
+      expiresAtMs: nowMs + PERSISTED_MISS_CACHE_TTL_MS,
+      updatedAtMs: nowMs,
+    };
+  }
+
+  return {
+    key,
+    kind: 'hit',
+    latitude: entry.latitude,
+    longitude: entry.longitude,
+    speedLimitKmh: entry.value.speedLimitKmh,
+    source: entry.value.source,
+    wayId: typeof entry.value.wayId === 'number' ? entry.value.wayId : null,
+    rawMaxspeed: entry.value.rawMaxspeed ?? null,
+    expiresAtMs: nowMs + PERSISTED_HIT_CACHE_TTL_MS,
+    updatedAtMs: nowMs,
+  };
+};
+
+const fromPersistentEntry = (entry: RoadSpeedLimitCacheStoreEntry): CacheEntry | null => {
+  if (entry.kind === 'miss') {
+    return {
+      kind: 'miss',
+      latitude: entry.latitude,
+      longitude: entry.longitude,
+      expiresAtMs: entry.expiresAtMs,
+    };
+  }
+
+  if (entry.speedLimitKmh === null || entry.source === null) {
+    return null;
+  }
+
+  return {
+    kind: 'hit',
+    latitude: entry.latitude,
+    longitude: entry.longitude,
+    expiresAtMs: entry.expiresAtMs,
+    value: {
+      speedLimitKmh: entry.speedLimitKmh,
+      source: entry.source,
+      ...(typeof entry.wayId === 'number' ? { wayId: entry.wayId } : {}),
+      ...(entry.rawMaxspeed ? { rawMaxspeed: entry.rawMaxspeed } : {}),
+    },
+  };
+};
+
+const createRoadSpeedLimitDbCacheStore = (): RoadSpeedLimitCacheStore => {
+  return {
+    getByKey: async (key: string) => {
+      const result = await db.select().from(roadSpeedLimitCache).where(eq(roadSpeedLimitCache.key, key)).limit(1);
+      return result[0] ?? null;
+    },
+    upsert: async (entry: RoadSpeedLimitCacheStoreEntry) => {
+      await db
+        .insert(roadSpeedLimitCache)
+        .values(entry)
+        .onConflictDoUpdate({
+          target: roadSpeedLimitCache.key,
+          set: {
+            kind: entry.kind,
+            latitude: entry.latitude,
+            longitude: entry.longitude,
+            speedLimitKmh: entry.speedLimitKmh,
+            source: entry.source,
+            wayId: entry.wayId,
+            rawMaxspeed: entry.rawMaxspeed,
+            expiresAtMs: entry.expiresAtMs,
+            updatedAtMs: entry.updatedAtMs,
+          },
+        });
+    },
+    deleteByKey: async (key: string) => {
+      await db.delete(roadSpeedLimitCache).where(eq(roadSpeedLimitCache.key, key));
+    },
+    deleteExpired: async (nowMs: number) => {
+      await db.delete(roadSpeedLimitCache).where(lte(roadSpeedLimitCache.expiresAtMs, nowMs));
+    },
+  };
+};
+
 export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServiceDeps): RoadSpeedLimitServiceController => {
   const overpassUrl = deps.overpassUrl ?? DEFAULT_OVERPASS_URL;
   const cache = new Map<string, CacheEntry>();
   const inFlight = new Map<string, Promise<RoadSpeedLimitValue | null>>();
+  let cacheStoreReady = deps.cacheStore ? false : true;
+  let cacheStoreFailed = false;
+  let lastPersistentPruneAtMs = 0;
+
+  const ensureCacheStoreReady = async (): Promise<boolean> => {
+    if (!deps.cacheStore) {
+      return false;
+    }
+    if (cacheStoreReady) {
+      return true;
+    }
+    if (cacheStoreFailed) {
+      return false;
+    }
+
+    try {
+      if (deps.ensureCacheStoreReady) {
+        await deps.ensureCacheStoreReady();
+      }
+      cacheStoreReady = true;
+      return true;
+    } catch (error) {
+      deps.logger.warn('Road speed limit cache store initialization failed', error);
+      cacheStoreFailed = true;
+      return false;
+    }
+  };
+
+  const persistCacheEntry = async (key: string, entry: CacheEntry, nowMs: number): Promise<void> => {
+    if (!deps.cacheStore) {
+      return;
+    }
+    const ready = await ensureCacheStoreReady();
+    if (!ready) {
+      return;
+    }
+
+    try {
+      await deps.cacheStore.upsert(toPersistentEntry(key, entry, nowMs));
+    } catch (error) {
+      deps.logger.warn('Failed to persist road speed limit cache entry', error);
+    }
+  };
+
+  const maybePrunePersistentCache = async (nowMs: number): Promise<void> => {
+    if (!deps.cacheStore || nowMs - lastPersistentPruneAtMs < PERSISTED_PRUNE_INTERVAL_MS) {
+      return;
+    }
+
+    const ready = await ensureCacheStoreReady();
+    if (!ready) {
+      return;
+    }
+
+    lastPersistentPruneAtMs = nowMs;
+    try {
+      await deps.cacheStore.deleteExpired(nowMs);
+    } catch (error) {
+      deps.logger.warn('Failed to prune expired road speed limit cache entries', error);
+    }
+  };
+
+  const readPersistedEntry = async (key: string, nowMs: number): Promise<CacheEntry | null> => {
+    if (!deps.cacheStore) {
+      return null;
+    }
+
+    const ready = await ensureCacheStoreReady();
+    if (!ready) {
+      return null;
+    }
+
+    try {
+      const persisted = await deps.cacheStore.getByKey(key);
+      if (!persisted) {
+        return null;
+      }
+      if (persisted.expiresAtMs <= nowMs) {
+        await deps.cacheStore.deleteByKey(key);
+        return null;
+      }
+
+      return fromPersistentEntry(persisted);
+    } catch (error) {
+      deps.logger.warn('Failed reading persisted road speed limit cache entry', error);
+      return null;
+    }
+  };
 
   const resolveNearbyCacheEntry = (latitude: number, longitude: number, nowMs: number): CacheEntry | null => {
     let bestEntry: CacheEntry | null = null;
@@ -196,6 +390,8 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
       return null;
     }
 
+    await maybePrunePersistentCache(nowMs);
+
     const key = buildCellKey(args.latitude, args.longitude);
     const cached = cache.get(key);
     if (cached && cached.expiresAtMs > nowMs) {
@@ -209,25 +405,42 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
       };
     }
 
-    const nearby = resolveNearbyCacheEntry(args.latitude, args.longitude, nowMs);
-    if (nearby) {
-      if (nearby.kind === 'miss') {
-        cache.set(key, {
-          kind: 'miss',
-          latitude: args.latitude,
-          longitude: args.longitude,
-          expiresAtMs: nearby.expiresAtMs,
-        });
+    const persisted = await readPersistedEntry(key, nowMs);
+    if (persisted) {
+      cache.set(key, persisted);
+      if (persisted.kind === 'miss') {
         return null;
       }
 
-      cache.set(key, {
+      return {
+        ...persisted.value,
+        fromCache: true,
+      };
+    }
+
+    const nearby = resolveNearbyCacheEntry(args.latitude, args.longitude, nowMs);
+    if (nearby) {
+      if (nearby.kind === 'miss') {
+        const missEntry: CacheMiss = {
+          kind: 'miss',
+          latitude: args.latitude,
+          longitude: args.longitude,
+          expiresAtMs: nowMs + MEMORY_MISS_CACHE_TTL_MS,
+        };
+        cache.set(key, missEntry);
+        await persistCacheEntry(key, missEntry, nowMs);
+        return null;
+      }
+
+      const hitEntry: CacheHit = {
         kind: 'hit',
         latitude: args.latitude,
         longitude: args.longitude,
-        expiresAtMs: nearby.expiresAtMs,
+        expiresAtMs: nowMs + MEMORY_HIT_CACHE_TTL_MS,
         value: nearby.value,
-      });
+      };
+      cache.set(key, hitEntry);
+      await persistCacheEntry(key, hitEntry, nowMs);
       return {
         ...nearby.value,
         fromCache: true,
@@ -242,27 +455,31 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
     const request = (async () => {
       const resolved = await fetchSpeedLimit(args);
       if (resolved) {
-        cache.set(key, {
+        const hitEntry: CacheHit = {
           kind: 'hit',
           latitude: args.latitude,
           longitude: args.longitude,
-          expiresAtMs: nowMs + HIT_CACHE_TTL_MS,
+          expiresAtMs: nowMs + MEMORY_HIT_CACHE_TTL_MS,
           value: {
             speedLimitKmh: resolved.speedLimitKmh,
             source: resolved.source,
             wayId: resolved.wayId,
             rawMaxspeed: resolved.rawMaxspeed,
           },
-        });
+        };
+        cache.set(key, hitEntry);
+        await persistCacheEntry(key, hitEntry, nowMs);
         return resolved;
       }
 
-      cache.set(key, {
+      const missEntry: CacheMiss = {
         kind: 'miss',
         latitude: args.latitude,
         longitude: args.longitude,
-        expiresAtMs: nowMs + MISS_CACHE_TTL_MS,
-      });
+        expiresAtMs: nowMs + MEMORY_MISS_CACHE_TTL_MS,
+      };
+      cache.set(key, missEntry);
+      await persistCacheEntry(key, missEntry, nowMs);
       return null;
     })();
 
@@ -274,7 +491,7 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
     }
   };
 
-  const reset = () => {
+  const reset = (): void => {
     cache.clear();
     inFlight.clear();
   };
@@ -291,4 +508,6 @@ export const RoadSpeedLimitService = createRoadSpeedLimitServiceController({
   fetchFn: fetch,
   now: () => Date.now(),
   logger,
+  cacheStore: createRoadSpeedLimitDbCacheStore(),
+  ensureCacheStoreReady: ensureRoadSpeedLimitCacheTable,
 });

@@ -34,32 +34,32 @@ export const DEFAULT_EFFICIENCY_SCORING_CONFIG: EfficiencyScoringConfig = {
   dropPoints: {
     driving: {
       braking: {
-        light: 2,
-        moderate: 5,
-        harsh: 8,
+        light: 1.5,
+        moderate: 3.5,
+        harsh: 6,
       },
       acceleration: {
-        light: 2,
-        moderate: 4,
-        harsh: 6,
+        light: 3,
+        moderate: 5,
+        harsh: 7.5,
       },
       cornering: {
-        light: 2,
-        moderate: 4,
-        harsh: 6,
+        light: 0.5,
+        moderate: 1,
+        harsh: 2,
       },
       oscillation: {
         light: 3,
         moderate: 6,
-        harsh: 9,
+        harsh: 10,
       },
       speeding: {
-        light: 1,
-        moderate: 4,
-        harsh: 8,
+        light: 0.5,
+        moderate: 1.5,
+        harsh: 3.5,
       },
     },
-    stopAndGo: 6,
+    stopAndGo: 2.5,
   },
 
   incidentCooldownMs: {
@@ -70,14 +70,14 @@ export const DEFAULT_EFFICIENCY_SCORING_CONFIG: EfficiencyScoringConfig = {
     stop_and_go: 30000,
   },
 
-  speedingEpisodeGapMs: 25 * 1000,
+  speedingEpisodeGapMs: 20 * 1000,
   speedingDrainPointsPerSecond: {
-    light: 0.01,
-    moderate: 0.02,
-    harsh: 0.05,
+    light: 0.004,
+    moderate: 0.012,
+    harsh: 0.03,
   },
 
   burstWindowMs: 45 * 1000,
-  burstMultiplierStep: 0.25,
-  burstMultiplierMax: 2.0,
+  burstMultiplierStep: 0.12,
+  burstMultiplierMax: 1.5,
 };
