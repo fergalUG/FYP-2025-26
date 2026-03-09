@@ -119,4 +119,43 @@ describe('SettingsService', () => {
       expect(success).toBe(false);
     });
   });
+
+  describe('getMapMarkerDebugMetadataEnabled', () => {
+    it('should return false if no setting exists', async () => {
+      const chain = mockQuery([]);
+      (db.select as jest.Mock).mockReturnValue(chain);
+
+      const result = await SettingsService.getMapMarkerDebugMetadataEnabled();
+
+      expect(result).toBe(false);
+    });
+
+    it('should return the stored boolean value', async () => {
+      const chain = mockQuery([{ value: 'true' }]);
+      (db.select as jest.Mock).mockReturnValue(chain);
+
+      const result = await SettingsService.getMapMarkerDebugMetadataEnabled();
+
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('setMapMarkerDebugMetadataEnabled', () => {
+    it('should upsert the map marker debug metadata setting', async () => {
+      const chain = mockQuery();
+      (db.insert as jest.Mock).mockReturnValue(chain);
+
+      const success = await SettingsService.setMapMarkerDebugMetadataEnabled(true);
+
+      expect(db.insert).toHaveBeenCalledWith(settings);
+      expect(chain.values).toHaveBeenCalledWith({ key: 'mapMarkerDebugMetadata', value: 'true' });
+      expect(chain.onConflictDoUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: settings.key,
+          set: { value: 'true' },
+        })
+      );
+      expect(success).toBe(true);
+    });
+  });
 });

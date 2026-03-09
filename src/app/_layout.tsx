@@ -7,7 +7,7 @@ import { initDatabaseWithMockData } from '@utils/database';
 import { JourneyService } from '@services/JourneyService';
 import { LogService } from '@services/LogService';
 import { appHeaderOptions } from '@constants/navigation';
-import { BackgroundServiceProvider, DebugLogsProvider, DebugOverlayProvider, ThemeProvider, ToastProvider, useTheme } from '@hooks';
+import { AppSettingsProvider, BackgroundServiceProvider, ThemeProvider, ToastProvider, useTheme } from '@hooks';
 
 type ProviderEntry<Props extends Record<string, unknown> = Record<string, unknown>> = {
   Provider: React.ComponentType<{ children: React.ReactNode } & Props>;
@@ -29,8 +29,7 @@ const Providers = composeProviders([
   { Provider: ThemeProvider },
   { Provider: ToastProvider },
   { Provider: BackgroundServiceProvider },
-  { Provider: DebugLogsProvider },
-  { Provider: DebugOverlayProvider },
+  { Provider: AppSettingsProvider },
 ]);
 
 export default function RootLayout() {

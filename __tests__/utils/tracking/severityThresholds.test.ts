@@ -5,7 +5,9 @@ import {
   DETECTION_COOLDOWN_MS,
   OSCILLATION_TIER_THRESHOLDS,
   SEVERITY_ORDER_DESC,
-  SPEEDING_THRESHOLD_KMH,
+  SPEEDING_HYSTERESIS_MARGIN_KMH,
+  SPEEDING_OVER_LIMIT_THRESHOLD_KMH,
+  SPEEDING_PERSISTENCE_MS,
 } from '@utils/tracking/severityThresholds';
 
 describe('severityThresholds', () => {
@@ -50,8 +52,10 @@ describe('severityThresholds', () => {
   });
 
   it('uses ascending speeding thresholds and non-negative cooldowns', () => {
-    expect(SPEEDING_THRESHOLD_KMH.light).toBeLessThan(SPEEDING_THRESHOLD_KMH.moderate);
-    expect(SPEEDING_THRESHOLD_KMH.moderate).toBeLessThan(SPEEDING_THRESHOLD_KMH.harsh);
+    expect(SPEEDING_OVER_LIMIT_THRESHOLD_KMH.light).toBeLessThan(SPEEDING_OVER_LIMIT_THRESHOLD_KMH.moderate);
+    expect(SPEEDING_OVER_LIMIT_THRESHOLD_KMH.moderate).toBeLessThan(SPEEDING_OVER_LIMIT_THRESHOLD_KMH.harsh);
+    expect(SPEEDING_HYSTERESIS_MARGIN_KMH).toBeGreaterThanOrEqual(0);
+    expect(SPEEDING_PERSISTENCE_MS).toBeGreaterThanOrEqual(0);
 
     for (const familyCooldowns of Object.values(DETECTION_COOLDOWN_MS)) {
       expect(familyCooldowns.light).toBeGreaterThanOrEqual(0);

@@ -34,13 +34,13 @@ export const createSpeedingDetector = (): SpeedingDetector => {
       return 'light';
     }
 
-    if (previous === 'harsh' && overLimitKmh > harsh - margin) {
+    if (previous === 'harsh' && overLimitKmh >= harsh - margin) {
       return 'harsh';
     }
-    if ((previous === 'harsh' || previous === 'moderate') && overLimitKmh > moderate - margin) {
+    if ((previous === 'harsh' || previous === 'moderate') && overLimitKmh >= moderate - margin) {
       return 'moderate';
     }
-    if (previous !== 'none' && overLimitKmh > light - margin) {
+    if (previous !== 'none' && overLimitKmh >= light - margin) {
       return 'light';
     }
 

@@ -11,6 +11,7 @@ const logger = createLogger(LogModule.SettingsService);
 const DRIVER_NAME_KEY = 'driverName';
 const DEBUG_OVERLAY_KEY = 'debugOverlay';
 const DEBUG_LOGS_KEY = 'debugLogs';
+const MAP_MARKER_DEBUG_METADATA_KEY = 'mapMarkerDebugMetadata';
 
 export const getDriverName = async (): Promise<string> => {
   try {
@@ -99,6 +100,34 @@ export const setDebugLogsEnabled = async (enabled: boolean): Promise<boolean> =>
     return true;
   } catch (error) {
     logger.warn('Failed to save debug logs setting:', error);
+    return false;
+  }
+};
+
+export const getMapMarkerDebugMetadataEnabled = async (): Promise<boolean> => {
+  try {
+    const result = await db.select().from(settings).where(eq(settings.key, MAP_MARKER_DEBUG_METADATA_KEY));
+    if (result.length > 0 && result[0].value) {
+      return result[0].value === 'true';
+    }
+    return false;
+  } catch (error) {
+    logger.warn('Failed to load map marker debug metadata setting:', error);
+    return false;
+  }
+};
+
+export const setMapMarkerDebugMetadataEnabled = async (enabled: boolean): Promise<boolean> => {
+  const input = String(enabled);
+  try {
+    logger.debug('Saving map marker debug metadata setting:', enabled);
+    await db
+      .insert(settings)
+      .values({ key: MAP_MARKER_DEBUG_METADATA_KEY, value: input })
+      .onConflictDoUpdate({ target: settings.key, set: { value: input } });
+    return true;
+  } catch (error) {
+    logger.warn('Failed to save map marker debug metadata setting:', error);
     return false;
   }
 };

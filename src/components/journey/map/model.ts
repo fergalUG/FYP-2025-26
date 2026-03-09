@@ -24,6 +24,10 @@ interface JourneyMapRegion {
   longitudeDelta: number;
 }
 
+interface BuildPinDetailsOptions {
+  showDebugMetadata?: boolean;
+}
+
 const isValidCoordinate = (latitude: number, longitude: number): boolean => {
   return Number.isFinite(latitude) && Number.isFinite(longitude);
 };
@@ -106,8 +110,25 @@ const getStringMetadataField = (event: Event, key: string): string | null => {
   return value;
 };
 
+const getBooleanMetadataField = (event: Event, key: string): boolean | null => {
+  const value = event.metadata?.[key];
+  if (typeof value !== 'boolean') {
+    return null;
+  }
+  return value;
+};
+
 const formatMetric = (value: number, digits: number, unit: string): string => {
   return `${value.toFixed(digits)} ${unit}`;
+};
+
+const formatSourceLabel = (value: string): string => {
+  return value
+    .replace(/_/g, ' ')
+    .split(' ')
+    .filter((segment) => segment.length > 0)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
 };
 
 const formatTimestamp = (timestamp: number): string => {
@@ -220,8 +241,150 @@ const getEventSpeedKmh = (event: Event): number | null => {
   return null;
 };
 
-const buildIncidentPinDetails = (marker: IncidentMarker): PinDetails => {
+const getSpeedingOverLimitKmh = (event: Event): number | null => {
+  const metadataOverLimit = getNumericMetadataField(event, 'overLimitKmh');
+  if (metadataOverLimit !== null) {
+    return metadataOverLimit;
+  }
+
+  const speedKmh = getEventSpeedKmh(event);
+  const speedLimitKmh = getNumericMetadataField(event, 'speedLimitKmh');
+  if (speedKmh === null || speedLimitKmh === null) {
+    return null;
+  }
+
+  return speedKmh - speedLimitKmh;
+};
+
+const pickRepresentativeSpeedingSample = (samples: Event[]): Event | null => {
+  if (samples.length === 0) {
+    return null;
+  }
+
+  let representative = samples[0];
+  let representativeOverLimit = getSpeedingOverLimitKmh(representative) ?? Number.NEGATIVE_INFINITY;
+  let representativeSpeedKmh = getEventSpeedKmh(representative) ?? Number.NEGATIVE_INFINITY;
+
+  for (let i = 1; i < samples.length; i += 1) {
+    const candidate = samples[i];
+    const candidateOverLimit = getSpeedingOverLimitKmh(candidate) ?? Number.NEGATIVE_INFINITY;
+    const candidateSpeedKmh = getEventSpeedKmh(candidate) ?? Number.NEGATIVE_INFINITY;
+
+    if (
+      candidateOverLimit > representativeOverLimit ||
+      (candidateOverLimit === representativeOverLimit && candidateSpeedKmh > representativeSpeedKmh)
+    ) {
+      representative = candidate;
+      representativeOverLimit = candidateOverLimit;
+      representativeSpeedKmh = candidateSpeedKmh;
+    }
+  }
+
+  return representative;
+};
+
+const summarizeSpeedingEpisodeSamples = (
+  samples: Event[]
+): Pick<
+  SpeedingEpisodeMarker,
+  | 'representativeSpeedKmh'
+  | 'representativeSpeedLimitKmh'
+  | 'peakOverLimitKmh'
+  | 'minSpeedLimitKmh'
+  | 'maxSpeedLimitKmh'
+  | 'speedLimitSourceLabel'
+  | 'speedLimitFromCacheLabel'
+  | 'speedLimitWayIdLabel'
+  | 'speedLimitRawLabel'
+  | 'sampleCount'
+> => {
+  const representativeSample = pickRepresentativeSpeedingSample(samples);
+  const representativeSpeedKmh = representativeSample ? getEventSpeedKmh(representativeSample) : null;
+  const representativeSpeedLimitKmh = representativeSample ? getNumericMetadataField(representativeSample, 'speedLimitKmh') : null;
+
+  const overLimitValues = samples
+    .map((sample) => getSpeedingOverLimitKmh(sample))
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+  const peakOverLimitKmh = overLimitValues.length > 0 ? Math.max(...overLimitValues) : null;
+
+  const speedLimitValues = samples
+    .map((sample) => getNumericMetadataField(sample, 'speedLimitKmh'))
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+  const minSpeedLimitKmh = speedLimitValues.length > 0 ? Math.min(...speedLimitValues) : null;
+  const maxSpeedLimitKmh = speedLimitValues.length > 0 ? Math.max(...speedLimitValues) : null;
+
+  const speedLimitSources = new Set<string>();
+  const fromCacheValues = new Set<boolean>();
+  const wayIds = new Set<number>();
+  const rawMaxspeeds = new Set<string>();
+
+  for (const sample of samples) {
+    const source = getStringMetadataField(sample, 'speedLimitSource');
+    if (source) {
+      speedLimitSources.add(source);
+    }
+
+    const fromCache = getBooleanMetadataField(sample, 'speedLimitFromCache');
+    if (fromCache !== null) {
+      fromCacheValues.add(fromCache);
+    }
+
+    const wayId = getNumericMetadataField(sample, 'speedLimitWayId');
+    if (wayId !== null) {
+      wayIds.add(wayId);
+    }
+
+    const raw = getStringMetadataField(sample, 'speedLimitRaw');
+    if (raw) {
+      rawMaxspeeds.add(raw);
+    }
+  }
+
+  let speedLimitSourceLabel: string | null = null;
+  if (speedLimitSources.size === 1) {
+    speedLimitSourceLabel = formatSourceLabel(Array.from(speedLimitSources)[0]);
+  } else if (speedLimitSources.size > 1) {
+    speedLimitSourceLabel = 'Mixed';
+  }
+
+  let speedLimitFromCacheLabel: SpeedingEpisodeMarker['speedLimitFromCacheLabel'] = null;
+  if (fromCacheValues.size === 1) {
+    speedLimitFromCacheLabel = Array.from(fromCacheValues)[0] ? 'Yes' : 'No';
+  } else if (fromCacheValues.size > 1) {
+    speedLimitFromCacheLabel = 'Mixed';
+  }
+
+  let speedLimitWayIdLabel: string | null = null;
+  if (wayIds.size === 1) {
+    speedLimitWayIdLabel = String(Array.from(wayIds)[0]);
+  } else if (wayIds.size > 1) {
+    speedLimitWayIdLabel = 'Mixed';
+  }
+
+  let speedLimitRawLabel: string | null = null;
+  if (rawMaxspeeds.size === 1) {
+    speedLimitRawLabel = Array.from(rawMaxspeeds)[0];
+  } else if (rawMaxspeeds.size > 1) {
+    speedLimitRawLabel = 'Mixed';
+  }
+
+  return {
+    representativeSpeedKmh,
+    representativeSpeedLimitKmh,
+    peakOverLimitKmh,
+    minSpeedLimitKmh,
+    maxSpeedLimitKmh,
+    speedLimitSourceLabel,
+    speedLimitFromCacheLabel,
+    speedLimitWayIdLabel,
+    speedLimitRawLabel,
+    sampleCount: samples.length,
+  };
+};
+
+const buildIncidentPinDetails = (marker: IncidentMarker, options: BuildPinDetailsOptions): PinDetails => {
   const { event } = marker;
+  const { showDebugMetadata = false } = options;
   const rows: PinDetailRow[] = [];
 
   rows.push({ label: 'Time', value: formatTimestamp(event.timestamp) });
@@ -251,7 +414,7 @@ const buildIncidentPinDetails = (marker: IncidentMarker): PinDetails => {
     rows.push({ label: 'Heading change', value: formatMetric(headingChangeDeg, 2, 'deg') });
   }
 
-  if (event.type === EventType.StopAndGo) {
+  if (event.type === EventType.StopAndGo && showDebugMetadata) {
     const cycleCount = getNumericMetadataField(event, 'cycleCount');
     if (cycleCount !== null) {
       rows.push({ label: 'Cycle count', value: String(Math.round(cycleCount)) });
@@ -284,7 +447,8 @@ const buildIncidentPinDetails = (marker: IncidentMarker): PinDetails => {
   };
 };
 
-const buildSpeedingEpisodeDetails = (marker: SpeedingEpisodeMarker): PinDetails => {
+const buildSpeedingEpisodeDetails = (marker: SpeedingEpisodeMarker, options: BuildPinDetailsOptions): PinDetails => {
+  const { showDebugMetadata = false } = options;
   const rows: PinDetailRow[] = [
     { label: 'Start', value: formatTimestamp(marker.startTimestamp) },
     { label: 'End', value: formatTimestamp(marker.endTimestamp) },
@@ -295,6 +459,38 @@ const buildSpeedingEpisodeDetails = (marker: SpeedingEpisodeMarker): PinDetails 
     rows.push({ label: 'Peak speed', value: formatMetric(marker.representativeSpeedKmh, 1, 'km/h') });
   }
 
+  if (marker.peakOverLimitKmh !== null) {
+    rows.push({ label: 'Over limit (peak)', value: formatMetric(marker.peakOverLimitKmh, 2, 'km/h') });
+  }
+
+  if (marker.representativeSpeedLimitKmh !== null) {
+    rows.push({ label: 'Limit at peak', value: formatMetric(marker.representativeSpeedLimitKmh, 1, 'km/h') });
+  }
+
+  if (marker.minSpeedLimitKmh !== null && marker.maxSpeedLimitKmh !== null && marker.maxSpeedLimitKmh - marker.minSpeedLimitKmh >= 0.1) {
+    rows.push({ label: 'Limit range', value: `${marker.minSpeedLimitKmh.toFixed(1)}-${marker.maxSpeedLimitKmh.toFixed(1)} km/h` });
+  }
+
+  if (showDebugMetadata) {
+    if (marker.speedLimitSourceLabel) {
+      rows.push({ label: 'Limit source', value: marker.speedLimitSourceLabel });
+    }
+
+    if (marker.speedLimitFromCacheLabel) {
+      rows.push({ label: 'From cache', value: marker.speedLimitFromCacheLabel });
+    }
+
+    if (marker.speedLimitWayIdLabel) {
+      rows.push({ label: 'Way ID', value: marker.speedLimitWayIdLabel });
+    }
+
+    if (marker.speedLimitRawLabel) {
+      rows.push({ label: 'Raw maxspeed', value: marker.speedLimitRawLabel });
+    }
+  }
+
+  rows.push({ label: 'Samples', value: String(marker.sampleCount) });
+
   return {
     title: `${formatSeverityLabel(marker.severity)} speeding`,
     subtitle: 'Speeding episode',
@@ -302,7 +498,8 @@ const buildSpeedingEpisodeDetails = (marker: SpeedingEpisodeMarker): PinDetails 
   };
 };
 
-const buildOscillationEpisodeDetails = (marker: OscillationEpisodeMarker): PinDetails => {
+const buildOscillationEpisodeDetails = (marker: OscillationEpisodeMarker, options: BuildPinDetailsOptions): PinDetails => {
+  const { showDebugMetadata = false } = options;
   const episodeDurationMs =
     getNumericMetadataField(marker.event, 'episodeDurationMs') ?? Math.max(0, marker.endTimestamp - marker.startTimestamp);
   const rows: PinDetailRow[] = [
@@ -316,19 +513,21 @@ const buildOscillationEpisodeDetails = (marker: OscillationEpisodeMarker): PinDe
     rows.push({ label: 'Speed std dev', value: formatMetric(speedStdDevKmh, 3, 'km/h') });
   }
 
-  const signFlipCount = getNumericMetadataField(marker.event, 'signFlipCount');
-  if (signFlipCount !== null) {
-    rows.push({ label: 'Sign flips', value: String(Math.round(signFlipCount)) });
-  }
+  if (showDebugMetadata) {
+    const signFlipCount = getNumericMetadataField(marker.event, 'signFlipCount');
+    if (signFlipCount !== null) {
+      rows.push({ label: 'Sign flips', value: String(Math.round(signFlipCount)) });
+    }
 
-  const forceP90G = getNumericMetadataField(marker.event, 'forceP90G');
-  if (forceP90G !== null) {
-    rows.push({ label: 'Force p90', value: formatMetric(forceP90G, 3, 'g') });
-  }
+    const forceP90G = getNumericMetadataField(marker.event, 'forceP90G');
+    if (forceP90G !== null) {
+      rows.push({ label: 'Force p90', value: formatMetric(forceP90G, 3, 'g') });
+    }
 
-  const forceMeanG = getNumericMetadataField(marker.event, 'forceMeanG');
-  if (forceMeanG !== null) {
-    rows.push({ label: 'Force mean', value: formatMetric(forceMeanG, 3, 'g') });
+    const forceMeanG = getNumericMetadataField(marker.event, 'forceMeanG');
+    if (forceMeanG !== null) {
+      rows.push({ label: 'Force mean', value: formatMetric(forceMeanG, 3, 'g') });
+    }
   }
 
   return {
@@ -401,18 +600,10 @@ export const buildJourneyMapData = (events: Event[]): JourneyMapDerivedData => {
         return null;
       }
 
-      const representativeSpeedKmh = speedingSampleEvents
-        .filter((sample) => sample.timestamp >= episode.startTimestamp && sample.timestamp <= episode.endTimestamp)
-        .reduce<number | null>((maxSpeed, sample) => {
-          const sampleSpeedKmh = getEventSpeedKmh(sample);
-          if (sampleSpeedKmh === null) {
-            return maxSpeed;
-          }
-          if (maxSpeed === null || sampleSpeedKmh > maxSpeed) {
-            return sampleSpeedKmh;
-          }
-          return maxSpeed;
-        }, null);
+      const episodeSamples = speedingSampleEvents.filter(
+        (sample) => sample.timestamp >= episode.startTimestamp && sample.timestamp <= episode.endTimestamp
+      );
+      const metadataSummary = summarizeSpeedingEpisodeSamples(episodeSamples);
 
       return {
         id: `speeding-episode-${episode.startTimestamp}-${index}`,
@@ -422,7 +613,7 @@ export const buildJourneyMapData = (events: Event[]): JourneyMapDerivedData => {
         longitude: midpoint.longitude,
         startTimestamp: episode.startTimestamp,
         endTimestamp: episode.endTimestamp,
-        representativeSpeedKmh,
+        ...metadataSummary,
       };
     })
     .filter((marker): marker is SpeedingEpisodeMarker => Boolean(marker));
@@ -518,14 +709,14 @@ export const findSelectedPinById = (data: JourneyMapDerivedData, selectedPinId: 
   );
 };
 
-export const buildPinDetails = (pin: SelectablePin): PinDetails => {
+export const buildPinDetails = (pin: SelectablePin, options: BuildPinDetailsOptions = {}): PinDetails => {
   if (pin.kind === 'incident') {
-    return buildIncidentPinDetails(pin);
+    return buildIncidentPinDetails(pin, options);
   }
   if (pin.kind === 'speeding_episode') {
-    return buildSpeedingEpisodeDetails(pin);
+    return buildSpeedingEpisodeDetails(pin, options);
   }
-  return buildOscillationEpisodeDetails(pin);
+  return buildOscillationEpisodeDetails(pin, options);
 };
 
 export const buildMapRegion = (routeCoordinates: Array<{ latitude: number; longitude: number }>): JourneyMapRegion | null => {

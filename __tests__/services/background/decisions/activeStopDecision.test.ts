@@ -18,10 +18,12 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2,
       lowSpeedStartTime: null,
       lowSpeedStartDistanceKm: null,
+      adjustedDisplacementSinceCandidateStartKm: null,
       shouldEndForConfirmedNonAutomotiveProgress: false,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
+      progressResetMinDisplacementKm: 0.025,
     });
 
     expect(result.action).toBe('START_CANDIDATE');
@@ -34,10 +36,12 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2.2,
       lowSpeedStartTime: 5000,
       lowSpeedStartDistanceKm: 2.0,
+      adjustedDisplacementSinceCandidateStartKm: 0.05,
       shouldEndForConfirmedNonAutomotiveProgress: false,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
+      progressResetMinDisplacementKm: 0.025,
     });
 
     expect(result.action).toBe('RESET_CANDIDATE_PROGRESS');
@@ -51,10 +55,12 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2.2,
       lowSpeedStartTime: 5000,
       lowSpeedStartDistanceKm: 2.0,
+      adjustedDisplacementSinceCandidateStartKm: 0.05,
       shouldEndForConfirmedNonAutomotiveProgress: true,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
+      progressResetMinDisplacementKm: 0.025,
     });
 
     expect(result.action).toBe('END_CONFIRMED_NON_AUTOMOTIVE');
@@ -69,10 +75,12 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2.1,
       lowSpeedStartTime: 90000,
       lowSpeedStartDistanceKm: 2.0,
+      adjustedDisplacementSinceCandidateStartKm: 0.01,
       shouldEndForConfirmedNonAutomotiveProgress: false,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
+      progressResetMinDisplacementKm: 0.025,
     });
 
     expect(result.action).toBe('TIMEOUT');
@@ -87,10 +95,12 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2.05,
       lowSpeedStartTime: 100000,
       lowSpeedStartDistanceKm: 2.0,
+      adjustedDisplacementSinceCandidateStartKm: 0.01,
       shouldEndForConfirmedNonAutomotiveProgress: false,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
+      progressResetMinDisplacementKm: 0.025,
     });
 
     expect(result.action).toBe('ONGOING');
@@ -104,12 +114,33 @@ describe('evaluateActiveStopDecision', () => {
       totalDistanceKm: 2.05,
       lowSpeedStartTime: 100000,
       lowSpeedStartDistanceKm: 2.0,
+      adjustedDisplacementSinceCandidateStartKm: 0.01,
       shouldEndForConfirmedNonAutomotiveProgress: false,
       passiveSpeedThreshold: 2.77778,
       timeoutMs: 300000,
       progressResetDistanceKm: 0.15,
+      progressResetMinDisplacementKm: 0.025,
     });
 
     expect(result.action).toBe('CANCEL_CANDIDATE');
+  });
+
+  it('keeps the candidate running when cumulative progress is drift but verified displacement is too small', () => {
+    const result = evaluateActiveStopDecision({
+      effectiveSpeed: makeSpeed({ isValid: true, value: 1, source: 'gps' }),
+      now: 110000,
+      totalDistanceKm: 2.2,
+      lowSpeedStartTime: 100000,
+      lowSpeedStartDistanceKm: 2.0,
+      adjustedDisplacementSinceCandidateStartKm: 0.01,
+      shouldEndForConfirmedNonAutomotiveProgress: false,
+      passiveSpeedThreshold: 2.77778,
+      timeoutMs: 300000,
+      progressResetDistanceKm: 0.15,
+      progressResetMinDisplacementKm: 0.025,
+    });
+
+    expect(result.action).toBe('ONGOING');
+    expect(result.secondsLeft).toBe(290);
   });
 });

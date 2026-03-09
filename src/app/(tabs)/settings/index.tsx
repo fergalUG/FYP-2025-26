@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-import { useDebugLogs, useDebugOverlay, useDriverProfile, useTheme } from '@hooks';
+import { useAppSettings, useDriverProfile, useTheme } from '@hooks';
 import { useToast } from '@hooks/ToastProvider';
 
 import { AppButton } from '@components';
@@ -28,9 +28,7 @@ export default function Settings() {
   const [draftName, setDraftName] = useState('');
   const styles = createStyles(theme);
 
-  //debug stuff
-  const { isEnabled: isDebugOverlayEnabled, toggleOverlay } = useDebugOverlay();
-  const { isEnabled: isDebugLogsEnabled, toggleDebugLogs } = useDebugLogs();
+  const { settings, setDebugLogsEnabled, setDebugOverlayEnabled, setMapMarkerDebugMetadataEnabled } = useAppSettings();
 
   const backgroundService = useBackgroundService();
   const [startingManualTracking, setStartingManualTracking] = useState(false);
@@ -231,8 +229,8 @@ export default function Settings() {
               <Text style={styles.itemSubtitle}>Show logs on screen.</Text>
             </View>
             <Switch
-              value={isDebugOverlayEnabled}
-              onValueChange={toggleOverlay}
+              value={settings.debugOverlayEnabled}
+              onValueChange={setDebugOverlayEnabled}
               trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
@@ -244,8 +242,21 @@ export default function Settings() {
               <Text style={styles.itemSubtitle}>Enable 'DEBUG' level logs.</Text>
             </View>
             <Switch
-              value={isDebugLogsEnabled}
-              onValueChange={toggleDebugLogs}
+              value={settings.debugLogsEnabled}
+              onValueChange={setDebugLogsEnabled}
+              trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
+              thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
+            />
+          </View>
+
+          <View style={styles.rowBetween}>
+            <View style={styles.rowText}>
+              <Text style={styles.itemTitle}>Show Debug Metadata on Map Markers</Text>
+              <Text style={styles.itemSubtitle}>Include detector internals in map marker details.</Text>
+            </View>
+            <Switch
+              value={settings.mapMarkerDebugMetadataEnabled}
+              onValueChange={setMapMarkerDebugMetadataEnabled}
               trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />

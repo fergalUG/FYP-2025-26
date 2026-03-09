@@ -16,6 +16,11 @@ describe('EfficiencyService', () => {
     removeAllListeners: jest.fn(),
   };
 
+  const mockRoadSpeedLimitService: EfficiencyServiceDeps['RoadSpeedLimitService'] = {
+    getSpeedLimit: jest.fn(),
+    reset: jest.fn(),
+  };
+
   const mockLogger: EfficiencyServiceDeps['logger'] = {
     info: jest.fn(),
     warn: jest.fn(),
@@ -29,6 +34,7 @@ describe('EfficiencyService', () => {
   const createService = () =>
     createEfficiencyServiceController({
       JourneyService: mockJourneyService,
+      RoadSpeedLimitService: mockRoadSpeedLimitService,
       VehicleMotion: mockVehicleMotion,
       now,
       logger: mockLogger,
@@ -66,6 +72,7 @@ describe('EfficiencyService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     nowMs = 0;
+    (mockRoadSpeedLimitService.getSpeedLimit as jest.Mock).mockResolvedValue(null);
   });
 
   describe('startTracking', () => {
@@ -123,15 +130,23 @@ describe('EfficiencyService', () => {
     it('detects moderate speeding', async () => {
       const svc = createService();
       svc.startTracking();
+      (mockRoadSpeedLimitService.getSpeedLimit as jest.Mock).mockResolvedValue({
+        speedLimitKmh: 95,
+        source: 'overpass',
+        fromCache: false,
+      });
 
       const speedingLocation = {
         ...mockLocation,
         coords: {
           ...mockLocation.coords,
-          speed: 30,
+          speed: 30.5,
         },
       };
 
+      nowMs = 0;
+      await svc.processLocation(speedingLocation, buildOptions(speedingLocation));
+      nowMs = 2500;
       await svc.processLocation(speedingLocation, buildOptions(speedingLocation));
 
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
@@ -149,6 +164,11 @@ describe('EfficiencyService', () => {
     it('detects harsh speeding', async () => {
       const svc = createService();
       svc.startTracking();
+      (mockRoadSpeedLimitService.getSpeedLimit as jest.Mock).mockResolvedValue({
+        speedLimitKmh: 95,
+        source: 'overpass',
+        fromCache: false,
+      });
 
       const speedingLocation = {
         ...mockLocation,
@@ -158,6 +178,9 @@ describe('EfficiencyService', () => {
         },
       };
 
+      nowMs = 0;
+      await svc.processLocation(speedingLocation, buildOptions(speedingLocation));
+      nowMs = 2500;
       await svc.processLocation(speedingLocation, buildOptions(speedingLocation));
 
       expect(mockJourneyService.logEvent).toHaveBeenCalledWith(
@@ -175,6 +198,11 @@ describe('EfficiencyService', () => {
     it('does not log speeding for normal speeds', async () => {
       const svc = createService();
       svc.startTracking();
+      (mockRoadSpeedLimitService.getSpeedLimit as jest.Mock).mockResolvedValue({
+        speedLimitKmh: 80,
+        source: 'overpass',
+        fromCache: false,
+      });
 
       await svc.processLocation(mockLocation, buildOptions(mockLocation));
 
@@ -271,7 +299,7 @@ describe('EfficiencyService', () => {
 
       expect(score).toBeGreaterThanOrEqual(0);
       expect(score).toBeLessThanOrEqual(100);
-      expect(score).toBe(97);
+      expect(score).toBe(98);
     });
 
     it('returns 0 on error', async () => {
