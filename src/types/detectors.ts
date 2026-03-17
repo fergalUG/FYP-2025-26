@@ -29,6 +29,12 @@ export interface StopAndGoDetectorContext {
   speedKmh: number;
 }
 
+export interface SpeedingDetectorContext {
+  nowMs: number;
+  speedKmh: number;
+  speedLimitKmh: number;
+}
+
 export interface StopAndGoDetectorState {
   phase: StopAndGoPhase;
   cycleCount: number;
@@ -54,6 +60,7 @@ type DetectorRejectionReason =
   | 'std_dev'
   | 'sign_flips'
   | 'cooldown'
+  | 'persistence'
   | 'missing_heading'
   | 'none';
 

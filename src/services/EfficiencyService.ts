@@ -20,8 +20,10 @@ import {
   type DrivingEventFamily,
   type EventSeverity,
   type StopAndGoPhase,
+  type StartTrackingOptions,
 } from '@types';
 import { JourneyService } from '@services/JourneyService';
+import { RoadSpeedLimitService } from '@services/RoadSpeedLimitService';
 import { createLogger, isDebugEnabled, LogModule } from '@utils/logger';
 import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
 import { convertMsToKmh, type SpeedConfidence, type SpeedSource } from '@utils/gpsValidation';
@@ -36,6 +38,10 @@ const HEADING_LOOKBACK_TIME_MS = 2000;
 
 const HEADING_HISTORY_SIZE = 5;
 const DEBUG_SUMMARY_INTERVAL_MS = 1000;
+const DEFAULT_START_TRACKING_OPTIONS: StartTrackingOptions = {
+  speedLimitDetectionEnabled: true,
+  speedLimitPackRef: null,
+};
 
 export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): EfficiencyServiceController => {
   //tracking
@@ -55,6 +61,9 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let lastSpeedConfidence: SpeedConfidence = 'none';
   let lastSpeedSource: SpeedSource = 'none';
   let currentSpeedBand: SpeedBand | null = null;
+  let currentJourneySpeedLimitDetectionEnabled: boolean | null = null;
+  let currentJourneySpeedLimitDataStatus: ScoringStats['speedLimitDataStatus'] | null = null;
+  let currentJourneySpeedLimitPackRef: StartTrackingOptions['speedLimitPackRef'] = null;
 
   //debug
   let lastDebugSummaryTime = 0;
@@ -178,14 +187,44 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     });
   };
 
-  const checkSpeeding = async (location: Location.LocationObject, speedKmh: number): Promise<void> => {
-    const severity = speedingDetector.detect(speedKmh);
-    if (!severity) {
+  const checkSpeeding = async (location: Location.LocationObject, speedKmh: number, nowMs: number): Promise<void> => {
+    if (!currentJourneySpeedLimitDetectionEnabled || !currentJourneySpeedLimitPackRef) {
+      speedingDetector.reset();
       return;
     }
 
-    await logDrivingEvent('speeding', severity, location, speedKmh, {
+    const speedLimit = await deps.RoadSpeedLimitService.getSpeedLimit({
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    });
+    if (!speedLimit) {
+      speedingDetector.reset();
+      deps.logger.debug('Skipping speeding check: no road speed limit available', {
+        latitude: Number(location.coords.latitude.toFixed(6)),
+        longitude: Number(location.coords.longitude.toFixed(6)),
+      });
+      return;
+    }
+
+    currentJourneySpeedLimitDataStatus = 'ready';
+
+    const speedingResult = speedingDetector.detect({
+      nowMs,
+      speedKmh,
+      speedLimitKmh: speedLimit.speedLimitKmh,
+    });
+    if (!speedingResult.detected || !speedingResult.severity) {
+      return;
+    }
+
+    await logDrivingEvent('speeding', speedingResult.severity, location, speedKmh, {
       speedKmh: Number(speedKmh.toFixed(2)),
+      speedLimitKmh: Number(speedLimit.speedLimitKmh.toFixed(1)),
+      speedLimitSource: speedLimit.source,
+      speedLimitFromCache: speedLimit.fromCache,
+      ...(typeof speedLimit.wayId === 'number' ? { speedLimitWayId: speedLimit.wayId } : {}),
+      ...(speedLimit.rawMaxspeed ? { speedLimitRaw: speedLimit.rawMaxspeed } : {}),
+      ...(speedingResult.metadata ?? {}),
     });
   };
 
@@ -452,12 +491,15 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
   };
 
-  const startTracking = (): void => {
+  const startTracking = (options: StartTrackingOptions = DEFAULT_START_TRACKING_OPTIONS): void => {
     if (isTracking) {
       return;
     }
 
     isTracking = true;
+    currentJourneySpeedLimitDetectionEnabled = options.speedLimitDetectionEnabled;
+    currentJourneySpeedLimitPackRef = options.speedLimitPackRef;
+    currentJourneySpeedLimitDataStatus = options.speedLimitDetectionEnabled ? 'unavailable' : 'disabled';
     lastLocation = null;
     lastLocationProcessedAtMs = null;
     lastSpeedMs = null;
@@ -470,8 +512,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     brakingDetector.reset();
     accelerationDetector.reset();
     corneringDetector.reset();
+    speedingDetector.reset();
     oscillationDetector.reset();
     stopAndGoDetector.reset();
+    deps.RoadSpeedLimitService.reset();
+    deps.RoadSpeedLimitService.setPackSnapshot(options.speedLimitPackRef);
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
@@ -487,6 +532,9 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     isTracking = false;
+    currentJourneySpeedLimitDetectionEnabled = null;
+    currentJourneySpeedLimitDataStatus = null;
+    currentJourneySpeedLimitPackRef = null;
     lastLocation = null;
     lastLocationProcessedAtMs = null;
     lastSpeedMs = null;
@@ -499,8 +547,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     brakingDetector.reset();
     accelerationDetector.reset();
     corneringDetector.reset();
+    speedingDetector.reset();
     oscillationDetector.reset();
     stopAndGoDetector.reset();
+    deps.RoadSpeedLimitService.setPackSnapshot(null);
+    deps.RoadSpeedLimitService.reset();
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
@@ -574,9 +625,10 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
         }
       }
 
-      if (speedConfidence !== 'low') {
-        await checkSpeeding(location, speedKmh);
+      if (speedConfidence !== 'low' && speedConfidence !== 'none') {
+        await checkSpeeding(location, speedKmh, currentTime);
       } else {
+        speedingDetector.reset();
         deps.logger.debug('Skipping speeding check due to low speed confidence', {
           speedKmh: speedKmh.toFixed(1),
           speedConfidence,
@@ -631,7 +683,12 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   const getJourneyEfficiencyStats = async (journeyId: number, distanceKm: number = 0): Promise<ScoringStats | null> => {
     try {
       const events = await deps.JourneyService.getEventsByJourneyId(journeyId);
-      return calculateEfficiencyScore(events, distanceKm).stats;
+      return currentJourneySpeedLimitDetectionEnabled === null
+        ? calculateEfficiencyScore(events, distanceKm).stats
+        : calculateEfficiencyScore(events, distanceKm, undefined, {
+            speedLimitDetectionEnabled: currentJourneySpeedLimitDetectionEnabled,
+            speedLimitDataStatus: currentJourneySpeedLimitDataStatus ?? undefined,
+          }).stats;
     } catch (error) {
       deps.logger.error('Error getting efficiency stats:', error);
       return null;
@@ -649,6 +706,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
 export const EfficiencyService = createEfficiencyServiceController({
   JourneyService,
+  RoadSpeedLimitService,
   VehicleMotion,
   now: () => Date.now(),
   logger,

@@ -3,11 +3,14 @@ import type * as Location from 'expo-location';
 import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 import type { ScoringStats } from '@/types/scoring';
 import type { JourneyServiceController } from '@/types/services/journeyService';
+import type { RoadSpeedLimitServiceController } from '@/types/services/roadSpeedLimitService';
+import type { SpeedLimitPackRef } from '@/types/services/speedLimitPackService';
 import type { createLogger } from '@utils/logger';
 import type { SpeedConfidence, SpeedSource } from '@utils/gpsValidation';
 
 export interface EfficiencyServiceDeps {
   JourneyService: Pick<JourneyServiceController, 'logEvent' | 'getEventsByJourneyId'>;
+  RoadSpeedLimitService: Pick<RoadSpeedLimitServiceController, 'getSpeedLimit' | 'reset' | 'setPackSnapshot'>;
   VehicleMotion: {
     startTracking: () => void;
     stopTracking: () => void;
@@ -25,8 +28,13 @@ export interface ProcessLocationOptions {
   speedSource: SpeedSource;
 }
 
+export interface StartTrackingOptions {
+  speedLimitDetectionEnabled: boolean;
+  speedLimitPackRef: SpeedLimitPackRef | null;
+}
+
 export interface EfficiencyServiceController {
-  startTracking: () => void;
+  startTracking: (options?: StartTrackingOptions) => void;
   stopTracking: () => void;
   processLocation: (location: Location.LocationObject, options: ProcessLocationOptions) => Promise<void>;
   calculateJourneyScore: (journeyId: number, distanceKm?: number) => Promise<number>;

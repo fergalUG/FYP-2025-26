@@ -32,6 +32,14 @@ describe('BackgroundService Timeout Logic', () => {
     getJourneyEfficiencyStats: jest.fn().mockResolvedValue({}),
   };
 
+  const mockSettingsService = {
+    getSpeedLimitDetectionEnabled: jest.fn(),
+  };
+
+  const mockSpeedLimitPackService = {
+    getJourneySnapshot: jest.fn(),
+  };
+
   const mockLogger: any = {
     info: jest.fn(),
     warn: jest.fn(),
@@ -60,9 +68,13 @@ describe('BackgroundService Timeout Logic', () => {
       timestamp: 1000000,
     });
     (Location.reverseGeocodeAsync as jest.Mock).mockResolvedValue([{ name: 'Mock Place' }]);
+    mockSettingsService.getSpeedLimitDetectionEnabled.mockResolvedValue(false);
+    mockSpeedLimitPackService.getJourneySnapshot.mockResolvedValue(null);
 
     controller = createBackgroundServiceController({
       Location,
+      SettingsService: mockSettingsService,
+      SpeedLimitPackService: mockSpeedLimitPackService,
       JourneyService: mockJourneyService,
       EfficiencyService: mockEfficiencyService,
       VehicleMotion: mockVehicleMotion,

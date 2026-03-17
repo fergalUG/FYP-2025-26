@@ -41,6 +41,15 @@ export interface SpeedingEpisodeMarker {
   startTimestamp: number;
   endTimestamp: number;
   representativeSpeedKmh: number | null;
+  representativeSpeedLimitKmh: number | null;
+  peakOverLimitKmh: number | null;
+  minSpeedLimitKmh: number | null;
+  maxSpeedLimitKmh: number | null;
+  speedLimitSourceLabel: string | null;
+  speedLimitFromCacheLabel: 'Yes' | 'No' | 'Mixed' | null;
+  speedLimitWayIdLabel: string | null;
+  speedLimitRawLabel: string | null;
+  sampleCount: number;
 }
 
 export interface OscillationEpisodeMarker {

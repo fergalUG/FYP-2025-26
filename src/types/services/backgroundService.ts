@@ -5,6 +5,7 @@ import type { PermissionState, TrackingMode, TrackingStatus } from '@/types/trac
 import type { ActivityData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 import type { JourneyServiceController } from '@/types/services/journeyService';
 import type { EfficiencyServiceController } from '@/types/services/efficiencyService';
+import type { SpeedLimitPackServiceController } from '@/types/services/speedLimitPackService';
 import type { createLogger } from '@utils/logger';
 
 export type PassiveTrackingProfile = 'COARSE' | 'PROBE';
@@ -46,6 +47,10 @@ export interface BackgroundServiceVehicleMotionDeps {
 export interface BackgroundServiceDeps {
   Location: typeof Location;
   // Notifications: typeof Notifications;
+  SettingsService: {
+    getSpeedLimitDetectionEnabled: () => Promise<boolean>;
+  };
+  SpeedLimitPackService: Pick<SpeedLimitPackServiceController, 'getJourneySnapshot'>;
   JourneyService: Pick<
     JourneyServiceController,
     'startJourney' | 'getCurrentJourneyId' | 'logEvent' | 'updateJourneyTitle' | 'endJourney' | 'deleteJourney' | 'deleteEventsSince'

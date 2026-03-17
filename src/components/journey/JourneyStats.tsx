@@ -5,6 +5,7 @@ import { useTheme } from '@hooks/useTheme';
 import type { Journey } from '@types';
 import { getScoreColor } from '@utils/score';
 import { StatTile } from '@components/common/StatTile';
+import { buildJourneyStatsSummary, isSpeedLimitDetectionEnabledForJourney } from '@components/journey/journeyStatsModel';
 
 interface JourneyStatsProps {
   journey: Journey;
@@ -41,16 +42,8 @@ export const JourneyStats = (props: JourneyStatsProps) => {
   const moderateOscillationSeconds = stats.moderateOscillationSeconds ?? 0;
   const harshOscillationSeconds = stats.harshOscillationSeconds ?? 0;
 
-  const lightIncidentCount = stats.lightBrakingCount + stats.lightAccelerationCount + stats.lightTurnCount + lightOscillationEpisodeCount;
-  const moderateIncidentCount =
-    stats.moderateBrakingCount + stats.moderateAccelerationCount + stats.moderateTurnCount + moderateOscillationEpisodeCount;
-  const harshIncidentCount = stats.harshBrakingCount + stats.harshAccelerationCount + stats.sharpTurnCount + harshOscillationEpisodeCount;
   const stopAndGoCount = stats.stopAndGoCount ?? 0;
-  const totalDrivingEvents = lightIncidentCount + moderateIncidentCount + harshIncidentCount + stopAndGoCount;
-  const totalSpeedingEpisodes = stats.lightSpeedingEpisodeCount + stats.moderateSpeedingEpisodeCount + stats.harshSpeedingEpisodeCount;
-  const totalSpeedingSeconds = stats.lightSpeedingSeconds + stats.moderateSpeedingSeconds + stats.harshSpeedingSeconds;
-  const totalOscillationEpisodes = lightOscillationEpisodeCount + moderateOscillationEpisodeCount + harshOscillationEpisodeCount;
-  const totalOscillationSeconds = lightOscillationSeconds + moderateOscillationSeconds + harshOscillationSeconds;
+  const speedLimitDetectionEnabled = isSpeedLimitDetectionEnabledForJourney(stats);
 
   const formatSeconds = (seconds: number): string => {
     const rounded = Math.round(seconds);
@@ -70,42 +63,10 @@ export const JourneyStats = (props: JourneyStatsProps) => {
     return `${episodeCount} episode${episodeCount === 1 ? '' : 's'}`;
   };
 
-  const summaryParts: string[] = [];
-
-  if (totalDrivingEvents === 0) {
-    summaryParts.push('No driving events');
-  } else {
-    summaryParts.push(
-      `${totalDrivingEvents} driving event${totalDrivingEvents === 1 ? '' : 's'} (Light ${lightIncidentCount}, Moderate ${moderateIncidentCount}, Harsh ${harshIncidentCount})`
-    );
-  }
-
-  if (stopAndGoCount === 0) {
-    summaryParts.push('no stop & go');
-  } else {
-    summaryParts.push(`${stopAndGoCount} stop & go event${stopAndGoCount === 1 ? '' : 's'}`);
-  }
-
-  if (totalSpeedingEpisodes === 0) {
-    summaryParts.push('no speeding');
-  } else {
-    summaryParts.push(
-      `${totalSpeedingEpisodes} speeding episode${totalSpeedingEpisodes === 1 ? '' : 's'} (${formatSeconds(totalSpeedingSeconds)})`
-    );
-  }
-
-  if (totalOscillationEpisodes === 0) {
-    summaryParts.push('no oscillation');
-  } else {
-    summaryParts.push(
-      `${totalOscillationEpisodes} oscillation episode${totalOscillationEpisodes === 1 ? '' : 's'} (${formatSeconds(totalOscillationSeconds)})`
-    );
-  }
-
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Efficiency Summary</Text>
-      <Text style={styles.subtitleMuted}>{summaryParts.join(', ')}</Text>
+      <Text style={styles.subtitleMuted}>{buildJourneyStatsSummary(stats)}</Text>
 
       <View style={styles.tileGrid}>
         <StatTile
@@ -160,30 +121,34 @@ export const JourneyStats = (props: JourneyStatsProps) => {
         />
       </View>
 
-      <Text style={styles.subtitle}>Speeding</Text>
-      <View style={styles.stackGrid}>
-        <StatTile
-          label="Light"
-          value={`${formatEpisodeCount(stats.lightSpeedingEpisodeCount)} • ${formatSeconds(stats.lightSpeedingSeconds)}`}
-          variant="compact"
-          allowValueWrap={true}
-          style={styles.tileFull}
-        />
-        <StatTile
-          label="Moderate"
-          value={`${formatEpisodeCount(stats.moderateSpeedingEpisodeCount)} • ${formatSeconds(stats.moderateSpeedingSeconds)}`}
-          variant="compact"
-          allowValueWrap={true}
-          style={styles.tileFull}
-        />
-        <StatTile
-          label="Harsh"
-          value={`${formatEpisodeCount(stats.harshSpeedingEpisodeCount)} • ${formatSeconds(stats.harshSpeedingSeconds)}`}
-          variant="compact"
-          allowValueWrap={true}
-          style={styles.tileFull}
-        />
-      </View>
+      {speedLimitDetectionEnabled && (
+        <>
+          <Text style={styles.subtitle}>Speeding</Text>
+          <View style={styles.stackGrid}>
+            <StatTile
+              label="Light"
+              value={`${formatEpisodeCount(stats.lightSpeedingEpisodeCount)} • ${formatSeconds(stats.lightSpeedingSeconds)}`}
+              variant="compact"
+              allowValueWrap={true}
+              style={styles.tileFull}
+            />
+            <StatTile
+              label="Moderate"
+              value={`${formatEpisodeCount(stats.moderateSpeedingEpisodeCount)} • ${formatSeconds(stats.moderateSpeedingSeconds)}`}
+              variant="compact"
+              allowValueWrap={true}
+              style={styles.tileFull}
+            />
+            <StatTile
+              label="Harsh"
+              value={`${formatEpisodeCount(stats.harshSpeedingEpisodeCount)} • ${formatSeconds(stats.harshSpeedingSeconds)}`}
+              variant="compact"
+              allowValueWrap={true}
+              style={styles.tileFull}
+            />
+          </View>
+        </>
+      )}
 
       <Text style={styles.subtitle}>Speed Oscillation</Text>
       <View style={styles.stackGrid}>

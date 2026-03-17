@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, type ViewStyle, type StyleProp, type DimensionV
 import MapView, { type MapPressEvent } from 'react-native-maps';
 
 import type { Event } from '@types';
-import { useTheme } from '@hooks/useTheme';
+import { useAppSettings, useTheme } from '@hooks';
 import {
   buildJourneyMapData,
   buildMapRegion,
@@ -25,6 +25,7 @@ interface JourneyMapProps {
 export const JourneyMap = (props: JourneyMapProps) => {
   const { events, height = 300, interactive = true, showLegend = true, style } = props;
   const { theme } = useTheme();
+  const { settings } = useAppSettings();
   const styles = createStyles(theme);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
 
@@ -38,8 +39,8 @@ export const JourneyMap = (props: JourneyMapProps) => {
   }, [selectedPin, selectedPinId]);
 
   const selectedPinDetails = useMemo(() => {
-    return selectedPin ? buildPinDetails(selectedPin) : null;
-  }, [selectedPin]);
+    return selectedPin ? buildPinDetails(selectedPin, { showDebugMetadata: settings.mapMarkerDebugMetadataEnabled }) : null;
+  }, [selectedPin, settings.mapMarkerDebugMetadataEnabled]);
 
   const region = useMemo(() => buildMapRegion(data.routeCoordinates), [data.routeCoordinates]);
 

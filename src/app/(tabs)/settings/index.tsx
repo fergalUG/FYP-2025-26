@@ -2,14 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-import { useDebugLogs, useDebugOverlay, useDriverProfile, useTheme } from '@hooks';
+import { useAppSettings, useDriverProfile, useTheme } from '@hooks';
 import { useToast } from '@hooks/ToastProvider';
 
 import { AppButton } from '@components';
 import { JourneyService } from '@services/JourneyService';
 import { useBackgroundService } from '@hooks';
 import { LogService } from '@services/LogService';
+import { SpeedLimitPackService } from '@services/SpeedLimitPackService';
 import { showConfirmAlert, showSuccessAlert } from '@utils/alert';
+
+import type { SpeedLimitPackStatus } from '@types';
 
 export default function Settings() {
   const { theme, mode, toggleMode } = useTheme();
@@ -24,13 +27,13 @@ export default function Settings() {
   const [sessionLogName, setSessionLogName] = useState<string | null>(null);
   const [logFiles, setLogFiles] = useState<ReturnType<typeof LogService.listLogFiles>>([]);
   const [loadingLogFiles, setLoadingLogFiles] = useState(false);
+  const [packStatus, setPackStatus] = useState<SpeedLimitPackStatus | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState('');
   const styles = createStyles(theme);
 
-  //debug stuff
-  const { isEnabled: isDebugOverlayEnabled, toggleOverlay } = useDebugOverlay();
-  const { isEnabled: isDebugLogsEnabled, toggleDebugLogs } = useDebugLogs();
+  const { settings, setDebugLogsEnabled, setDebugOverlayEnabled, setMapMarkerDebugMetadataEnabled, setSpeedLimitDetectionEnabled } =
+    useAppSettings();
 
   const backgroundService = useBackgroundService();
   const [startingManualTracking, setStartingManualTracking] = useState(false);
@@ -39,6 +42,23 @@ export default function Settings() {
   useEffect(() => {
     setSessionLogName(LogService.getSessionFileName());
     setLogFiles(LogService.listLogFiles());
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const unsubscribe = SpeedLimitPackService.addListener((status) => {
+      if (!isMounted) {
+        return;
+      }
+
+      setPackStatus(status);
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const loadLogFiles = async () => {
@@ -106,6 +126,139 @@ export default function Settings() {
       variant: 'success',
     });
   };
+
+  const showSpeedLimitDetectionNextJourneyToast = () => {
+    showToast({
+      title: 'Applies next journey',
+      message: 'Speed limit detection changes will apply the next time a journey starts.',
+      variant: 'info',
+    });
+  };
+
+  const showOfflineRoadDataNextJourneyToast = () => {
+    if (backgroundService.mode === 'ACTIVE') {
+      showSpeedLimitDetectionNextJourneyToast();
+    }
+  };
+
+  const persistSpeedLimitDetectionEnabled = async (enabled: boolean) => {
+    await setSpeedLimitDetectionEnabled(enabled);
+    if (backgroundService.mode === 'ACTIVE') {
+      showSpeedLimitDetectionNextJourneyToast();
+    }
+  };
+
+  const handleSpeedLimitDetectionToggle = (enabled: boolean) => {
+    if (!enabled) {
+      void persistSpeedLimitDetectionEnabled(false);
+      return;
+    }
+
+    showConfirmAlert(
+      'Enable Speed Limit Detection?',
+      'Turning this on uses offline road data stored on your device for speeding detection. You will need to download the Ireland + Northern Ireland road data pack. Continue?',
+      () => {
+        void persistSpeedLimitDetectionEnabled(true);
+      }
+    );
+  };
+
+  const handleCheckSpeedLimitPackUpdate = async () => {
+    const status = await SpeedLimitPackService.checkForUpdate();
+    setPackStatus(status);
+
+    if (status.phase === 'error') {
+      showToast({
+        title: 'Road data check failed',
+        message: status.errorMessage ?? 'Could not check for offline road data updates.',
+        variant: 'error',
+      });
+      return;
+    }
+
+    showToast({
+      title:
+        status.installState !== 'installed'
+          ? 'Road data available'
+          : status.updateAvailable
+            ? 'Road data update available'
+            : 'Road data up to date',
+      message:
+        status.installState !== 'installed'
+          ? `Version ${status.latestManifest?.packVersion ?? 'unknown'} is ready to download.`
+          : status.updateAvailable
+            ? `Version ${status.latestManifest?.packVersion ?? 'unknown'} is ready to download.`
+            : 'You already have the latest offline road data.',
+      variant: status.installState !== 'installed' || status.updateAvailable ? 'info' : 'success',
+    });
+  };
+
+  const handleDownloadSpeedLimitPack = async () => {
+    const success = await SpeedLimitPackService.downloadPack('ie-ni');
+    if (!success) {
+      const latestStatus = await SpeedLimitPackService.getLocalStatus();
+      setPackStatus(latestStatus);
+      showToast({
+        title: 'Road data download failed',
+        message: latestStatus.errorMessage ?? 'Could not install the offline road data pack.',
+        variant: 'error',
+      });
+      return;
+    }
+
+    showToast({
+      title: 'Road data ready',
+      message: 'Offline speed limit data is installed on this device.',
+      variant: 'success',
+    });
+    showOfflineRoadDataNextJourneyToast();
+  };
+
+  const executeRemoveSpeedLimitPack = async () => {
+    const success = await SpeedLimitPackService.removePack('ie-ni');
+    if (!success) {
+      const latestStatus = await SpeedLimitPackService.getLocalStatus();
+      setPackStatus(latestStatus);
+      showToast({
+        title: 'Could not remove road data',
+        message: latestStatus.errorMessage ?? 'Offline road data could not be removed.',
+        variant: 'error',
+      });
+      return;
+    }
+
+    showToast({
+      title: 'Road data removed',
+      message: 'Offline speed limit data has been removed from this device.',
+      variant: 'success',
+    });
+    showOfflineRoadDataNextJourneyToast();
+  };
+
+  const handleRemoveSpeedLimitPack = () => {
+    showConfirmAlert(
+      'Remove Offline Road Data?',
+      'This will delete the installed Ireland + Northern Ireland road data pack from this device.',
+      () => {
+        void executeRemoveSpeedLimitPack();
+      }
+    );
+  };
+
+  const installedPack = packStatus?.installedPack ?? null;
+  const latestManifest = packStatus?.latestManifest ?? null;
+  const packSizeLabel = formatBytes(latestManifest?.sizeBytes ?? installedPack?.sizeBytes ?? null);
+  const installedPackDateLabel = installedPack ? new Date(installedPack.installedAt).toLocaleDateString() : null;
+  const packBusyLabel =
+    packStatus?.phase === 'downloading'
+      ? `Downloading${typeof packStatus.progressFraction === 'number' ? ` ${Math.round(packStatus.progressFraction * 100)}%` : '...'}`
+      : packStatus?.phase === 'installing'
+        ? 'Installing...'
+        : packStatus?.phase === 'checking'
+          ? 'Checking for updates...'
+          : packStatus?.phase === 'removing'
+            ? 'Removing...'
+            : null;
 
   const handleManualStartActiveTracking = async () => {
     setStartingManualTracking(true);
@@ -219,6 +372,74 @@ export default function Settings() {
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
           </View>
+
+          <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />
+
+          <View style={styles.rowBetween}>
+            <View style={styles.rowText}>
+              <Text style={styles.itemTitle}>Enable Speed Limit Detection</Text>
+              <Text style={styles.itemSubtitle}>Uses downloaded road data for speeding detection.</Text>
+            </View>
+            <Switch
+              value={settings.speedLimitDetectionEnabled}
+              onValueChange={handleSpeedLimitDetectionToggle}
+              trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
+              thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
+            />
+          </View>
+
+          {settings.speedLimitDetectionEnabled && packStatus?.installState !== 'installed' ? (
+            <Text style={styles.emptyText}>Speeding detection is unavailable until offline road data is downloaded.</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.itemTitle}>Offline Road Data</Text>
+          <Text style={styles.itemSubtitle}>
+            OpenStreetMap speed limit data stored on-device. (Currently only supported: Ireland + Northern Ireland)
+          </Text>
+          <Text style={styles.logFileName}>
+            {installedPack
+              ? `Installed ${installedPack.packVersion}${installedPackDateLabel ? ` • ${installedPackDateLabel}` : ''} • ${packSizeLabel}`
+              : latestManifest
+                ? `Not installed • ${latestManifest.packVersion} • ${packSizeLabel}`
+                : 'Not installed • Check for updates to load the latest pack details.'}
+          </Text>
+          {packBusyLabel ? <Text style={styles.itemSubtitle}>{packBusyLabel}</Text> : null}
+          {packStatus?.errorMessage ? <Text style={styles.errorText}>{packStatus.errorMessage}</Text> : null}
+          <View style={styles.packActionRow}>
+            <AppButton
+              variant="secondary"
+              style={styles.secondaryActionButton}
+              onPress={handleCheckSpeedLimitPackUpdate}
+              disabled={!!packStatus?.isBusy}
+            >
+              <Text style={styles.secondaryActionButtonText}>Check for Update</Text>
+            </AppButton>
+
+            {packStatus?.installState === 'installed' ? (
+              <>
+                {packStatus.updateAvailable ? (
+                  <AppButton style={styles.secondaryActionButton} onPress={handleDownloadSpeedLimitPack} disabled={!!packStatus?.isBusy}>
+                    <Text style={styles.exportButtonText}>Update</Text>
+                  </AppButton>
+                ) : null}
+                <AppButton
+                  variant="secondary"
+                  style={styles.secondaryActionButton}
+                  onPress={handleRemoveSpeedLimitPack}
+                  disabled={!!packStatus?.isBusy}
+                >
+                  <Text style={styles.secondaryActionButtonText}>Remove</Text>
+                </AppButton>
+              </>
+            ) : (
+              <AppButton style={styles.secondaryActionButton} onPress={handleDownloadSpeedLimitPack} disabled={!!packStatus?.isBusy}>
+                <Text style={styles.exportButtonText}>Download</Text>
+              </AppButton>
+            )}
+          </View>
+          <Text style={styles.attributionText}>Contains OpenStreetMap data © OpenStreetMap contributors (ODbL).</Text>
         </View>
       </View>
 
@@ -231,8 +452,8 @@ export default function Settings() {
               <Text style={styles.itemSubtitle}>Show logs on screen.</Text>
             </View>
             <Switch
-              value={isDebugOverlayEnabled}
-              onValueChange={toggleOverlay}
+              value={settings.debugOverlayEnabled}
+              onValueChange={setDebugOverlayEnabled}
               trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
@@ -244,8 +465,21 @@ export default function Settings() {
               <Text style={styles.itemSubtitle}>Enable 'DEBUG' level logs.</Text>
             </View>
             <Switch
-              value={isDebugLogsEnabled}
-              onValueChange={toggleDebugLogs}
+              value={settings.debugLogsEnabled}
+              onValueChange={setDebugLogsEnabled}
+              trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
+              thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
+            />
+          </View>
+
+          <View style={styles.rowBetween}>
+            <View style={styles.rowText}>
+              <Text style={styles.itemTitle}>Show Debug Metadata on Map Markers</Text>
+              <Text style={styles.itemSubtitle}>Include detector internals in map marker details.</Text>
+            </View>
+            <Switch
+              value={settings.mapMarkerDebugMetadataEnabled}
+              onValueChange={setMapMarkerDebugMetadataEnabled}
               trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
@@ -616,12 +850,28 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       color: theme.colors.onSurface,
       opacity: 0.6,
     },
+    errorText: {
+      fontSize: 12,
+      color: theme.colors.error,
+    },
+    packActionRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+    },
     exportButton: {
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.sm,
       backgroundColor: theme.colors.primary,
       borderRadius: theme.radius.md,
       alignSelf: 'flex-start',
+    },
+    secondaryActionButton: {
+      alignSelf: 'flex-start',
+    },
+    secondaryActionButtonText: {
+      color: theme.colors.onBackground,
+      fontWeight: '600',
     },
     exportButtonDisabled: {
       opacity: 0.6,
@@ -634,5 +884,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: theme.spacing.sm,
+    },
+    attributionText: {
+      fontSize: 12,
+      color: theme.colors.onSurface,
+      opacity: 0.6,
     },
   });
