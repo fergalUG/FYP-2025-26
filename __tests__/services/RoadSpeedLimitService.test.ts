@@ -10,9 +10,9 @@ describe('RoadSpeedLimitService', () => {
 
   const packSnapshot = {
     regionId: 'ie-ni',
-    version: '20260317',
+    packVersion: '20260317',
     filePath: 'mock://documents/SpeedLimitPacks/ie-ni.sqlite',
-    checksum: 'checksum',
+    md5: 'checksum',
     installedAt: 1,
   } as const;
 
@@ -47,7 +47,6 @@ describe('RoadSpeedLimitService', () => {
     const openDatabaseSync = jest.fn().mockReturnValue(database);
 
     const service = createRoadSpeedLimitServiceController({
-      now: () => Date.now(),
       logger,
       openDatabaseSync,
     });

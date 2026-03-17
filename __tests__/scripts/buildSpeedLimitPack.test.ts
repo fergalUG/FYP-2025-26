@@ -47,6 +47,8 @@ describe('build_speed_limit_pack.py', () => {
     const manifest = readJson(outputManifest);
     expect(manifest.regionId).toBe('ie-ni');
     expect(manifest.packVersion).toBe('test-version');
+    expect(typeof manifest.md5).toBe('string');
+    expect(manifest.md5).toHaveLength(32);
     expect(manifest.sizeBytes).toBeGreaterThan(0);
 
     const queryOutput = execFileSync('python3', [

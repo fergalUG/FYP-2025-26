@@ -5,9 +5,9 @@ import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types
 
 const MOCK_PACK_SNAPSHOT = {
   regionId: 'ie-ni',
-  version: '20260317',
+  packVersion: '20260317',
   filePath: 'mock://documents/SpeedLimitPacks/ie-ni.sqlite',
-  checksum: 'checksum',
+  md5: 'checksum',
   installedAt: 1,
 } as const;
 
@@ -52,9 +52,9 @@ describe('EfficiencyService', () => {
   const startTracking = (
     service: ReturnType<typeof createService>,
     speedLimitDetectionEnabled: boolean = true,
-    speedLimitPackSnapshot: typeof MOCK_PACK_SNAPSHOT | null = MOCK_PACK_SNAPSHOT
+    speedLimitPackRef: typeof MOCK_PACK_SNAPSHOT | null = MOCK_PACK_SNAPSHOT
   ) => {
-    service.startTracking({ speedLimitDetectionEnabled, speedLimitPackSnapshot });
+    service.startTracking({ speedLimitDetectionEnabled, speedLimitPackRef });
   };
 
   const mockLocation = {
@@ -100,11 +100,7 @@ describe('EfficiencyService', () => {
 
       expect(mockVehicleMotion.startTracking).toHaveBeenCalledTimes(1);
       expect(mockVehicleMotion.addListener).toHaveBeenCalledWith('onMotionUpdate', expect.any(Function));
-      expect(mockRoadSpeedLimitService.setPackSnapshot).toHaveBeenCalledWith(
-        expect.objectContaining({
-          regionId: 'legacy',
-        })
-      );
+      expect(mockRoadSpeedLimitService.setPackSnapshot).toHaveBeenCalledWith(null);
     });
 
     it('is idempotent', () => {
@@ -152,7 +148,7 @@ describe('EfficiencyService', () => {
 
     it('detects moderate speeding', async () => {
       const svc = createService();
-      svc.startTracking();
+      startTracking(svc);
       (mockRoadSpeedLimitService.getSpeedLimit as jest.Mock).mockResolvedValue({
         speedLimitKmh: 95,
         source: 'offline_osm',
@@ -186,7 +182,7 @@ describe('EfficiencyService', () => {
 
     it('detects harsh speeding', async () => {
       const svc = createService();
-      svc.startTracking();
+      startTracking(svc);
       (mockRoadSpeedLimitService.getSpeedLimit as jest.Mock).mockResolvedValue({
         speedLimitKmh: 95,
         source: 'offline_osm',

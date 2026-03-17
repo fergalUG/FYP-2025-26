@@ -343,8 +343,8 @@ def load_pbf_ways(input_path: Path, writer: PackWriter) -> None:
     handler.apply_file(str(input_path), locations=True)
 
 
-def compute_sha256(file_path: Path) -> str:
-    hasher = hashlib.sha256()
+def compute_md5(file_path: Path) -> str:
+    hasher = hashlib.md5()
     with file_path.open("rb") as handle:
         while True:
             chunk = handle.read(1024 * 1024)
@@ -386,7 +386,7 @@ def build_manifest(
         "packVersion": pack_version,
         "sourceTimestamp": source_timestamp,
         "downloadUrl": download_url,
-        "sha256": compute_sha256(output_db),
+        "md5": compute_md5(output_db),
         "sizeBytes": output_db.stat().st_size,
         "bounds": bounds,
         "osmAttribution": "Contains OpenStreetMap data © OpenStreetMap contributors (ODbL).",

@@ -2,12 +2,13 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
+import * as ExpoFileSystem from 'expo-file-system';
+import * as ExpoFileSystemLegacy from 'expo-file-system/legacy';
 
 import { createSpeedLimitPackServiceController } from '@services/SpeedLimitPackService';
 
 import type { InstalledSpeedLimitPackMetadata, SpeedLimitPackManifest, SpeedLimitPackServiceDeps } from '@types';
 
-const toHexSha256 = (value: string): string => crypto.createHash('sha256').update(value).digest('hex');
 const toHexMd5 = (value: Buffer): string => crypto.createHash('md5').update(value).digest('hex');
 
 const resolvePathPart = (value: unknown): string => {
@@ -21,28 +22,6 @@ const resolvePathPart = (value: unknown): string => {
 
   throw new Error(`Unsupported path part: ${String(value)}`);
 };
-
-class FakeFileHandle {
-  private readonly buffer: Buffer;
-
-  offset: number | null = 0;
-  size: number | null;
-
-  constructor(private readonly filePath: string) {
-    this.buffer = fs.existsSync(filePath) ? fs.readFileSync(filePath) : Buffer.alloc(0);
-    this.size = this.buffer.length;
-  }
-
-  readBytes(length: number): Uint8Array<ArrayBuffer> {
-    const start = this.offset ?? 0;
-    const end = Math.min(this.buffer.length, start + length);
-    const slice = this.buffer.subarray(start, end);
-    this.offset = end;
-    return new Uint8Array(slice);
-  }
-
-  close(): void {}
-}
 
 class FakeFile {
   path: string;
@@ -83,10 +62,6 @@ class FakeFile {
     fs.copyFileSync(this.path, destination.path);
   }
 
-  async text(): Promise<string> {
-    return fs.readFileSync(this.path, 'utf8');
-  }
-
   info(options?: { md5?: boolean }): { size?: number; md5?: string | null } {
     if (!this.exists) {
       return {};
@@ -97,10 +72,6 @@ class FakeFile {
       size: content.length,
       md5: options?.md5 ? toHexMd5(content) : null,
     };
-  }
-
-  open(): FakeFileHandle {
-    return new FakeFileHandle(this.path);
   }
 }
 
@@ -143,6 +114,17 @@ describe('SpeedLimitPackService', () => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'speed-limit-pack-service-'));
     storedMetadata = null;
 
+    const mockFile = ExpoFileSystem.File as unknown as jest.Mock;
+    const mockDirectory = ExpoFileSystem.Directory as unknown as jest.Mock;
+    const mockCreateDownloadResumable = ExpoFileSystemLegacy.createDownloadResumable as unknown as jest.Mock;
+
+    mockFile.mockImplementation((...parts: unknown[]) => new FakeFile(...parts));
+    mockDirectory.mockImplementation((...parts: unknown[]) => new FakeDirectory(...parts));
+    Object.assign(ExpoFileSystem.Paths, {
+      document: path.join(tempRoot, 'documents'),
+      cache: path.join(tempRoot, 'cache'),
+    });
+
     const downloadDir = path.join(tempRoot, 'downloads');
     fs.mkdirSync(downloadDir, { recursive: true });
     downloadSourcePath = path.join(downloadDir, 'speed-limit-pack-ie-ni.sqlite');
@@ -156,7 +138,7 @@ describe('SpeedLimitPackService', () => {
       packVersion: '20260317',
       sourceTimestamp: '2026-03-17T00:00:00Z',
       downloadUrl: 'https://example.com/speed-limit-pack-ie-ni.sqlite',
-      sha256: toHexSha256('offline-pack-data'),
+      md5: toHexMd5(Buffer.from('offline-pack-data')),
       sizeBytes: Buffer.byteLength('offline-pack-data'),
       bounds: {
         minLat: 51,
@@ -174,26 +156,6 @@ describe('SpeedLimitPackService', () => {
       }) as unknown as typeof fetch,
       now: () => 1_710_000_000_000,
       logger,
-      FileSystem: {
-        File: FakeFile as never,
-        Directory: FakeDirectory as never,
-        Paths: {
-          document: path.join(tempRoot, 'documents'),
-          cache: path.join(tempRoot, 'cache'),
-        },
-      },
-      createDownloadResumable: jest.fn((uri: string, fileUri: string, _options, callback) => ({
-        downloadAsync: async () => {
-          const content = fs.readFileSync(downloadSourcePath);
-          fs.mkdirSync(path.dirname(fileUri), { recursive: true });
-          fs.writeFileSync(fileUri, content);
-          callback?.({
-            totalBytesWritten: content.length,
-            totalBytesExpectedToWrite: content.length,
-          });
-          return { uri: fileUri };
-        },
-      })),
       settingsStore: {
         getInstalledSpeedLimitPackMetadata: jest.fn(async () => storedMetadata),
         setInstalledSpeedLimitPackMetadata: jest.fn(async (metadata: InstalledSpeedLimitPackMetadata) => {
@@ -206,6 +168,26 @@ describe('SpeedLimitPackService', () => {
         }),
       },
     };
+
+    mockCreateDownloadResumable.mockImplementation(
+      (
+        uri: string,
+        fileUri: string,
+        _options?: object,
+        callback?: (data: { totalBytesWritten: number; totalBytesExpectedToWrite: number }) => void
+      ) => ({
+        downloadAsync: async () => {
+          const content = fs.readFileSync(downloadSourcePath);
+          fs.mkdirSync(path.dirname(fileUri), { recursive: true });
+          fs.writeFileSync(fileUri, content);
+          callback?.({
+            totalBytesWritten: content.length,
+            totalBytesExpectedToWrite: content.length,
+          });
+          return { uri: fileUri };
+        },
+      })
+    );
   });
 
   afterEach(() => {
@@ -234,7 +216,7 @@ describe('SpeedLimitPackService', () => {
     expect(snapshot).toEqual(
       expect.objectContaining({
         regionId: 'ie-ni',
-        version: '20260317',
+        packVersion: '20260317',
       })
     );
     expect(fs.existsSync(path.join(tempRoot, 'documents', 'SpeedLimitPacks', 'ie-ni.sqlite'))).toBe(true);
@@ -245,7 +227,7 @@ describe('SpeedLimitPackService', () => {
       regionId: 'ie-ni',
       regionName: 'Ireland + Northern Ireland',
       packVersion: '20260201',
-      sha256: 'old',
+      md5: 'old',
       sizeBytes: 10,
       sourceTimestamp: '2026-02-01T00:00:00Z',
       installedAt: 100,
@@ -264,12 +246,12 @@ describe('SpeedLimitPackService', () => {
     expect(status.latestManifest?.packVersion).toBe('20260317');
   });
 
-  it('rejects the download when the checksum does not match and leaves the old pack untouched', async () => {
+  it('rejects the download when the hash does not match and leaves the old pack untouched', async () => {
     storedMetadata = {
       regionId: 'ie-ni',
       regionName: 'Ireland + Northern Ireland',
       packVersion: '20260201',
-      sha256: 'old-checksum',
+      md5: 'old-checksum',
       sizeBytes: 8,
       sourceTimestamp: '2026-02-01T00:00:00Z',
       installedAt: 100,
@@ -281,7 +263,7 @@ describe('SpeedLimitPackService', () => {
     fs.writeFileSync(storedMetadata.filePath, 'old-pack');
     manifest = {
       ...manifest,
-      sha256: 'not-the-right-hash',
+      md5: 'not-the-right-hash',
     };
 
     const service = createService();
@@ -297,7 +279,7 @@ describe('SpeedLimitPackService', () => {
       regionId: 'ie-ni',
       regionName: 'Ireland + Northern Ireland',
       packVersion: '20260317',
-      sha256: manifest.sha256,
+      md5: manifest.md5,
       sizeBytes: manifest.sizeBytes,
       sourceTimestamp: manifest.sourceTimestamp,
       installedAt: 100,

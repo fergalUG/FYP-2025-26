@@ -306,9 +306,9 @@ describe('BackgroundService passive start detection', () => {
     mockSettingsService.getSpeedLimitDetectionEnabled.mockResolvedValueOnce(true);
     mockSpeedLimitPackService.getJourneySnapshot.mockResolvedValueOnce({
       regionId: 'ie-ni',
-      version: '20260317',
+      packVersion: '20260317',
       filePath: 'mock://documents/SpeedLimitPacks/ie-ni.sqlite',
-      checksum: 'abc123',
+      md5: 'abc123',
       installedAt: nowMs,
     });
 
@@ -316,11 +316,11 @@ describe('BackgroundService passive start detection', () => {
 
     expect(mockEfficiencyService.startTracking).toHaveBeenCalledWith({
       speedLimitDetectionEnabled: true,
-      speedLimitPackSnapshot: {
+      speedLimitPackRef: {
         regionId: 'ie-ni',
-        version: '20260317',
+        packVersion: '20260317',
         filePath: 'mock://documents/SpeedLimitPacks/ie-ni.sqlite',
-        checksum: 'abc123',
+        md5: 'abc123',
         installedAt: nowMs,
       },
     });
@@ -331,7 +331,7 @@ describe('BackgroundService passive start detection', () => {
 
     expect(mockEfficiencyService.startTracking).toHaveBeenNthCalledWith(1, {
       speedLimitDetectionEnabled: false,
-      speedLimitPackSnapshot: null,
+      speedLimitPackRef: null,
     });
 
     await controller.manualStopActiveTracking();
@@ -341,7 +341,7 @@ describe('BackgroundService passive start detection', () => {
 
     expect(mockEfficiencyService.startTracking).toHaveBeenNthCalledWith(2, {
       speedLimitDetectionEnabled: true,
-      speedLimitPackSnapshot: null,
+      speedLimitPackRef: null,
     });
   });
 });

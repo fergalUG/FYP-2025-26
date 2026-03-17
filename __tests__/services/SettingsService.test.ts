@@ -205,7 +205,7 @@ describe('SettingsService', () => {
       regionId: 'ie-ni',
       regionName: 'Ireland + Northern Ireland',
       packVersion: '20260317',
-      sha256: 'abc123',
+      md5: 'abc123',
       sizeBytes: 123,
       sourceTimestamp: '2026-03-17T00:00:00Z',
       installedAt: 123456,
