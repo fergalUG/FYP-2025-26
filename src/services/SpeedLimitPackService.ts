@@ -1,6 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { createDownloadResumable } from 'expo-file-system/legacy';
-import forge from 'node-forge';
 
 import {
   clearInstalledSpeedLimitPackMetadata,
@@ -11,8 +10,8 @@ import { createLogger, LogModule } from '@utils/logger';
 
 import type {
   InstalledSpeedLimitPackMetadata,
-  OfflineSpeedLimitPackSnapshot,
   SpeedLimitPackManifest,
+  SpeedLimitPackRef,
   SpeedLimitPackServiceController,
   SpeedLimitPackServiceDeps,
   SpeedLimitPackStatus,
@@ -32,17 +31,6 @@ const normalizeErrorMessage = (error: unknown): string => {
   }
 
   return String(error);
-};
-
-const encodeRawBytes = (bytes: Uint8Array): string => {
-  let result = '';
-
-  for (let offset = 0; offset < bytes.length; offset += 0x2000) {
-    const slice = bytes.subarray(offset, Math.min(bytes.length, offset + 0x2000));
-    result += String.fromCharCode(...slice);
-  }
-
-  return result;
 };
 
 const createDefaultStatus = (): SpeedLimitPackStatus => ({
@@ -76,7 +64,7 @@ const isManifest = (value: unknown): value is SpeedLimitPackManifest => {
     typeof candidate.packVersion === 'string' &&
     typeof candidate.sourceTimestamp === 'string' &&
     typeof candidate.downloadUrl === 'string' &&
-    typeof candidate.sha256 === 'string' &&
+    typeof candidate.md5 === 'string' &&
     typeof candidate.sizeBytes === 'number' &&
     typeof candidate.osmAttribution === 'string' &&
     !!bounds &&
@@ -88,19 +76,49 @@ const isManifest = (value: unknown): value is SpeedLimitPackManifest => {
   );
 };
 
-const buildJourneySnapshot = (metadata: InstalledSpeedLimitPackMetadata): OfflineSpeedLimitPackSnapshot => ({
+const buildPackRef = (metadata: InstalledSpeedLimitPackMetadata): SpeedLimitPackRef => ({
   regionId: metadata.regionId,
-  version: metadata.packVersion,
+  packVersion: metadata.packVersion,
   filePath: metadata.filePath,
-  checksum: metadata.sha256,
+  md5: metadata.md5,
   installedAt: metadata.installedAt,
 });
 
-export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServiceDeps): SpeedLimitPackServiceController => {
-  const fileSystem = deps.FileSystem ?? { File, Directory, Paths };
-  const manifestUrl = deps.manifestUrl ?? DEFAULT_MANIFEST_URL;
-  const makeDownloadResumable = deps.createDownloadResumable ?? createDownloadResumable;
+const ensureDirectory = (directory: Directory): void => {
+  if (!directory.exists) {
+    directory.create({ intermediates: true });
+  }
+};
 
+const buildPackDirectory = (): Directory => {
+  const directory = new Directory(Paths.document, PACK_DIRECTORY_NAME);
+  ensureDirectory(directory);
+  return directory;
+};
+
+const buildCacheDirectory = (): Directory => {
+  const directory = new Directory(Paths.cache, PACK_DIRECTORY_NAME);
+  ensureDirectory(directory);
+  return directory;
+};
+
+const removeFileIfPresent = (file: File): void => {
+  if (file.exists) {
+    file.delete();
+  }
+};
+
+const getFileMd5 = (file: File): string => {
+  const fileInfo = file.info({ md5: true });
+  if (typeof fileInfo.md5 !== 'string' || fileInfo.md5.length === 0) {
+    throw new Error('Could not compute the downloaded speed limit pack hash.');
+  }
+
+  return fileInfo.md5;
+};
+
+export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServiceDeps): SpeedLimitPackServiceController => {
+  const manifestUrl = deps.manifestUrl ?? DEFAULT_MANIFEST_URL;
   const listeners = new Set<(status: SpeedLimitPackStatus) => void>();
 
   let latestManifest: SpeedLimitPackManifest | null = null;
@@ -110,33 +128,17 @@ export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServic
   let totalBytes: number | null = null;
   let errorMessage: string | null = null;
 
-  const ensureDirectory = (directory: { exists?: boolean; create: (options?: { intermediates?: boolean }) => void }): void => {
-    if (!directory.exists) {
-      directory.create({ intermediates: true });
-    }
-  };
-
-  const buildPackDirectory = (): InstanceType<typeof Directory> => {
-    const directory = new fileSystem.Directory(fileSystem.Paths.document, PACK_DIRECTORY_NAME) as InstanceType<typeof Directory>;
-    ensureDirectory(directory);
-    return directory;
-  };
-
-  const buildCacheDirectory = (): InstanceType<typeof Directory> => {
-    const directory = new fileSystem.Directory(fileSystem.Paths.cache, PACK_DIRECTORY_NAME) as InstanceType<typeof Directory>;
-    ensureDirectory(directory);
-    return directory;
-  };
-
   const readInstalledMetadata = async (): Promise<InstalledSpeedLimitPackMetadata | null> => {
     const metadata = await deps.settingsStore.getInstalledSpeedLimitPackMetadata();
     if (!metadata) {
       return null;
     }
 
-    const file = new fileSystem.File(metadata.filePath);
+    const file = new File(metadata.filePath);
     if (!file.exists) {
-      deps.logger.warn('Installed speed limit pack metadata pointed to a missing file. Clearing stored metadata.', { filePath: metadata.filePath });
+      deps.logger.warn('Installed speed limit pack metadata pointed to a missing file. Clearing stored metadata.', {
+        filePath: metadata.filePath,
+      });
       await deps.settingsStore.clearInstalledSpeedLimitPackMetadata();
       return null;
     }
@@ -216,36 +218,10 @@ export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServic
     return manifest;
   };
 
-  const hashFileSha256 = async (file: InstanceType<typeof File>): Promise<string> => {
-    const digest = forge.md.sha256.create();
-    const handle = file.open();
-
-    try {
-      const size = handle.size ?? 0;
-      handle.offset = 0;
-
-      while ((handle.offset ?? 0) < size) {
-        const remaining = size - (handle.offset ?? 0);
-        const chunk = handle.readBytes(Math.min(64 * 1024, remaining));
-        digest.update(encodeRawBytes(chunk));
-      }
-    } finally {
-      handle.close();
-    }
-
-    return digest.digest().toHex();
-  };
-
-  const removeFileIfPresent = (file: InstanceType<typeof File>): void => {
-    if (file.exists) {
-      file.delete();
-    }
-  };
-
-  const installDownloadedPack = async (manifest: SpeedLimitPackManifest, tempFile: InstanceType<typeof File>): Promise<InstalledSpeedLimitPackMetadata> => {
+  const installDownloadedPack = async (manifest: SpeedLimitPackManifest, tempFile: File): Promise<InstalledSpeedLimitPackMetadata> => {
     const packDirectory = buildPackDirectory();
-    const destinationFile = new fileSystem.File(packDirectory, PACK_FILE_NAME) as InstanceType<typeof File>;
-    const backupFile = new fileSystem.File(packDirectory, `${PACK_FILE_NAME}.bak`) as InstanceType<typeof File>;
+    const destinationFile = new File(packDirectory, PACK_FILE_NAME);
+    const backupFile = new File(packDirectory, `${PACK_FILE_NAME}.bak`);
 
     removeFileIfPresent(backupFile);
     if (destinationFile.exists) {
@@ -260,7 +236,7 @@ export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServic
         regionId: manifest.regionId,
         regionName: manifest.regionName,
         packVersion: manifest.packVersion,
-        sha256: manifest.sha256,
+        md5: manifest.md5,
         sizeBytes: destinationFile.info().size ?? manifest.sizeBytes,
         sourceTimestamp: manifest.sourceTimestamp,
         installedAt: deps.now(),
@@ -291,9 +267,9 @@ export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServic
     return buildStatus();
   };
 
-  const getJourneySnapshot = async (): Promise<OfflineSpeedLimitPackSnapshot | null> => {
+  const getJourneySnapshot = async (): Promise<SpeedLimitPackRef | null> => {
     const metadata = await readInstalledMetadata();
-    return metadata ? buildJourneySnapshot(metadata) : null;
+    return metadata ? buildPackRef(metadata) : null;
   };
 
   const checkForUpdate = async (): Promise<SpeedLimitPackStatus> => {
@@ -329,32 +305,26 @@ export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServic
 
     setTransientState('checking');
 
-    let tempFile: InstanceType<typeof File> | null = null;
     let tempFileUri: string | null = null;
 
     try {
       const manifest = latestManifest ?? (await fetchManifest());
       const cacheDirectory = buildCacheDirectory();
-      tempFile = new fileSystem.File(cacheDirectory, `${manifest.regionId}-${manifest.packVersion}.download`) as InstanceType<typeof File>;
+      const tempFile = new File(cacheDirectory, `${manifest.regionId}-${manifest.packVersion}.download`);
       tempFileUri = tempFile.uri;
       removeFileIfPresent(tempFile);
 
       setTransientState('downloading', { totalBytes: manifest.sizeBytes, bytesWritten: 0, progressFraction: 0 });
 
-      const download = makeDownloadResumable(
-        manifest.downloadUrl,
-        tempFile.uri,
-        {},
-        (data) => {
-          const expected = data.totalBytesExpectedToWrite > 0 ? data.totalBytesExpectedToWrite : manifest.sizeBytes;
-          const fraction = expected > 0 ? Math.min(1, data.totalBytesWritten / expected) : null;
-          setTransientState('downloading', {
-            bytesWritten: data.totalBytesWritten,
-            totalBytes: expected,
-            progressFraction: fraction,
-          });
-        }
-      );
+      const download = createDownloadResumable(manifest.downloadUrl, tempFile.uri, {}, (data) => {
+        const expected = data.totalBytesExpectedToWrite > 0 ? data.totalBytesExpectedToWrite : manifest.sizeBytes;
+        const fraction = expected > 0 ? Math.min(1, data.totalBytesWritten / expected) : null;
+        setTransientState('downloading', {
+          bytesWritten: data.totalBytesWritten,
+          totalBytes: expected,
+          progressFraction: fraction,
+        });
+      });
 
       await download.downloadAsync();
 
@@ -364,9 +334,9 @@ export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServic
 
       setTransientState('installing');
 
-      const computedSha = await hashFileSha256(tempFile);
-      if (computedSha.toLowerCase() !== manifest.sha256.toLowerCase()) {
-        throw new Error('Downloaded speed limit pack checksum did not match the manifest.');
+      const computedMd5 = getFileMd5(tempFile);
+      if (computedMd5.toLowerCase() !== manifest.md5.toLowerCase()) {
+        throw new Error('Downloaded speed limit pack hash did not match the manifest.');
       }
 
       await installDownloadedPack(manifest, tempFile);
@@ -381,7 +351,7 @@ export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServic
       return false;
     } finally {
       if (tempFileUri) {
-        const cleanupFile = new fileSystem.File(tempFileUri) as InstanceType<typeof File>;
+        const cleanupFile = new File(tempFileUri);
         if (cleanupFile.exists) {
           cleanupFile.delete();
         }
@@ -405,7 +375,7 @@ export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServic
     try {
       const metadata = await readInstalledMetadata();
       if (metadata) {
-        const file = new fileSystem.File(metadata.filePath) as InstanceType<typeof File>;
+        const file = new File(metadata.filePath);
         removeFileIfPresent(file);
       }
 
@@ -422,7 +392,9 @@ export const createSpeedLimitPackServiceController = (deps: SpeedLimitPackServic
 
   const addListener = (listener: (status: SpeedLimitPackStatus) => void): (() => void) => {
     listeners.add(listener);
-    void buildStatus().then(listener).catch(() => undefined);
+    void buildStatus()
+      .then(listener)
+      .catch(() => undefined);
 
     return () => {
       listeners.delete(listener);

@@ -126,9 +126,6 @@ const formatSourceLabel = (value: string): string => {
   if (value === 'offline_osm') {
     return 'Offline OSM';
   }
-  if (value === 'overpass') {
-    return 'Overpass';
-  }
 
   return value
     .replace(/_/g, ' ')

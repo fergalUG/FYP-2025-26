@@ -189,11 +189,12 @@ export default function Settings() {
           : status.updateAvailable
             ? 'Road data update available'
             : 'Road data up to date',
-      message: status.installState !== 'installed'
-        ? `Version ${status.latestManifest?.packVersion ?? 'unknown'} is ready to download.`
-        : status.updateAvailable
-        ? `Version ${status.latestManifest?.packVersion ?? 'unknown'} is ready to download.`
-        : 'You already have the latest offline road data.',
+      message:
+        status.installState !== 'installed'
+          ? `Version ${status.latestManifest?.packVersion ?? 'unknown'} is ready to download.`
+          : status.updateAvailable
+            ? `Version ${status.latestManifest?.packVersion ?? 'unknown'} is ready to download.`
+            : 'You already have the latest offline road data.',
       variant: status.installState !== 'installed' || status.updateAvailable ? 'info' : 'success',
     });
   };
@@ -383,9 +384,7 @@ export default function Settings() {
           <View style={styles.rowBetween}>
             <View style={styles.rowText}>
               <Text style={styles.itemTitle}>Enable Speed Limit Detection</Text>
-              <Text style={styles.itemSubtitle}>
-                Uses offline road data stored on this device for private speeding detection.
-              </Text>
+              <Text style={styles.itemSubtitle}>Uses offline road data stored on this device for private speeding detection.</Text>
             </View>
             <Switch
               value={settings.speedLimitDetectionEnabled}

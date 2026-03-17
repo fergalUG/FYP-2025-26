@@ -2,7 +2,13 @@ import * as SQLite from 'expo-sqlite';
 
 import { createLogger, LogModule } from '@utils/logger';
 
-import type { OfflineSpeedLimitPackSnapshot, RoadSpeedLimitLookupArgs, RoadSpeedLimitServiceController, RoadSpeedLimitServiceDeps, RoadSpeedLimitValue } from '@/types';
+import type {
+  RoadSpeedLimitLookupArgs,
+  RoadSpeedLimitServiceController,
+  RoadSpeedLimitServiceDeps,
+  RoadSpeedLimitValue,
+  SpeedLimitPackRef,
+} from '@/types';
 
 const CELL_SIZE_DEGREES = 0.002;
 const MATCH_DISTANCE_THRESHOLD_METERS = 40;
@@ -112,7 +118,7 @@ const trimCellCache = (cache: Map<string, CandidateCacheEntry>): void => {
 export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServiceDeps): RoadSpeedLimitServiceController => {
   const openDatabaseSync = deps.openDatabaseSync ?? SQLite.openDatabaseSync;
 
-  let activePackSnapshot: OfflineSpeedLimitPackSnapshot | null = null;
+  let activePackSnapshot: SpeedLimitPackRef | null = null;
   let activeDatabase: ReturnType<NonNullable<RoadSpeedLimitServiceDeps['openDatabaseSync']>> | null = null;
   let activeDatabaseKey: string | null = null;
   const cellCache = new Map<string, CandidateCacheEntry>();
@@ -133,9 +139,9 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
     clearDatabase();
   };
 
-  const setPackSnapshot = (snapshot: OfflineSpeedLimitPackSnapshot | null): void => {
-    const previousKey = activePackSnapshot ? `${activePackSnapshot.filePath}:${activePackSnapshot.checksum}` : null;
-    const nextKey = snapshot ? `${snapshot.filePath}:${snapshot.checksum}` : null;
+  const setPackSnapshot = (snapshot: SpeedLimitPackRef | null): void => {
+    const previousKey = activePackSnapshot ? `${activePackSnapshot.filePath}:${activePackSnapshot.md5}` : null;
+    const nextKey = snapshot ? `${snapshot.filePath}:${snapshot.md5}` : null;
 
     activePackSnapshot = snapshot;
     if (previousKey !== nextKey) {
@@ -149,7 +155,7 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
       return null;
     }
 
-    const databaseKey = `${activePackSnapshot.filePath}:${activePackSnapshot.checksum}`;
+    const databaseKey = `${activePackSnapshot.filePath}:${activePackSnapshot.md5}`;
     if (activeDatabase && activeDatabaseKey === databaseKey) {
       return activeDatabase;
     }
@@ -173,7 +179,11 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
     }
   };
 
-  const loadCandidateRows = (database: NonNullable<typeof activeDatabase>, latitude: number, longitude: number): { rows: SegmentRow[]; fromCache: boolean } => {
+  const loadCandidateRows = (
+    database: NonNullable<typeof activeDatabase>,
+    latitude: number,
+    longitude: number
+  ): { rows: SegmentRow[]; fromCache: boolean } => {
     const cellKey = buildCellKey(latitude, longitude);
     const cached = cellCache.get(cellKey);
     if (cached) {
@@ -227,18 +237,14 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
     try {
       const { rows, fromCache } = loadCandidateRows(database, args.latitude, args.longitude);
 
-      let bestMatch:
-        | {
-            row: SegmentRow;
-            distanceMeters: number;
-          }
-        | null = null;
-      let secondBest:
-        | {
-            row: SegmentRow;
-            distanceMeters: number;
-          }
-        | null = null;
+      let bestMatch: {
+        row: SegmentRow;
+        distanceMeters: number;
+      } | null = null;
+      let secondBest: {
+        row: SegmentRow;
+        distanceMeters: number;
+      } | null = null;
 
       for (const row of rows) {
         const distanceMeters = distancePointToSegmentMeters(
@@ -298,6 +304,5 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
 };
 
 export const RoadSpeedLimitService = createRoadSpeedLimitServiceController({
-  now: () => Date.now(),
   logger,
 });

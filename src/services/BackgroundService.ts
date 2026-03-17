@@ -257,7 +257,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     }
   };
 
-  const resolveSpeedLimitPackSnapshotForJourney = async (
+  const resolveSpeedLimitPackRefForJourney = async (
     speedLimitDetectionEnabled: boolean
   ): Promise<Awaited<ReturnType<BackgroundServiceDeps['SpeedLimitPackService']['getJourneySnapshot']>>> => {
     if (!speedLimitDetectionEnabled) {
@@ -267,7 +267,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     try {
       return await deps.SpeedLimitPackService.getJourneySnapshot();
     } catch (error) {
-      deps.logger.warn('Failed to resolve offline speed limit pack snapshot for this journey. Defaulting to unavailable.', error);
+      deps.logger.warn('Failed to resolve offline speed limit pack for this journey. Defaulting to unavailable.', error);
       return null;
     }
   };
@@ -468,7 +468,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
       try {
         const speedLimitDetectionEnabled = await resolveSpeedLimitDetectionForJourney();
-        const speedLimitPackSnapshot = await resolveSpeedLimitPackSnapshotForJourney(speedLimitDetectionEnabled);
+        const speedLimitPackRef = await resolveSpeedLimitPackRefForJourney(speedLimitDetectionEnabled);
         const bootstrapLocation = triggerLocation ?? state.lastLocation;
         if (bootstrapLocation) {
           await logJourneyStartForLocation(journeyId, bootstrapLocation);
@@ -483,7 +483,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
           }
         }
 
-        deps.EfficiencyService.startTracking({ speedLimitDetectionEnabled, speedLimitPackSnapshot });
+        deps.EfficiencyService.startTracking({ speedLimitDetectionEnabled, speedLimitPackRef });
 
         const started = await withRetry(
           async () => {

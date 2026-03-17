@@ -50,3 +50,5 @@ coverage/
 *.db
 testdb/
 tmp/
+
+output/

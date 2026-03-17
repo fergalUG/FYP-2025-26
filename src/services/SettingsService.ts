@@ -177,7 +177,7 @@ export const getInstalledSpeedLimitPackMetadata = async (): Promise<InstalledSpe
       typeof parsed?.regionId !== 'string' ||
       typeof parsed?.regionName !== 'string' ||
       typeof parsed?.packVersion !== 'string' ||
-      typeof parsed?.sha256 !== 'string' ||
+      typeof parsed?.md5 !== 'string' ||
       typeof parsed?.sizeBytes !== 'number' ||
       typeof parsed?.sourceTimestamp !== 'string' ||
       typeof parsed?.installedAt !== 'number' ||

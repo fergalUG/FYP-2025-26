@@ -4,7 +4,7 @@ import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types
 import type { ScoringStats } from '@/types/scoring';
 import type { JourneyServiceController } from '@/types/services/journeyService';
 import type { RoadSpeedLimitServiceController } from '@/types/services/roadSpeedLimitService';
-import type { OfflineSpeedLimitPackSnapshot } from '@/types/services/speedLimitPackService';
+import type { SpeedLimitPackRef } from '@/types/services/speedLimitPackService';
 import type { createLogger } from '@utils/logger';
 import type { SpeedConfidence, SpeedSource } from '@utils/gpsValidation';
 
@@ -30,7 +30,7 @@ export interface ProcessLocationOptions {
 
 export interface StartTrackingOptions {
   speedLimitDetectionEnabled: boolean;
-  speedLimitPackSnapshot: OfflineSpeedLimitPackSnapshot | null;
+  speedLimitPackRef: SpeedLimitPackRef | null;
 }
 
 export interface EfficiencyServiceController {

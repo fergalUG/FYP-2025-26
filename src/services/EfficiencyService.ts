@@ -40,13 +40,7 @@ const HEADING_HISTORY_SIZE = 5;
 const DEBUG_SUMMARY_INTERVAL_MS = 1000;
 const DEFAULT_START_TRACKING_OPTIONS: StartTrackingOptions = {
   speedLimitDetectionEnabled: true,
-  speedLimitPackSnapshot: {
-    regionId: 'legacy',
-    version: 'legacy',
-    filePath: 'legacy',
-    checksum: 'legacy',
-    installedAt: 0,
-  },
+  speedLimitPackRef: null,
 };
 
 export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): EfficiencyServiceController => {
@@ -69,7 +63,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let currentSpeedBand: SpeedBand | null = null;
   let currentJourneySpeedLimitDetectionEnabled: boolean | null = null;
   let currentJourneySpeedLimitDataStatus: ScoringStats['speedLimitDataStatus'] | null = null;
-  let currentJourneySpeedLimitPackSnapshot: StartTrackingOptions['speedLimitPackSnapshot'] = null;
+  let currentJourneySpeedLimitPackRef: StartTrackingOptions['speedLimitPackRef'] = null;
 
   //debug
   let lastDebugSummaryTime = 0;
@@ -194,7 +188,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   };
 
   const checkSpeeding = async (location: Location.LocationObject, speedKmh: number, nowMs: number): Promise<void> => {
-    if (!currentJourneySpeedLimitDetectionEnabled || !currentJourneySpeedLimitPackSnapshot) {
+    if (!currentJourneySpeedLimitDetectionEnabled || !currentJourneySpeedLimitPackRef) {
       return;
     }
 
@@ -503,7 +497,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     isTracking = true;
     currentJourneySpeedLimitDetectionEnabled = options.speedLimitDetectionEnabled;
-    currentJourneySpeedLimitPackSnapshot = options.speedLimitPackSnapshot;
+    currentJourneySpeedLimitPackRef = options.speedLimitPackRef;
     currentJourneySpeedLimitDataStatus = options.speedLimitDetectionEnabled ? 'unavailable' : 'disabled';
     lastLocation = null;
     lastLocationProcessedAtMs = null;
@@ -521,7 +515,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     oscillationDetector.reset();
     stopAndGoDetector.reset();
     deps.RoadSpeedLimitService.reset();
-    deps.RoadSpeedLimitService.setPackSnapshot(options.speedLimitPackSnapshot);
+    deps.RoadSpeedLimitService.setPackSnapshot(options.speedLimitPackRef);
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
@@ -539,7 +533,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     isTracking = false;
     currentJourneySpeedLimitDetectionEnabled = null;
     currentJourneySpeedLimitDataStatus = null;
-    currentJourneySpeedLimitPackSnapshot = null;
+    currentJourneySpeedLimitPackRef = null;
     lastLocation = null;
     lastLocationProcessedAtMs = null;
     lastSpeedMs = null;

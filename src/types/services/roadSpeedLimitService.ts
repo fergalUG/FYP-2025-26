@@ -1,5 +1,5 @@
 import type { createLogger } from '@utils/logger';
-import type { OfflineSpeedLimitPackSnapshot } from '@/types/services/speedLimitPackService';
+import type { SpeedLimitPackRef } from '@/types/services/speedLimitPackService';
 
 export interface RoadSpeedLimitLookupArgs {
   latitude: number;
@@ -17,14 +17,17 @@ export interface RoadSpeedLimitValue {
 
 export interface RoadSpeedLimitServiceController {
   getSpeedLimit: (args: RoadSpeedLimitLookupArgs) => Promise<RoadSpeedLimitValue | null>;
-  setPackSnapshot: (snapshot: OfflineSpeedLimitPackSnapshot | null) => void;
+  setPackSnapshot: (snapshot: SpeedLimitPackRef | null) => void;
   reset: () => void;
 }
 
 export interface RoadSpeedLimitServiceDeps {
-  now: () => number;
   logger: ReturnType<typeof createLogger>;
-  openDatabaseSync?: (databaseName: string, options?: object, directory?: string) => {
+  openDatabaseSync?: (
+    databaseName: string,
+    options?: object,
+    directory?: string
+  ) => {
     getAllSync: <T>(source: string, ...params: Array<string | number>) => T[];
     closeSync?: () => void;
   };
