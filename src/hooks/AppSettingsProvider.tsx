@@ -5,9 +5,11 @@ import {
   getDebugLogsEnabled,
   getDebugOverlay,
   getMapMarkerDebugMetadataEnabled,
+  getSpeedLimitDetectionEnabled,
   setDebugLogsEnabled as saveDebugLogsEnabled,
   setDebugOverlay as saveDebugOverlayEnabled,
   setMapMarkerDebugMetadataEnabled as saveMapMarkerDebugMetadataEnabled,
+  setSpeedLimitDetectionEnabled as saveSpeedLimitDetectionEnabled,
 } from '@services/SettingsService';
 import { addLogListener, createLogger, LogModule, setDebugEnabled } from '@utils/logger';
 
@@ -15,6 +17,7 @@ interface AppSettingsState {
   debugOverlayEnabled: boolean;
   debugLogsEnabled: boolean;
   mapMarkerDebugMetadataEnabled: boolean;
+  speedLimitDetectionEnabled: boolean;
 }
 
 interface AppSettingsContextType {
@@ -22,6 +25,7 @@ interface AppSettingsContextType {
   setDebugOverlayEnabled: (enabled: boolean) => Promise<void>;
   setDebugLogsEnabled: (enabled: boolean) => Promise<void>;
   setMapMarkerDebugMetadataEnabled: (enabled: boolean) => Promise<void>;
+  setSpeedLimitDetectionEnabled: (enabled: boolean) => Promise<void>;
 }
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -35,6 +39,7 @@ const defaultSettings: AppSettingsState = {
   debugOverlayEnabled: false,
   debugLogsEnabled: true,
   mapMarkerDebugMetadataEnabled: false,
+  speedLimitDetectionEnabled: false,
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType>({
@@ -42,6 +47,7 @@ const AppSettingsContext = createContext<AppSettingsContextType>({
   setDebugOverlayEnabled: async () => {},
   setDebugLogsEnabled: async () => {},
   setMapMarkerDebugMetadataEnabled: async () => {},
+  setSpeedLimitDetectionEnabled: async () => {},
 });
 
 export const useAppSettings = () => useContext(AppSettingsContext);
@@ -75,10 +81,11 @@ export const AppSettingsProvider = ({ children }: { children: React.ReactNode })
 
     const loadSettings = async () => {
       try {
-        const [debugOverlayEnabled, debugLogsEnabled, mapMarkerDebugMetadataEnabled] = await Promise.all([
+        const [debugOverlayEnabled, debugLogsEnabled, mapMarkerDebugMetadataEnabled, speedLimitDetectionEnabled] = await Promise.all([
           getDebugOverlay(),
           getDebugLogsEnabled(),
           getMapMarkerDebugMetadataEnabled(),
+          getSpeedLimitDetectionEnabled(),
         ]);
 
         if (!isMounted) {
@@ -89,6 +96,7 @@ export const AppSettingsProvider = ({ children }: { children: React.ReactNode })
           debugOverlayEnabled,
           debugLogsEnabled,
           mapMarkerDebugMetadataEnabled,
+          speedLimitDetectionEnabled,
         });
         setDebugEnabled(debugLogsEnabled);
       } catch (error) {
@@ -132,6 +140,11 @@ export const AppSettingsProvider = ({ children }: { children: React.ReactNode })
     await saveMapMarkerDebugMetadataEnabled(enabled);
   };
 
+  const setSpeedLimitDetectionEnabled = async (enabled: boolean) => {
+    setSettings((previous) => ({ ...previous, speedLimitDetectionEnabled: enabled }));
+    await saveSpeedLimitDetectionEnabled(enabled);
+  };
+
   return (
     <AppSettingsContext.Provider
       value={{
@@ -139,6 +152,7 @@ export const AppSettingsProvider = ({ children }: { children: React.ReactNode })
         setDebugOverlayEnabled,
         setDebugLogsEnabled,
         setMapMarkerDebugMetadataEnabled,
+        setSpeedLimitDetectionEnabled,
       }}
     >
       {children}

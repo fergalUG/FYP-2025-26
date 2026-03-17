@@ -1,5 +1,6 @@
 export interface ScoringStats {
   durationMs: number;
+  speedLimitDetectionEnabled: boolean;
 
   score: number;
   avgScore: number;

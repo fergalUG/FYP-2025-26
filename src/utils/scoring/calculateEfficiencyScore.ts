@@ -12,6 +12,10 @@ interface EfficiencyScoreResult {
   stats: ScoringStats;
 }
 
+interface CalculateEfficiencyScoreOptions {
+  speedLimitDetectionEnabled?: boolean;
+}
+
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
 const getJourneyBounds = (events: Event[]): { startTimestamp: number; endTimestamp: number } | null => {
@@ -34,12 +38,15 @@ const getJourneyBounds = (events: Event[]): { startTimestamp: number; endTimesta
 export const calculateEfficiencyScore = (
   events: Event[],
   distanceKm: number = 0,
-  config: EfficiencyScoringConfig = DEFAULT_EFFICIENCY_SCORING_CONFIG
+  config: EfficiencyScoringConfig = DEFAULT_EFFICIENCY_SCORING_CONFIG,
+  options: CalculateEfficiencyScoreOptions = {}
 ): EfficiencyScoreResult => {
+  const speedLimitDetectionEnabled = options.speedLimitDetectionEnabled ?? true;
   const bounds = getJourneyBounds(events);
   if (!bounds) {
     const stats: ScoringStats = {
       durationMs: 0,
+      speedLimitDetectionEnabled,
 
       score: 100,
       avgScore: 100,
@@ -119,6 +126,7 @@ export const calculateEfficiencyScore = (
 
   const stats: ScoringStats = {
     durationMs: simulation.durationMs,
+    speedLimitDetectionEnabled,
 
     score: finalScore,
     avgScore,

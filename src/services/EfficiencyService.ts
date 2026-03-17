@@ -20,6 +20,7 @@ import {
   type DrivingEventFamily,
   type EventSeverity,
   type StopAndGoPhase,
+  type StartTrackingOptions,
 } from '@types';
 import { JourneyService } from '@services/JourneyService';
 import { RoadSpeedLimitService } from '@services/RoadSpeedLimitService';
@@ -56,6 +57,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let lastSpeedConfidence: SpeedConfidence = 'none';
   let lastSpeedSource: SpeedSource = 'none';
   let currentSpeedBand: SpeedBand | null = null;
+  let currentJourneySpeedLimitDetectionEnabled: boolean | null = null;
 
   //debug
   let lastDebugSummaryTime = 0;
@@ -180,6 +182,10 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   };
 
   const checkSpeeding = async (location: Location.LocationObject, speedKmh: number, nowMs: number): Promise<void> => {
+    if (!currentJourneySpeedLimitDetectionEnabled) {
+      return;
+    }
+
     const speedLimit = await deps.RoadSpeedLimitService.getSpeedLimit({
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
@@ -476,12 +482,13 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
   };
 
-  const startTracking = (): void => {
+  const startTracking = (options: StartTrackingOptions = { speedLimitDetectionEnabled: true }): void => {
     if (isTracking) {
       return;
     }
 
     isTracking = true;
+    currentJourneySpeedLimitDetectionEnabled = options.speedLimitDetectionEnabled;
     lastLocation = null;
     lastLocationProcessedAtMs = null;
     lastSpeedMs = null;
@@ -512,6 +519,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     isTracking = false;
+    currentJourneySpeedLimitDetectionEnabled = null;
     lastLocation = null;
     lastLocationProcessedAtMs = null;
     lastSpeedMs = null;
@@ -657,7 +665,11 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   const getJourneyEfficiencyStats = async (journeyId: number, distanceKm: number = 0): Promise<ScoringStats | null> => {
     try {
       const events = await deps.JourneyService.getEventsByJourneyId(journeyId);
-      return calculateEfficiencyScore(events, distanceKm).stats;
+      return currentJourneySpeedLimitDetectionEnabled === null
+        ? calculateEfficiencyScore(events, distanceKm).stats
+        : calculateEfficiencyScore(events, distanceKm, undefined, {
+            speedLimitDetectionEnabled: currentJourneySpeedLimitDetectionEnabled,
+          }).stats;
     } catch (error) {
       deps.logger.error('Error getting efficiency stats:', error);
       return null;

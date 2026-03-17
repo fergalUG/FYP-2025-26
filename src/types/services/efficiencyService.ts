@@ -27,8 +27,12 @@ export interface ProcessLocationOptions {
   speedSource: SpeedSource;
 }
 
+export interface StartTrackingOptions {
+  speedLimitDetectionEnabled: boolean;
+}
+
 export interface EfficiencyServiceController {
-  startTracking: () => void;
+  startTracking: (options?: StartTrackingOptions) => void;
   stopTracking: () => void;
   processLocation: (location: Location.LocationObject, options: ProcessLocationOptions) => Promise<void>;
   calculateJourneyScore: (journeyId: number, distanceKm?: number) => Promise<number>;

@@ -28,7 +28,8 @@ export default function Settings() {
   const [draftName, setDraftName] = useState('');
   const styles = createStyles(theme);
 
-  const { settings, setDebugLogsEnabled, setDebugOverlayEnabled, setMapMarkerDebugMetadataEnabled } = useAppSettings();
+  const { settings, setDebugLogsEnabled, setDebugOverlayEnabled, setMapMarkerDebugMetadataEnabled, setSpeedLimitDetectionEnabled } =
+    useAppSettings();
 
   const backgroundService = useBackgroundService();
   const [startingManualTracking, setStartingManualTracking] = useState(false);
@@ -103,6 +104,36 @@ export default function Settings() {
       message: 'This is how in-app toasts will appear.',
       variant: 'success',
     });
+  };
+
+  const showSpeedLimitDetectionNextJourneyToast = () => {
+    showToast({
+      title: 'Applies next journey',
+      message: 'Speed limit detection changes will apply the next time a journey starts.',
+      variant: 'info',
+    });
+  };
+
+  const persistSpeedLimitDetectionEnabled = async (enabled: boolean) => {
+    await setSpeedLimitDetectionEnabled(enabled);
+    if (backgroundService.mode === 'ACTIVE') {
+      showSpeedLimitDetectionNextJourneyToast();
+    }
+  };
+
+  const handleSpeedLimitDetectionToggle = (enabled: boolean) => {
+    if (!enabled) {
+      void persistSpeedLimitDetectionEnabled(false);
+      return;
+    }
+
+    showConfirmAlert(
+      'Enable Speed Limit Detection?',
+      'Turning this on uses your location to query a third-party road speed limit service so the app can detect speeding. Continue?',
+      () => {
+        void persistSpeedLimitDetectionEnabled(true);
+      }
+    );
   };
 
   const handleManualStartActiveTracking = async () => {
@@ -214,6 +245,23 @@ export default function Settings() {
               value={mode === 'dark'}
               onValueChange={toggleMode}
               trackColor={{ false: theme.colors.error, true: theme.colors.primary }}
+              thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
+            />
+          </View>
+
+          <View style={{ height: 1, backgroundColor: theme.colors.outline, marginVertical: theme.spacing.sm }} />
+
+          <View style={styles.rowBetween}>
+            <View style={styles.rowText}>
+              <Text style={styles.itemTitle}>Enable Speed Limit Detection</Text>
+              <Text style={styles.itemSubtitle}>
+                Uses your location to query an online road speed limit service for speeding detection.
+              </Text>
+            </View>
+            <Switch
+              value={settings.speedLimitDetectionEnabled}
+              onValueChange={handleSpeedLimitDetectionToggle}
+              trackColor={{ false: theme.colors.onSurface, true: theme.colors.primary }}
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
           </View>

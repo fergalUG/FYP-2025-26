@@ -46,6 +46,9 @@ export interface BackgroundServiceVehicleMotionDeps {
 export interface BackgroundServiceDeps {
   Location: typeof Location;
   // Notifications: typeof Notifications;
+  SettingsService: {
+    getSpeedLimitDetectionEnabled: () => Promise<boolean>;
+  };
   JourneyService: Pick<
     JourneyServiceController,
     'startJourney' | 'getCurrentJourneyId' | 'logEvent' | 'updateJourneyTitle' | 'endJourney' | 'deleteJourney' | 'deleteEventsSince'

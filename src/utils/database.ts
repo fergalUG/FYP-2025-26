@@ -285,6 +285,7 @@ const createMockStats = (score: number, durationMs: number, distanceKm: number, 
 
   return {
     durationMs,
+    speedLimitDetectionEnabled: true,
     score,
     avgScore: Math.min(100, score + 2),
     blendedAvgScore: Math.min(100, score + 1),
