@@ -171,7 +171,6 @@ describe('SpeedLimitPackService', () => {
 
     mockCreateDownloadResumable.mockImplementation(
       (
-        uri: string,
         fileUri: string,
         _options?: object,
         callback?: (data: { totalBytesWritten: number; totalBytesExpectedToWrite: number }) => void

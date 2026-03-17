@@ -4,7 +4,6 @@ import type { SpeedLimitPackRef } from '@/types/services/speedLimitPackService';
 export interface RoadSpeedLimitLookupArgs {
   latitude: number;
   longitude: number;
-  nowMs?: number;
 }
 
 export interface RoadSpeedLimitValue {

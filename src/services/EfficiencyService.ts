@@ -195,7 +195,6 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     const speedLimit = await deps.RoadSpeedLimitService.getSpeedLimit({
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
-      nowMs,
     });
     if (!speedLimit) {
       deps.logger.debug('Skipping speeding check: no road speed limit available', {

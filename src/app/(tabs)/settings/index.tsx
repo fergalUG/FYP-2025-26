@@ -55,12 +55,6 @@ export default function Settings() {
       setPackStatus(status);
     });
 
-    void SpeedLimitPackService.getLocalStatus().then((status) => {
-      if (isMounted) {
-        setPackStatus(status);
-      }
-    });
-
     return () => {
       isMounted = false;
       unsubscribe();
@@ -162,7 +156,7 @@ export default function Settings() {
 
     showConfirmAlert(
       'Enable Speed Limit Detection?',
-      'Turning this on uses offline road data stored on your device for speeding detection. You will need to download the Ireland + Northern Ireland road data pack. No live location is sent for speed limit lookups. Continue?',
+      'Turning this on uses offline road data stored on your device for speeding detection. You will need to download the Ireland + Northern Ireland road data pack. Continue?',
       () => {
         void persistSpeedLimitDetectionEnabled(true);
       }
@@ -401,7 +395,9 @@ export default function Settings() {
 
         <View style={styles.card}>
           <Text style={styles.itemTitle}>Offline Road Data</Text>
-          <Text style={styles.itemSubtitle}>Ireland + Northern Ireland OpenStreetMap speed limit data stored on-device.</Text>
+          <Text style={styles.itemSubtitle}>
+            OpenStreetMap speed limit data stored on-device. (Currently only supported: Ireland + Northern Ireland)
+          </Text>
           <Text style={styles.logFileName}>
             {installedPack
               ? `Installed ${installedPack.packVersion}${installedPackDateLabel ? ` • ${installedPackDateLabel}` : ''} • ${packSizeLabel}`

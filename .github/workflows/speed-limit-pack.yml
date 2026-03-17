@@ -16,25 +16,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          python-version: '3.12'
-
-      - name: Install builder dependency
-        run: python3 -m pip install --upgrade pip osmium
+          go-version-file: scripts/go.mod
+          cache-dependency-path: scripts/go.sum
 
       - name: Compute pack version
         id: version
         run: echo "pack_version=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
 
       - name: Build offline speed limit pack
+        working-directory: scripts
         run: |
-          mkdir -p output/speed-limit-pack
-          python3 scripts/build_speed_limit_pack.py \
+          mkdir -p ../output/speed-limit-pack
+          go run . \
             --input-url https://download.geofabrik.de/europe/ireland-and-northern-ireland-latest.osm.pbf \
-            --output-db output/speed-limit-pack/speed-limit-pack-ie-ni.sqlite \
-            --output-manifest output/speed-limit-pack/speed-limit-pack-manifest.json \
+            --output-db ../output/speed-limit-pack/speed-limit-pack-ie-ni.sqlite \
+            --output-manifest ../output/speed-limit-pack/speed-limit-pack-manifest.json \
             --download-url https://github.com/fergalUG/FYP-2025-26/releases/latest/download/speed-limit-pack-ie-ni.sqlite \
             --region-id ie-ni \
             --region-name "Ireland + Northern Ireland" \
