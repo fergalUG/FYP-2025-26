@@ -19,7 +19,7 @@ describe('buildPinDetails', () => {
       peakOverLimitKmh: 28.4,
       minSpeedLimitKmh: 50,
       maxSpeedLimitKmh: 60,
-      speedLimitSourceLabel: 'Overpass',
+      speedLimitSourceLabel: 'Offline OSM',
       speedLimitFromCacheLabel: 'Yes',
       speedLimitWayIdLabel: '12345',
       speedLimitRawLabel: '50 mph',

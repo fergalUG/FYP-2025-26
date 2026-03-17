@@ -38,6 +38,16 @@ const HEADING_LOOKBACK_TIME_MS = 2000;
 
 const HEADING_HISTORY_SIZE = 5;
 const DEBUG_SUMMARY_INTERVAL_MS = 1000;
+const DEFAULT_START_TRACKING_OPTIONS: StartTrackingOptions = {
+  speedLimitDetectionEnabled: true,
+  speedLimitPackSnapshot: {
+    regionId: 'legacy',
+    version: 'legacy',
+    filePath: 'legacy',
+    checksum: 'legacy',
+    installedAt: 0,
+  },
+};
 
 export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): EfficiencyServiceController => {
   //tracking
@@ -58,6 +68,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   let lastSpeedSource: SpeedSource = 'none';
   let currentSpeedBand: SpeedBand | null = null;
   let currentJourneySpeedLimitDetectionEnabled: boolean | null = null;
+  let currentJourneySpeedLimitDataStatus: ScoringStats['speedLimitDataStatus'] | null = null;
+  let currentJourneySpeedLimitPackSnapshot: StartTrackingOptions['speedLimitPackSnapshot'] = null;
 
   //debug
   let lastDebugSummaryTime = 0;
@@ -182,7 +194,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
   };
 
   const checkSpeeding = async (location: Location.LocationObject, speedKmh: number, nowMs: number): Promise<void> => {
-    if (!currentJourneySpeedLimitDetectionEnabled) {
+    if (!currentJourneySpeedLimitDetectionEnabled || !currentJourneySpeedLimitPackSnapshot) {
       return;
     }
 
@@ -198,6 +210,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       });
       return;
     }
+
+    currentJourneySpeedLimitDataStatus = 'ready';
 
     const speedingResult = speedingDetector.detect({
       nowMs,
@@ -482,13 +496,15 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
   };
 
-  const startTracking = (options: StartTrackingOptions = { speedLimitDetectionEnabled: true }): void => {
+  const startTracking = (options: StartTrackingOptions = DEFAULT_START_TRACKING_OPTIONS): void => {
     if (isTracking) {
       return;
     }
 
     isTracking = true;
     currentJourneySpeedLimitDetectionEnabled = options.speedLimitDetectionEnabled;
+    currentJourneySpeedLimitPackSnapshot = options.speedLimitPackSnapshot;
+    currentJourneySpeedLimitDataStatus = options.speedLimitDetectionEnabled ? 'unavailable' : 'disabled';
     lastLocation = null;
     lastLocationProcessedAtMs = null;
     lastSpeedMs = null;
@@ -504,6 +520,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     speedingDetector.reset();
     oscillationDetector.reset();
     stopAndGoDetector.reset();
+    deps.RoadSpeedLimitService.reset();
+    deps.RoadSpeedLimitService.setPackSnapshot(options.speedLimitPackSnapshot);
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
@@ -520,6 +538,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
     isTracking = false;
     currentJourneySpeedLimitDetectionEnabled = null;
+    currentJourneySpeedLimitDataStatus = null;
+    currentJourneySpeedLimitPackSnapshot = null;
     lastLocation = null;
     lastLocationProcessedAtMs = null;
     lastSpeedMs = null;
@@ -535,6 +555,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     speedingDetector.reset();
     oscillationDetector.reset();
     stopAndGoDetector.reset();
+    deps.RoadSpeedLimitService.setPackSnapshot(null);
+    deps.RoadSpeedLimitService.reset();
     resetDebugSummary();
     lastDebugSummaryTime = deps.now();
     lastDebugEnabled = isDebugEnabled();
@@ -669,6 +691,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
         ? calculateEfficiencyScore(events, distanceKm).stats
         : calculateEfficiencyScore(events, distanceKm, undefined, {
             speedLimitDetectionEnabled: currentJourneySpeedLimitDetectionEnabled,
+            speedLimitDataStatus: currentJourneySpeedLimitDataStatus ?? undefined,
           }).stats;
     } catch (error) {
       deps.logger.error('Error getting efficiency stats:', error);

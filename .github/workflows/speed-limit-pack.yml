@@ -1,0 +1,52 @@
+name: Speed Limit Pack
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 1 * *'
+
+permissions:
+  contents: write
+
+jobs:
+  build-pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install builder dependency
+        run: python3 -m pip install --upgrade pip osmium
+
+      - name: Compute pack version
+        id: version
+        run: echo "pack_version=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Build offline speed limit pack
+        run: |
+          mkdir -p output/speed-limit-pack
+          python3 scripts/build_speed_limit_pack.py \
+            --input-url https://download.geofabrik.de/europe/ireland-and-northern-ireland-latest.osm.pbf \
+            --output-db output/speed-limit-pack/speed-limit-pack-ie-ni.sqlite \
+            --output-manifest output/speed-limit-pack/speed-limit-pack-manifest.json \
+            --download-url https://github.com/fergalUG/FYP-2025-26/releases/latest/download/speed-limit-pack-ie-ni.sqlite \
+            --region-id ie-ni \
+            --region-name "Ireland + Northern Ireland" \
+            --pack-version "${{ steps.version.outputs.pack_version }}" \
+            --source-timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: speed-limit-pack-${{ steps.version.outputs.pack_version }}
+          name: Speed Limit Pack ${{ steps.version.outputs.pack_version }}
+          make_latest: true
+          files: |
+            output/speed-limit-pack/speed-limit-pack-manifest.json
+            output/speed-limit-pack/speed-limit-pack-ie-ni.sqlite

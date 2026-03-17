@@ -67,18 +67,43 @@ jest.mock('expo-sqlite', () => ({
 }));
 
 jest.mock('expo-file-system', () => ({
-  File: jest.fn(function () {
-    this.uri = 'mock://file';
+  File: jest.fn(function (...parts) {
+    this.uri = parts.join('/') || 'mock://file';
     this.exists = true;
+    this.create = jest.fn();
+    this.delete = jest.fn();
+    this.move = jest.fn((destination) => {
+      this.uri = destination.uri ?? 'mock://file';
+    });
     this.copy = jest.fn();
+    this.text = jest.fn().mockResolvedValue('');
+    this.info = jest.fn(() => ({ size: 0, md5: null }));
+    this.open = jest.fn(() => ({
+      size: 0,
+      offset: 0,
+      readBytes: jest.fn(() => new Uint8Array()),
+      close: jest.fn(),
+    }));
   }),
-  Directory: jest.fn(function () {
-    this.uri = 'mock://directory';
+  Directory: jest.fn(function (...parts) {
+    this.uri = parts.join('/') || 'mock://directory';
+    this.exists = true;
+    this.create = jest.fn();
+    this.list = jest.fn(() => []);
   }),
   Paths: {
     document: 'mock://documents',
     cache: 'mock://cache',
   },
+}));
+
+jest.mock('expo-file-system/legacy', () => ({
+  createDownloadResumable: jest.fn((uri, fileUri, options, callback) => ({
+    downloadAsync: jest.fn().mockImplementation(async () => {
+      callback?.({ totalBytesWritten: 1, totalBytesExpectedToWrite: 1 });
+      return { uri: fileUri };
+    }),
+  })),
 }));
 
 jest.mock('expo-sharing', () => ({

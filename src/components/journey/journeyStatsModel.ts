@@ -11,8 +11,21 @@ const formatSeconds = (seconds: number): string => {
   return remainingSeconds === 0 ? `${minutes}m` : `${minutes}m ${remainingSeconds}s`;
 };
 
+export const getSpeedLimitDataStatusForJourney = (stats: ScoringStats): NonNullable<ScoringStats['speedLimitDataStatus']> | 'legacy' => {
+  if (stats.speedLimitDataStatus) {
+    return stats.speedLimitDataStatus;
+  }
+
+  if (stats.speedLimitDetectionEnabled === false) {
+    return 'disabled';
+  }
+
+  return 'legacy';
+};
+
 export const isSpeedLimitDetectionEnabledForJourney = (stats: ScoringStats): boolean => {
-  return stats.speedLimitDetectionEnabled ?? true;
+  const status = getSpeedLimitDataStatusForJourney(stats);
+  return status === 'legacy' || status === 'ready';
 };
 
 export const buildJourneyStatsSummary = (stats: ScoringStats): string => {
@@ -50,8 +63,11 @@ export const buildJourneyStatsSummary = (stats: ScoringStats): string => {
     summaryParts.push(`${stopAndGoCount} stop & go event${stopAndGoCount === 1 ? '' : 's'}`);
   }
 
-  if (!isSpeedLimitDetectionEnabledForJourney(stats)) {
+  const speedLimitDataStatus = getSpeedLimitDataStatusForJourney(stats);
+  if (speedLimitDataStatus === 'disabled') {
     summaryParts.push('speeding detection disabled');
+  } else if (speedLimitDataStatus === 'unavailable') {
+    summaryParts.push('speeding detection unavailable');
   } else if (totalSpeedingEpisodes === 0) {
     summaryParts.push('no speeding');
   } else {

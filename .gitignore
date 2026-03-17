@@ -40,7 +40,6 @@ yarn-error.*
 /ios
 /android
 
-*.py
 *.pyc
 
 *.txt

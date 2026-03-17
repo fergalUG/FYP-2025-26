@@ -43,6 +43,14 @@ describe('BackgroundService passive start detection', () => {
     getJourneyEfficiencyStats: jest.fn().mockResolvedValue({}),
   };
 
+  const mockSettingsService = {
+    getSpeedLimitDetectionEnabled: jest.fn(),
+  };
+
+  const mockSpeedLimitPackService = {
+    getJourneySnapshot: jest.fn(),
+  };
+
   const mockLogger: any = {
     info: jest.fn(),
     warn: jest.fn(),
@@ -67,9 +75,13 @@ describe('BackgroundService passive start detection', () => {
     (Location.requestBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ granted: true });
     (Location.getCurrentPositionAsync as jest.Mock).mockResolvedValue(makeLocation(53.0, -6.0, 0, 5, nowMs));
     (Location.reverseGeocodeAsync as jest.Mock).mockResolvedValue([{ name: 'Mock Place' }]);
+    mockSettingsService.getSpeedLimitDetectionEnabled.mockResolvedValue(false);
+    mockSpeedLimitPackService.getJourneySnapshot.mockResolvedValue(null);
 
     controller = createBackgroundServiceController({
       Location,
+      SettingsService: mockSettingsService,
+      SpeedLimitPackService: mockSpeedLimitPackService,
       JourneyService: mockJourneyService,
       EfficiencyService: mockEfficiencyService,
       VehicleMotion: mockVehicleMotion,
@@ -288,5 +300,48 @@ describe('BackgroundService passive start detection', () => {
     const eventTypes = mockJourneyService.logEvent.mock.calls.map((call: any[]) => call[0]);
     expect(eventTypes[0]).toBe(EventType.JourneyStart);
     expect(eventTypes[1]).toBe(EventType.LocationUpdate);
+  });
+
+  it('passes the saved speed limit detection setting into efficiency tracking at journey start', async () => {
+    mockSettingsService.getSpeedLimitDetectionEnabled.mockResolvedValueOnce(true);
+    mockSpeedLimitPackService.getJourneySnapshot.mockResolvedValueOnce({
+      regionId: 'ie-ni',
+      version: '20260317',
+      filePath: 'mock://documents/SpeedLimitPacks/ie-ni.sqlite',
+      checksum: 'abc123',
+      installedAt: nowMs,
+    });
+
+    await controller.manualStartActiveTracking();
+
+    expect(mockEfficiencyService.startTracking).toHaveBeenCalledWith({
+      speedLimitDetectionEnabled: true,
+      speedLimitPackSnapshot: {
+        regionId: 'ie-ni',
+        version: '20260317',
+        filePath: 'mock://documents/SpeedLimitPacks/ie-ni.sqlite',
+        checksum: 'abc123',
+        installedAt: nowMs,
+      },
+    });
+  });
+
+  it('applies updated speed limit detection settings on the next journey, not the current one', async () => {
+    await controller.manualStartActiveTracking();
+
+    expect(mockEfficiencyService.startTracking).toHaveBeenNthCalledWith(1, {
+      speedLimitDetectionEnabled: false,
+      speedLimitPackSnapshot: null,
+    });
+
+    await controller.manualStopActiveTracking();
+
+    mockSettingsService.getSpeedLimitDetectionEnabled.mockResolvedValueOnce(true);
+    await controller.manualStartActiveTracking();
+
+    expect(mockEfficiencyService.startTracking).toHaveBeenNthCalledWith(2, {
+      speedLimitDetectionEnabled: true,
+      speedLimitPackSnapshot: null,
+    });
   });
 });

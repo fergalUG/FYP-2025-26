@@ -1,4 +1,5 @@
 import type { createLogger } from '@utils/logger';
+import type { OfflineSpeedLimitPackSnapshot } from '@/types/services/speedLimitPackService';
 
 export interface RoadSpeedLimitLookupArgs {
   latitude: number;
@@ -8,7 +9,7 @@ export interface RoadSpeedLimitLookupArgs {
 
 export interface RoadSpeedLimitValue {
   speedLimitKmh: number;
-  source: 'overpass';
+  source: 'offline_osm';
   wayId?: number;
   rawMaxspeed?: string;
   fromCache: boolean;
@@ -16,34 +17,15 @@ export interface RoadSpeedLimitValue {
 
 export interface RoadSpeedLimitServiceController {
   getSpeedLimit: (args: RoadSpeedLimitLookupArgs) => Promise<RoadSpeedLimitValue | null>;
+  setPackSnapshot: (snapshot: OfflineSpeedLimitPackSnapshot | null) => void;
   reset: () => void;
 }
 
-export interface RoadSpeedLimitCacheStoreEntry {
-  key: string;
-  kind: 'hit' | 'miss';
-  latitude: number;
-  longitude: number;
-  speedLimitKmh: number | null;
-  source: 'overpass' | null;
-  wayId: number | null;
-  rawMaxspeed: string | null;
-  expiresAtMs: number;
-  updatedAtMs: number;
-}
-
-export interface RoadSpeedLimitCacheStore {
-  getByKey: (key: string) => Promise<RoadSpeedLimitCacheStoreEntry | null>;
-  upsert: (entry: RoadSpeedLimitCacheStoreEntry) => Promise<void>;
-  deleteByKey: (key: string) => Promise<void>;
-  deleteExpired: (nowMs: number) => Promise<void>;
-}
-
 export interface RoadSpeedLimitServiceDeps {
-  fetchFn: typeof fetch;
   now: () => number;
   logger: ReturnType<typeof createLogger>;
-  overpassUrl?: string;
-  cacheStore?: RoadSpeedLimitCacheStore;
-  ensureCacheStoreReady?: () => Promise<void>;
+  openDatabaseSync?: (databaseName: string, options?: object, directory?: string) => {
+    getAllSync: <T>(source: string, ...params: Array<string | number>) => T[];
+    closeSync?: () => void;
+  };
 }

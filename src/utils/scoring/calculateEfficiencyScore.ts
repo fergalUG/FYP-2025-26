@@ -14,6 +14,7 @@ interface EfficiencyScoreResult {
 
 interface CalculateEfficiencyScoreOptions {
   speedLimitDetectionEnabled?: boolean;
+  speedLimitDataStatus?: ScoringStats['speedLimitDataStatus'];
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
@@ -42,11 +43,13 @@ export const calculateEfficiencyScore = (
   options: CalculateEfficiencyScoreOptions = {}
 ): EfficiencyScoreResult => {
   const speedLimitDetectionEnabled = options.speedLimitDetectionEnabled ?? true;
+  const speedLimitDataStatus = options.speedLimitDataStatus;
   const bounds = getJourneyBounds(events);
   if (!bounds) {
     const stats: ScoringStats = {
       durationMs: 0,
       speedLimitDetectionEnabled,
+      ...(speedLimitDataStatus ? { speedLimitDataStatus } : {}),
 
       score: 100,
       avgScore: 100,
@@ -127,6 +130,7 @@ export const calculateEfficiencyScore = (
   const stats: ScoringStats = {
     durationMs: simulation.durationMs,
     speedLimitDetectionEnabled,
+    ...(speedLimitDataStatus ? { speedLimitDataStatus } : {}),
 
     score: finalScore,
     avgScore,

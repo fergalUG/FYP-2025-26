@@ -1,513 +1,303 @@
-import { db, ensureRoadSpeedLimitCacheTable } from '@db/client';
-import { roadSpeedLimitCache } from '@db/schema';
-import { calculateDistanceKm } from '@utils/gpsValidation';
+import * as SQLite from 'expo-sqlite';
+
 import { createLogger, LogModule } from '@utils/logger';
-import { eq, lte } from 'drizzle-orm';
 
-import type {
-  RoadSpeedLimitCacheStore,
-  RoadSpeedLimitCacheStoreEntry,
-  RoadSpeedLimitLookupArgs,
-  RoadSpeedLimitServiceController,
-  RoadSpeedLimitServiceDeps,
-  RoadSpeedLimitValue,
-} from '@/types';
+import type { OfflineSpeedLimitPackSnapshot, RoadSpeedLimitLookupArgs, RoadSpeedLimitServiceController, RoadSpeedLimitServiceDeps, RoadSpeedLimitValue } from '@/types';
 
-const DEFAULT_OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-const DEFAULT_QUERY_RADIUS_METERS = 60;
-const CACHE_CELL_PRECISION = 3;
-const MEMORY_HIT_CACHE_TTL_MS = 10 * 60 * 1000;
-const MEMORY_MISS_CACHE_TTL_MS = 2 * 60 * 1000;
-const PERSISTED_HIT_CACHE_TTL_MS = 180 * 24 * 60 * 60 * 1000;
-const PERSISTED_MISS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const PERSISTED_PRUNE_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const NEARBY_REUSE_DISTANCE_METERS = 120;
-const OVERPASS_TIMEOUT_MS = 2000;
+const CELL_SIZE_DEGREES = 0.002;
+const MATCH_DISTANCE_THRESHOLD_METERS = 40;
+const AMBIGUOUS_DISTANCE_DELTA_METERS = 8;
+const MAX_CELL_CACHE_SIZE = 250;
 
-interface OverpassElement {
-  id?: number;
-  tags?: {
-    maxspeed?: string;
-  };
-  center?: {
-    lat?: number;
-    lon?: number;
-  };
+interface SegmentRow {
+  id: number;
+  wayId: number;
+  speedLimitKmh: number;
+  rawSpeedTag: string | null;
+  startLat: number;
+  startLon: number;
+  endLat: number;
+  endLon: number;
 }
 
-interface OverpassResponse {
-  elements?: OverpassElement[];
+interface CandidateCacheEntry {
+  rows: SegmentRow[];
 }
 
-interface CacheHit {
-  kind: 'hit';
-  value: Omit<RoadSpeedLimitValue, 'fromCache'>;
-  latitude: number;
-  longitude: number;
-  expiresAtMs: number;
+interface Point {
+  x: number;
+  y: number;
 }
 
-interface CacheMiss {
-  kind: 'miss';
-  latitude: number;
-  longitude: number;
-  expiresAtMs: number;
-}
+const logger = createLogger(LogModule.RoadSpeedLimitService);
 
-type CacheEntry = CacheHit | CacheMiss;
+const toCellIndex = (coordinate: number): number => Math.floor(coordinate / CELL_SIZE_DEGREES);
 
-const isFiniteCoordinate = (value: number): boolean => Number.isFinite(value);
+const buildCellKey = (latitude: number, longitude: number): string => `${toCellIndex(latitude)}:${toCellIndex(longitude)}`;
 
-const buildCellKey = (latitude: number, longitude: number): string => {
-  return `${latitude.toFixed(CACHE_CELL_PRECISION)},${longitude.toFixed(CACHE_CELL_PRECISION)}`;
+const buildNeighborCellKeys = (latitude: number, longitude: number): string[] => {
+  const latIndex = toCellIndex(latitude);
+  const lonIndex = toCellIndex(longitude);
+  const keys: string[] = [];
+
+  for (let latOffset = -1; latOffset <= 1; latOffset += 1) {
+    for (let lonOffset = -1; lonOffset <= 1; lonOffset += 1) {
+      keys.push(`${latIndex + latOffset}:${lonIndex + lonOffset}`);
+    }
+  }
+
+  return keys;
 };
 
-const calculateDistanceMeters = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
-  return calculateDistanceKm(aLat, aLng, bLat, bLng) * 1000;
-};
-
-const parseMaxspeedKmh = (rawValue: string): number | null => {
-  const value = rawValue.trim().toLowerCase();
-  if (!value) {
-    return null;
-  }
-
-  const firstSegment = value.split(';')[0]?.trim() ?? value;
-  const numericMatch = firstSegment.match(/(\d+(?:\.\d+)?)/);
-  if (!numericMatch) {
-    return null;
-  }
-
-  const parsed = Number.parseFloat(numericMatch[1]);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return null;
-  }
-
-  if (firstSegment.includes('mph')) {
-    return Number((parsed * 1.60934).toFixed(1));
-  }
-
-  return Number(parsed.toFixed(1));
-};
-
-const createOverpassQuery = (latitude: number, longitude: number): string => {
-  return `[out:json][timeout:8];
-way(around:${DEFAULT_QUERY_RADIUS_METERS},${latitude.toFixed(6)},${longitude.toFixed(6)})["highway"]["maxspeed"];
-out tags center 20;`;
-};
-
-const toPersistentEntry = (key: string, entry: CacheEntry, nowMs: number): RoadSpeedLimitCacheStoreEntry => {
-  if (entry.kind === 'miss') {
-    return {
-      key,
-      kind: 'miss',
-      latitude: entry.latitude,
-      longitude: entry.longitude,
-      speedLimitKmh: null,
-      source: null,
-      wayId: null,
-      rawMaxspeed: null,
-      expiresAtMs: nowMs + PERSISTED_MISS_CACHE_TTL_MS,
-      updatedAtMs: nowMs,
-    };
-  }
+const toProjectedPoint = (latitude: number, longitude: number, referenceLatitude: number): Point => {
+  const metersPerDegreeLat = 111_320;
+  const metersPerDegreeLon = Math.cos((referenceLatitude * Math.PI) / 180) * 111_320;
 
   return {
-    key,
-    kind: 'hit',
-    latitude: entry.latitude,
-    longitude: entry.longitude,
-    speedLimitKmh: entry.value.speedLimitKmh,
-    source: entry.value.source,
-    wayId: typeof entry.value.wayId === 'number' ? entry.value.wayId : null,
-    rawMaxspeed: entry.value.rawMaxspeed ?? null,
-    expiresAtMs: nowMs + PERSISTED_HIT_CACHE_TTL_MS,
-    updatedAtMs: nowMs,
+    x: longitude * metersPerDegreeLon,
+    y: latitude * metersPerDegreeLat,
   };
 };
 
-const fromPersistentEntry = (entry: RoadSpeedLimitCacheStoreEntry): CacheEntry | null => {
-  if (entry.kind === 'miss') {
-    return {
-      kind: 'miss',
-      latitude: entry.latitude,
-      longitude: entry.longitude,
-      expiresAtMs: entry.expiresAtMs,
-    };
+const distancePointToSegmentMeters = (
+  latitude: number,
+  longitude: number,
+  startLat: number,
+  startLon: number,
+  endLat: number,
+  endLon: number
+): number => {
+  const referenceLatitude = (latitude + startLat + endLat) / 3;
+  const point = toProjectedPoint(latitude, longitude, referenceLatitude);
+  const start = toProjectedPoint(startLat, startLon, referenceLatitude);
+  const end = toProjectedPoint(endLat, endLon, referenceLatitude);
+
+  const segmentDx = end.x - start.x;
+  const segmentDy = end.y - start.y;
+  const segmentLengthSquared = segmentDx * segmentDx + segmentDy * segmentDy;
+
+  if (segmentLengthSquared <= 0) {
+    return Math.hypot(point.x - start.x, point.y - start.y);
   }
 
-  if (entry.speedLimitKmh === null || entry.source === null) {
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * segmentDx + (point.y - start.y) * segmentDy) / segmentLengthSquared));
+  const projectionX = start.x + t * segmentDx;
+  const projectionY = start.y + t * segmentDy;
+
+  return Math.hypot(point.x - projectionX, point.y - projectionY);
+};
+
+const parsePackPath = (filePath: string): { databaseName: string; directory: string } | null => {
+  const lastSlash = filePath.lastIndexOf('/');
+  if (lastSlash <= 0 || lastSlash === filePath.length - 1) {
     return null;
   }
 
   return {
-    kind: 'hit',
-    latitude: entry.latitude,
-    longitude: entry.longitude,
-    expiresAtMs: entry.expiresAtMs,
-    value: {
-      speedLimitKmh: entry.speedLimitKmh,
-      source: entry.source,
-      ...(typeof entry.wayId === 'number' ? { wayId: entry.wayId } : {}),
-      ...(entry.rawMaxspeed ? { rawMaxspeed: entry.rawMaxspeed } : {}),
-    },
+    databaseName: filePath.slice(lastSlash + 1),
+    directory: filePath.slice(0, lastSlash),
   };
 };
 
-const createRoadSpeedLimitDbCacheStore = (): RoadSpeedLimitCacheStore => {
-  return {
-    getByKey: async (key: string) => {
-      const result = await db.select().from(roadSpeedLimitCache).where(eq(roadSpeedLimitCache.key, key)).limit(1);
-      return result[0] ?? null;
-    },
-    upsert: async (entry: RoadSpeedLimitCacheStoreEntry) => {
-      await db
-        .insert(roadSpeedLimitCache)
-        .values(entry)
-        .onConflictDoUpdate({
-          target: roadSpeedLimitCache.key,
-          set: {
-            kind: entry.kind,
-            latitude: entry.latitude,
-            longitude: entry.longitude,
-            speedLimitKmh: entry.speedLimitKmh,
-            source: entry.source,
-            wayId: entry.wayId,
-            rawMaxspeed: entry.rawMaxspeed,
-            expiresAtMs: entry.expiresAtMs,
-            updatedAtMs: entry.updatedAtMs,
-          },
-        });
-    },
-    deleteByKey: async (key: string) => {
-      await db.delete(roadSpeedLimitCache).where(eq(roadSpeedLimitCache.key, key));
-    },
-    deleteExpired: async (nowMs: number) => {
-      await db.delete(roadSpeedLimitCache).where(lte(roadSpeedLimitCache.expiresAtMs, nowMs));
-    },
-  };
+const trimCellCache = (cache: Map<string, CandidateCacheEntry>): void => {
+  while (cache.size > MAX_CELL_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    if (!oldestKey) {
+      return;
+    }
+    cache.delete(oldestKey);
+  }
 };
 
 export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServiceDeps): RoadSpeedLimitServiceController => {
-  const overpassUrl = deps.overpassUrl ?? DEFAULT_OVERPASS_URL;
-  const cache = new Map<string, CacheEntry>();
-  const inFlight = new Map<string, Promise<RoadSpeedLimitValue | null>>();
-  let cacheStoreReady = deps.cacheStore ? false : true;
-  let cacheStoreFailed = false;
-  let lastPersistentPruneAtMs = 0;
+  const openDatabaseSync = deps.openDatabaseSync ?? SQLite.openDatabaseSync;
 
-  const ensureCacheStoreReady = async (): Promise<boolean> => {
-    if (!deps.cacheStore) {
-      return false;
-    }
-    if (cacheStoreReady) {
-      return true;
-    }
-    if (cacheStoreFailed) {
-      return false;
-    }
+  let activePackSnapshot: OfflineSpeedLimitPackSnapshot | null = null;
+  let activeDatabase: ReturnType<NonNullable<RoadSpeedLimitServiceDeps['openDatabaseSync']>> | null = null;
+  let activeDatabaseKey: string | null = null;
+  const cellCache = new Map<string, CandidateCacheEntry>();
 
+  const clearDatabase = (): void => {
     try {
-      if (deps.ensureCacheStoreReady) {
-        await deps.ensureCacheStoreReady();
-      }
-      cacheStoreReady = true;
-      return true;
+      activeDatabase?.closeSync?.();
     } catch (error) {
-      deps.logger.warn('Road speed limit cache store initialization failed', error);
-      cacheStoreFailed = true;
-      return false;
-    }
-  };
-
-  const persistCacheEntry = async (key: string, entry: CacheEntry, nowMs: number): Promise<void> => {
-    if (!deps.cacheStore) {
-      return;
-    }
-    const ready = await ensureCacheStoreReady();
-    if (!ready) {
-      return;
-    }
-
-    try {
-      await deps.cacheStore.upsert(toPersistentEntry(key, entry, nowMs));
-    } catch (error) {
-      deps.logger.warn('Failed to persist road speed limit cache entry', error);
-    }
-  };
-
-  const maybePrunePersistentCache = async (nowMs: number): Promise<void> => {
-    if (!deps.cacheStore || nowMs - lastPersistentPruneAtMs < PERSISTED_PRUNE_INTERVAL_MS) {
-      return;
-    }
-
-    const ready = await ensureCacheStoreReady();
-    if (!ready) {
-      return;
-    }
-
-    lastPersistentPruneAtMs = nowMs;
-    try {
-      await deps.cacheStore.deleteExpired(nowMs);
-    } catch (error) {
-      deps.logger.warn('Failed to prune expired road speed limit cache entries', error);
-    }
-  };
-
-  const readPersistedEntry = async (key: string, nowMs: number): Promise<CacheEntry | null> => {
-    if (!deps.cacheStore) {
-      return null;
-    }
-
-    const ready = await ensureCacheStoreReady();
-    if (!ready) {
-      return null;
-    }
-
-    try {
-      const persisted = await deps.cacheStore.getByKey(key);
-      if (!persisted) {
-        return null;
-      }
-      if (persisted.expiresAtMs <= nowMs) {
-        await deps.cacheStore.deleteByKey(key);
-        return null;
-      }
-
-      return fromPersistentEntry(persisted);
-    } catch (error) {
-      deps.logger.warn('Failed reading persisted road speed limit cache entry', error);
-      return null;
-    }
-  };
-
-  const resolveNearbyCacheEntry = (latitude: number, longitude: number, nowMs: number): CacheEntry | null => {
-    let bestEntry: CacheEntry | null = null;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (const entry of cache.values()) {
-      if (entry.expiresAtMs <= nowMs) {
-        continue;
-      }
-      const distanceMeters = calculateDistanceMeters(latitude, longitude, entry.latitude, entry.longitude);
-      if (distanceMeters <= NEARBY_REUSE_DISTANCE_METERS && distanceMeters < bestDistance) {
-        bestDistance = distanceMeters;
-        bestEntry = entry;
-      }
-    }
-
-    return bestEntry;
-  };
-
-  const resolveSpeedLimitFromResponse = (
-    payload: OverpassResponse,
-    latitude: number,
-    longitude: number
-  ): Omit<RoadSpeedLimitValue, 'fromCache'> | null => {
-    const elements = payload.elements ?? [];
-    let best: {
-      value: Omit<RoadSpeedLimitValue, 'fromCache'>;
-      distanceMeters: number;
-    } | null = null;
-
-    for (const element of elements) {
-      const rawMaxspeed = element.tags?.maxspeed;
-      if (!rawMaxspeed) {
-        continue;
-      }
-
-      const parsedLimit = parseMaxspeedKmh(rawMaxspeed);
-      if (parsedLimit === null) {
-        continue;
-      }
-
-      const centerLat = element.center?.lat;
-      const centerLon = element.center?.lon;
-      if (!isFiniteCoordinate(centerLat ?? NaN) || !isFiniteCoordinate(centerLon ?? NaN)) {
-        continue;
-      }
-
-      const distanceMeters = calculateDistanceMeters(latitude, longitude, centerLat as number, centerLon as number);
-      if (!best || distanceMeters < best.distanceMeters) {
-        best = {
-          distanceMeters,
-          value: {
-            speedLimitKmh: parsedLimit,
-            source: 'overpass',
-            wayId: element.id,
-            rawMaxspeed,
-          },
-        };
-      }
-    }
-
-    return best?.value ?? null;
-  };
-
-  const fetchSpeedLimit = async (args: RoadSpeedLimitLookupArgs): Promise<RoadSpeedLimitValue | null> => {
-    const query = createOverpassQuery(args.latitude, args.longitude);
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = setTimeout(() => {
-      controller?.abort();
-    }, OVERPASS_TIMEOUT_MS);
-
-    try {
-      const response = await deps.fetchFn(overpassUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `data=${encodeURIComponent(query)}`,
-        signal: controller?.signal,
-      });
-
-      if (!response.ok) {
-        deps.logger.warn('Overpass request failed', { status: response.status });
-        return null;
-      }
-
-      const payload = (await response.json()) as OverpassResponse;
-      const resolved = resolveSpeedLimitFromResponse(payload, args.latitude, args.longitude);
-      if (!resolved) {
-        return null;
-      }
-
-      return {
-        ...resolved,
-        fromCache: false,
-      };
-    } catch (error) {
-      deps.logger.warn('Road speed limit lookup failed', error);
-      return null;
+      deps.logger.warn('Failed to close offline speed limit pack database', error);
     } finally {
-      clearTimeout(timeoutId);
-    }
-  };
-
-  const getSpeedLimit = async (args: RoadSpeedLimitLookupArgs): Promise<RoadSpeedLimitValue | null> => {
-    const nowMs = args.nowMs ?? deps.now();
-    if (!isFiniteCoordinate(args.latitude) || !isFiniteCoordinate(args.longitude)) {
-      return null;
-    }
-
-    await maybePrunePersistentCache(nowMs);
-
-    const key = buildCellKey(args.latitude, args.longitude);
-    const cached = cache.get(key);
-    if (cached && cached.expiresAtMs > nowMs) {
-      if (cached.kind === 'miss') {
-        return null;
-      }
-
-      return {
-        ...cached.value,
-        fromCache: true,
-      };
-    }
-
-    const persisted = await readPersistedEntry(key, nowMs);
-    if (persisted) {
-      cache.set(key, persisted);
-      if (persisted.kind === 'miss') {
-        return null;
-      }
-
-      return {
-        ...persisted.value,
-        fromCache: true,
-      };
-    }
-
-    const nearby = resolveNearbyCacheEntry(args.latitude, args.longitude, nowMs);
-    if (nearby) {
-      if (nearby.kind === 'miss') {
-        const missEntry: CacheMiss = {
-          kind: 'miss',
-          latitude: args.latitude,
-          longitude: args.longitude,
-          expiresAtMs: nowMs + MEMORY_MISS_CACHE_TTL_MS,
-        };
-        cache.set(key, missEntry);
-        await persistCacheEntry(key, missEntry, nowMs);
-        return null;
-      }
-
-      const hitEntry: CacheHit = {
-        kind: 'hit',
-        latitude: args.latitude,
-        longitude: args.longitude,
-        expiresAtMs: nowMs + MEMORY_HIT_CACHE_TTL_MS,
-        value: nearby.value,
-      };
-      cache.set(key, hitEntry);
-      await persistCacheEntry(key, hitEntry, nowMs);
-      return {
-        ...nearby.value,
-        fromCache: true,
-      };
-    }
-
-    const pending = inFlight.get(key);
-    if (pending) {
-      return pending;
-    }
-
-    const request = (async () => {
-      const resolved = await fetchSpeedLimit(args);
-      if (resolved) {
-        const hitEntry: CacheHit = {
-          kind: 'hit',
-          latitude: args.latitude,
-          longitude: args.longitude,
-          expiresAtMs: nowMs + MEMORY_HIT_CACHE_TTL_MS,
-          value: {
-            speedLimitKmh: resolved.speedLimitKmh,
-            source: resolved.source,
-            wayId: resolved.wayId,
-            rawMaxspeed: resolved.rawMaxspeed,
-          },
-        };
-        cache.set(key, hitEntry);
-        await persistCacheEntry(key, hitEntry, nowMs);
-        return resolved;
-      }
-
-      const missEntry: CacheMiss = {
-        kind: 'miss',
-        latitude: args.latitude,
-        longitude: args.longitude,
-        expiresAtMs: nowMs + MEMORY_MISS_CACHE_TTL_MS,
-      };
-      cache.set(key, missEntry);
-      await persistCacheEntry(key, missEntry, nowMs);
-      return null;
-    })();
-
-    inFlight.set(key, request);
-    try {
-      return await request;
-    } finally {
-      inFlight.delete(key);
+      activeDatabase = null;
+      activeDatabaseKey = null;
     }
   };
 
   const reset = (): void => {
-    cache.clear();
-    inFlight.clear();
+    cellCache.clear();
+    clearDatabase();
+  };
+
+  const setPackSnapshot = (snapshot: OfflineSpeedLimitPackSnapshot | null): void => {
+    const previousKey = activePackSnapshot ? `${activePackSnapshot.filePath}:${activePackSnapshot.checksum}` : null;
+    const nextKey = snapshot ? `${snapshot.filePath}:${snapshot.checksum}` : null;
+
+    activePackSnapshot = snapshot;
+    if (previousKey !== nextKey) {
+      reset();
+      activePackSnapshot = snapshot;
+    }
+  };
+
+  const ensureDatabase = (): ReturnType<NonNullable<RoadSpeedLimitServiceDeps['openDatabaseSync']>> | null => {
+    if (!activePackSnapshot) {
+      return null;
+    }
+
+    const databaseKey = `${activePackSnapshot.filePath}:${activePackSnapshot.checksum}`;
+    if (activeDatabase && activeDatabaseKey === databaseKey) {
+      return activeDatabase;
+    }
+
+    const parsedPath = parsePackPath(activePackSnapshot.filePath);
+    if (!parsedPath) {
+      deps.logger.warn('Invalid offline speed limit pack path', { filePath: activePackSnapshot.filePath });
+      return null;
+    }
+
+    try {
+      clearDatabase();
+      activeDatabase = openDatabaseSync(parsedPath.databaseName, undefined, parsedPath.directory);
+      activeDatabaseKey = databaseKey;
+      return activeDatabase;
+    } catch (error) {
+      deps.logger.warn('Failed to open offline speed limit pack database', error);
+      activeDatabase = null;
+      activeDatabaseKey = null;
+      return null;
+    }
+  };
+
+  const loadCandidateRows = (database: NonNullable<typeof activeDatabase>, latitude: number, longitude: number): { rows: SegmentRow[]; fromCache: boolean } => {
+    const cellKey = buildCellKey(latitude, longitude);
+    const cached = cellCache.get(cellKey);
+    if (cached) {
+      return {
+        rows: cached.rows,
+        fromCache: true,
+      };
+    }
+
+    const neighborKeys = buildNeighborCellKeys(latitude, longitude);
+    const placeholders = neighborKeys.map(() => '?').join(', ');
+    const query = `
+      SELECT DISTINCT
+        road_segments.id AS id,
+        road_segments.way_id AS wayId,
+        road_segments.speed_limit_kmh AS speedLimitKmh,
+        road_segments.raw_speed_tag AS rawSpeedTag,
+        road_segments.start_lat AS startLat,
+        road_segments.start_lon AS startLon,
+        road_segments.end_lat AS endLat,
+        road_segments.end_lon AS endLon
+      FROM segment_cells
+      INNER JOIN road_segments ON road_segments.id = segment_cells.segment_id
+      WHERE segment_cells.cell_key IN (${placeholders})
+    `;
+
+    const rows = database.getAllSync<SegmentRow>(query, ...neighborKeys);
+    cellCache.set(cellKey, { rows });
+    trimCellCache(cellCache);
+
+    return {
+      rows,
+      fromCache: false,
+    };
+  };
+
+  const getSpeedLimit = async (args: RoadSpeedLimitLookupArgs): Promise<RoadSpeedLimitValue | null> => {
+    if (!activePackSnapshot) {
+      return null;
+    }
+
+    if (!Number.isFinite(args.latitude) || !Number.isFinite(args.longitude)) {
+      return null;
+    }
+
+    const database = ensureDatabase();
+    if (!database) {
+      return null;
+    }
+
+    try {
+      const { rows, fromCache } = loadCandidateRows(database, args.latitude, args.longitude);
+
+      let bestMatch:
+        | {
+            row: SegmentRow;
+            distanceMeters: number;
+          }
+        | null = null;
+      let secondBest:
+        | {
+            row: SegmentRow;
+            distanceMeters: number;
+          }
+        | null = null;
+
+      for (const row of rows) {
+        const distanceMeters = distancePointToSegmentMeters(
+          args.latitude,
+          args.longitude,
+          row.startLat,
+          row.startLon,
+          row.endLat,
+          row.endLon
+        );
+
+        const candidate = { row, distanceMeters };
+        if (!bestMatch || distanceMeters < bestMatch.distanceMeters) {
+          secondBest = bestMatch;
+          bestMatch = candidate;
+        } else if (!secondBest || distanceMeters < secondBest.distanceMeters) {
+          secondBest = candidate;
+        }
+      }
+
+      if (!bestMatch || bestMatch.distanceMeters > MATCH_DISTANCE_THRESHOLD_METERS) {
+        return null;
+      }
+
+      if (
+        secondBest &&
+        secondBest.row.speedLimitKmh !== bestMatch.row.speedLimitKmh &&
+        secondBest.distanceMeters - bestMatch.distanceMeters <= AMBIGUOUS_DISTANCE_DELTA_METERS
+      ) {
+        deps.logger.debug('Skipping offline speed limit lookup due to ambiguous nearby road match', {
+          latitude: Number(args.latitude.toFixed(6)),
+          longitude: Number(args.longitude.toFixed(6)),
+          bestWayId: bestMatch.row.wayId,
+          secondWayId: secondBest.row.wayId,
+        });
+        return null;
+      }
+
+      return {
+        speedLimitKmh: Number(bestMatch.row.speedLimitKmh.toFixed(1)),
+        source: 'offline_osm',
+        wayId: bestMatch.row.wayId,
+        rawMaxspeed: bestMatch.row.rawSpeedTag ?? undefined,
+        fromCache,
+      };
+    } catch (error) {
+      deps.logger.warn('Offline road speed limit lookup failed', error);
+      return null;
+    }
   };
 
   return {
     getSpeedLimit,
+    setPackSnapshot,
     reset,
   };
 };
 
-const logger = createLogger(LogModule.RoadSpeedLimitService);
-
 export const RoadSpeedLimitService = createRoadSpeedLimitServiceController({
-  fetchFn: fetch,
   now: () => Date.now(),
   logger,
-  cacheStore: createRoadSpeedLimitDbCacheStore(),
-  ensureCacheStoreReady: ensureRoadSpeedLimitCacheTable,
 });

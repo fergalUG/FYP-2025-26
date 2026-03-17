@@ -3,6 +3,14 @@ import type { EfficiencyServiceDeps, ProcessLocationOptions } from '@types';
 import { EventType } from '@types';
 import type { MotionData } from '@modules/vehicle-motion/src/VehicleMotion.types';
 
+const MOCK_PACK_SNAPSHOT = {
+  regionId: 'ie-ni',
+  version: '20260317',
+  filePath: 'mock://documents/SpeedLimitPacks/ie-ni.sqlite',
+  checksum: 'checksum',
+  installedAt: 1,
+} as const;
+
 describe('EfficiencyService', () => {
   const mockJourneyService: EfficiencyServiceDeps['JourneyService'] = {
     logEvent: jest.fn(),
@@ -18,6 +26,7 @@ describe('EfficiencyService', () => {
 
   const mockRoadSpeedLimitService: EfficiencyServiceDeps['RoadSpeedLimitService'] = {
     getSpeedLimit: jest.fn(),
+    setPackSnapshot: jest.fn(),
     reset: jest.fn(),
   };
 
@@ -39,6 +48,14 @@ describe('EfficiencyService', () => {
       now,
       logger: mockLogger,
     });
+
+  const startTracking = (
+    service: ReturnType<typeof createService>,
+    speedLimitDetectionEnabled: boolean = true,
+    speedLimitPackSnapshot: typeof MOCK_PACK_SNAPSHOT | null = MOCK_PACK_SNAPSHOT
+  ) => {
+    service.startTracking({ speedLimitDetectionEnabled, speedLimitPackSnapshot });
+  };
 
   const mockLocation = {
     coords: {
@@ -83,6 +100,11 @@ describe('EfficiencyService', () => {
 
       expect(mockVehicleMotion.startTracking).toHaveBeenCalledTimes(1);
       expect(mockVehicleMotion.addListener).toHaveBeenCalledWith('onMotionUpdate', expect.any(Function));
+      expect(mockRoadSpeedLimitService.setPackSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({
+          regionId: 'legacy',
+        })
+      );
     });
 
     it('is idempotent', () => {
@@ -106,6 +128,7 @@ describe('EfficiencyService', () => {
 
       expect(mockVehicleMotion.removeAllListeners).toHaveBeenCalledWith('onMotionUpdate');
       expect(mockVehicleMotion.stopTracking).toHaveBeenCalledTimes(1);
+      expect(mockRoadSpeedLimitService.setPackSnapshot).toHaveBeenLastCalledWith(null);
     });
 
     it('is idempotent when not tracking', () => {
@@ -132,7 +155,7 @@ describe('EfficiencyService', () => {
       svc.startTracking();
       (mockRoadSpeedLimitService.getSpeedLimit as jest.Mock).mockResolvedValue({
         speedLimitKmh: 95,
-        source: 'overpass',
+        source: 'offline_osm',
         fromCache: false,
       });
 
@@ -166,7 +189,7 @@ describe('EfficiencyService', () => {
       svc.startTracking();
       (mockRoadSpeedLimitService.getSpeedLimit as jest.Mock).mockResolvedValue({
         speedLimitKmh: 95,
-        source: 'overpass',
+        source: 'offline_osm',
         fromCache: false,
       });
 
@@ -195,12 +218,41 @@ describe('EfficiencyService', () => {
       );
     });
 
+    it('skips speed limit lookups and speeding events when speed limit detection is disabled', async () => {
+      const svc = createService();
+      startTracking(svc, false);
+
+      const speedingLocation = {
+        ...mockLocation,
+        coords: {
+          ...mockLocation.coords,
+          speed: 35,
+        },
+      };
+
+      nowMs = 0;
+      await svc.processLocation(speedingLocation, buildOptions(speedingLocation));
+      nowMs = 2500;
+      await svc.processLocation(speedingLocation, buildOptions(speedingLocation));
+
+      expect(mockRoadSpeedLimitService.getSpeedLimit).not.toHaveBeenCalled();
+      expect(mockJourneyService.logEvent).not.toHaveBeenCalledWith(
+        EventType.DrivingEvent,
+        expect.any(Number),
+        expect.any(Number),
+        expect.any(Number),
+        expect.objectContaining({
+          family: 'speeding',
+        })
+      );
+    });
+
     it('does not log speeding for normal speeds', async () => {
       const svc = createService();
       svc.startTracking();
       (mockRoadSpeedLimitService.getSpeedLimit as jest.Mock).mockResolvedValue({
         speedLimitKmh: 80,
-        source: 'overpass',
+        source: 'offline_osm',
         fromCache: false,
       });
 
@@ -321,6 +373,7 @@ describe('EfficiencyService', () => {
 
       expect(stats).toEqual({
         durationMs: 0,
+        speedLimitDetectionEnabled: true,
 
         score: 100,
         avgScore: 100,
@@ -356,6 +409,28 @@ describe('EfficiencyService', () => {
         avgSpeed: 0,
         maxSpeed: 0,
       });
+    });
+
+    it('stores speed limit detection state in journey stats for the active journey', async () => {
+      const svc = createService();
+      startTracking(svc, false);
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce([]);
+
+      const stats = await svc.getJourneyEfficiencyStats(1);
+
+      expect(stats?.speedLimitDetectionEnabled).toBe(false);
+      expect(stats?.speedLimitDataStatus).toBe('disabled');
+    });
+
+    it('marks speed limit data as unavailable until an offline lookup succeeds', async () => {
+      const svc = createService();
+      startTracking(svc, true, null);
+      (mockJourneyService.getEventsByJourneyId as jest.Mock).mockResolvedValueOnce([]);
+
+      const stats = await svc.getJourneyEfficiencyStats(1);
+
+      expect(stats?.speedLimitDetectionEnabled).toBe(true);
+      expect(stats?.speedLimitDataStatus).toBe('unavailable');
     });
 
     it('returns normalized incident/episode counts', async () => {

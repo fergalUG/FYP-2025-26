@@ -15,6 +15,7 @@ import {
 } from '@types';
 import { JourneyService } from '@services/JourneyService';
 import { EfficiencyService } from '@services/EfficiencyService';
+import { SpeedLimitPackService } from '@services/SpeedLimitPackService';
 import { getSpeedLimitDetectionEnabled } from '@services/SettingsService';
 import { resolveActivityConfidenceScore } from '@services/background/decisions/activityProbeDecision';
 import { buildPassiveTrackingOptions } from '@services/background/location/passiveProfileOptions';
@@ -256,6 +257,21 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
     }
   };
 
+  const resolveSpeedLimitPackSnapshotForJourney = async (
+    speedLimitDetectionEnabled: boolean
+  ): Promise<Awaited<ReturnType<BackgroundServiceDeps['SpeedLimitPackService']['getJourneySnapshot']>>> => {
+    if (!speedLimitDetectionEnabled) {
+      return null;
+    }
+
+    try {
+      return await deps.SpeedLimitPackService.getJourneySnapshot();
+    } catch (error) {
+      deps.logger.warn('Failed to resolve offline speed limit pack snapshot for this journey. Defaulting to unavailable.', error);
+      return null;
+    }
+  };
+
   const applyPassiveTrackingProfile = async (profile: PassiveTrackingProfile): Promise<boolean> => {
     const started = await withRetry(
       async () => {
@@ -452,6 +468,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
 
       try {
         const speedLimitDetectionEnabled = await resolveSpeedLimitDetectionForJourney();
+        const speedLimitPackSnapshot = await resolveSpeedLimitPackSnapshotForJourney(speedLimitDetectionEnabled);
         const bootstrapLocation = triggerLocation ?? state.lastLocation;
         if (bootstrapLocation) {
           await logJourneyStartForLocation(journeyId, bootstrapLocation);
@@ -466,7 +483,7 @@ export const createBackgroundServiceController = (deps: BackgroundServiceDeps): 
           }
         }
 
-        deps.EfficiencyService.startTracking({ speedLimitDetectionEnabled });
+        deps.EfficiencyService.startTracking({ speedLimitDetectionEnabled, speedLimitPackSnapshot });
 
         const started = await withRetry(
           async () => {
@@ -847,6 +864,7 @@ export const singleton = createBackgroundServiceController({
   SettingsService: {
     getSpeedLimitDetectionEnabled,
   },
+  SpeedLimitPackService,
   JourneyService,
   EfficiencyService,
   VehicleMotion,

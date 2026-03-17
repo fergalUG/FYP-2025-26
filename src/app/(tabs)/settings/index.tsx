@@ -9,7 +9,10 @@ import { AppButton } from '@components';
 import { JourneyService } from '@services/JourneyService';
 import { useBackgroundService } from '@hooks';
 import { LogService } from '@services/LogService';
+import { SpeedLimitPackService } from '@services/SpeedLimitPackService';
 import { showConfirmAlert, showSuccessAlert } from '@utils/alert';
+
+import type { SpeedLimitPackStatus } from '@types';
 
 export default function Settings() {
   const { theme, mode, toggleMode } = useTheme();
@@ -24,6 +27,7 @@ export default function Settings() {
   const [sessionLogName, setSessionLogName] = useState<string | null>(null);
   const [logFiles, setLogFiles] = useState<ReturnType<typeof LogService.listLogFiles>>([]);
   const [loadingLogFiles, setLoadingLogFiles] = useState(false);
+  const [packStatus, setPackStatus] = useState<SpeedLimitPackStatus | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState('');
   const styles = createStyles(theme);
@@ -38,6 +42,29 @@ export default function Settings() {
   useEffect(() => {
     setSessionLogName(LogService.getSessionFileName());
     setLogFiles(LogService.listLogFiles());
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const unsubscribe = SpeedLimitPackService.addListener((status) => {
+      if (!isMounted) {
+        return;
+      }
+
+      setPackStatus(status);
+    });
+
+    void SpeedLimitPackService.getLocalStatus().then((status) => {
+      if (isMounted) {
+        setPackStatus(status);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const loadLogFiles = async () => {
@@ -114,6 +141,12 @@ export default function Settings() {
     });
   };
 
+  const showOfflineRoadDataNextJourneyToast = () => {
+    if (backgroundService.mode === 'ACTIVE') {
+      showSpeedLimitDetectionNextJourneyToast();
+    }
+  };
+
   const persistSpeedLimitDetectionEnabled = async (enabled: boolean) => {
     await setSpeedLimitDetectionEnabled(enabled);
     if (backgroundService.mode === 'ACTIVE') {
@@ -129,12 +162,108 @@ export default function Settings() {
 
     showConfirmAlert(
       'Enable Speed Limit Detection?',
-      'Turning this on uses your location to query a third-party road speed limit service so the app can detect speeding. Continue?',
+      'Turning this on uses offline road data stored on your device for speeding detection. You will need to download the Ireland + Northern Ireland road data pack. No live location is sent for speed limit lookups. Continue?',
       () => {
         void persistSpeedLimitDetectionEnabled(true);
       }
     );
   };
+
+  const handleCheckSpeedLimitPackUpdate = async () => {
+    const status = await SpeedLimitPackService.checkForUpdate();
+    setPackStatus(status);
+
+    if (status.phase === 'error') {
+      showToast({
+        title: 'Road data check failed',
+        message: status.errorMessage ?? 'Could not check for offline road data updates.',
+        variant: 'error',
+      });
+      return;
+    }
+
+    showToast({
+      title:
+        status.installState !== 'installed'
+          ? 'Road data available'
+          : status.updateAvailable
+            ? 'Road data update available'
+            : 'Road data up to date',
+      message: status.installState !== 'installed'
+        ? `Version ${status.latestManifest?.packVersion ?? 'unknown'} is ready to download.`
+        : status.updateAvailable
+        ? `Version ${status.latestManifest?.packVersion ?? 'unknown'} is ready to download.`
+        : 'You already have the latest offline road data.',
+      variant: status.installState !== 'installed' || status.updateAvailable ? 'info' : 'success',
+    });
+  };
+
+  const handleDownloadSpeedLimitPack = async () => {
+    const success = await SpeedLimitPackService.downloadPack('ie-ni');
+    if (!success) {
+      const latestStatus = await SpeedLimitPackService.getLocalStatus();
+      setPackStatus(latestStatus);
+      showToast({
+        title: 'Road data download failed',
+        message: latestStatus.errorMessage ?? 'Could not install the offline road data pack.',
+        variant: 'error',
+      });
+      return;
+    }
+
+    showToast({
+      title: 'Road data ready',
+      message: 'Offline speed limit data is installed on this device.',
+      variant: 'success',
+    });
+    showOfflineRoadDataNextJourneyToast();
+  };
+
+  const executeRemoveSpeedLimitPack = async () => {
+    const success = await SpeedLimitPackService.removePack('ie-ni');
+    if (!success) {
+      const latestStatus = await SpeedLimitPackService.getLocalStatus();
+      setPackStatus(latestStatus);
+      showToast({
+        title: 'Could not remove road data',
+        message: latestStatus.errorMessage ?? 'Offline road data could not be removed.',
+        variant: 'error',
+      });
+      return;
+    }
+
+    showToast({
+      title: 'Road data removed',
+      message: 'Offline speed limit data has been removed from this device.',
+      variant: 'success',
+    });
+    showOfflineRoadDataNextJourneyToast();
+  };
+
+  const handleRemoveSpeedLimitPack = () => {
+    showConfirmAlert(
+      'Remove Offline Road Data?',
+      'This will delete the installed Ireland + Northern Ireland road data pack from this device.',
+      () => {
+        void executeRemoveSpeedLimitPack();
+      }
+    );
+  };
+
+  const installedPack = packStatus?.installedPack ?? null;
+  const latestManifest = packStatus?.latestManifest ?? null;
+  const packSizeLabel = formatBytes(latestManifest?.sizeBytes ?? installedPack?.sizeBytes ?? null);
+  const installedPackDateLabel = installedPack ? new Date(installedPack.installedAt).toLocaleDateString() : null;
+  const packBusyLabel =
+    packStatus?.phase === 'downloading'
+      ? `Downloading${typeof packStatus.progressFraction === 'number' ? ` ${Math.round(packStatus.progressFraction * 100)}%` : '...'}`
+      : packStatus?.phase === 'installing'
+        ? 'Installing...'
+        : packStatus?.phase === 'checking'
+          ? 'Checking for updates...'
+          : packStatus?.phase === 'removing'
+            ? 'Removing...'
+            : null;
 
   const handleManualStartActiveTracking = async () => {
     setStartingManualTracking(true);
@@ -255,7 +384,7 @@ export default function Settings() {
             <View style={styles.rowText}>
               <Text style={styles.itemTitle}>Enable Speed Limit Detection</Text>
               <Text style={styles.itemSubtitle}>
-                Uses your location to query an online road speed limit service for speeding detection.
+                Uses offline road data stored on this device for private speeding detection.
               </Text>
             </View>
             <Switch
@@ -265,6 +394,57 @@ export default function Settings() {
               thumbColor={mode === 'dark' ? theme.colors.onSurface : theme.colors.background}
             />
           </View>
+
+          {settings.speedLimitDetectionEnabled && packStatus?.installState !== 'installed' ? (
+            <Text style={styles.emptyText}>Speeding detection is unavailable until offline road data is downloaded.</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.itemTitle}>Offline Road Data</Text>
+          <Text style={styles.itemSubtitle}>Ireland + Northern Ireland OpenStreetMap speed limit data stored on-device.</Text>
+          <Text style={styles.logFileName}>
+            {installedPack
+              ? `Installed ${installedPack.packVersion}${installedPackDateLabel ? ` • ${installedPackDateLabel}` : ''} • ${packSizeLabel}`
+              : latestManifest
+                ? `Not installed • ${latestManifest.packVersion} • ${packSizeLabel}`
+                : 'Not installed • Check for updates to load the latest pack details.'}
+          </Text>
+          {packBusyLabel ? <Text style={styles.itemSubtitle}>{packBusyLabel}</Text> : null}
+          {packStatus?.errorMessage ? <Text style={styles.errorText}>{packStatus.errorMessage}</Text> : null}
+          <View style={styles.packActionRow}>
+            <AppButton
+              variant="secondary"
+              style={styles.secondaryActionButton}
+              onPress={handleCheckSpeedLimitPackUpdate}
+              disabled={!!packStatus?.isBusy}
+            >
+              <Text style={styles.secondaryActionButtonText}>Check for Update</Text>
+            </AppButton>
+
+            {packStatus?.installState === 'installed' ? (
+              <>
+                {packStatus.updateAvailable ? (
+                  <AppButton style={styles.secondaryActionButton} onPress={handleDownloadSpeedLimitPack} disabled={!!packStatus?.isBusy}>
+                    <Text style={styles.exportButtonText}>Update</Text>
+                  </AppButton>
+                ) : null}
+                <AppButton
+                  variant="secondary"
+                  style={styles.secondaryActionButton}
+                  onPress={handleRemoveSpeedLimitPack}
+                  disabled={!!packStatus?.isBusy}
+                >
+                  <Text style={styles.secondaryActionButtonText}>Remove</Text>
+                </AppButton>
+              </>
+            ) : (
+              <AppButton style={styles.secondaryActionButton} onPress={handleDownloadSpeedLimitPack} disabled={!!packStatus?.isBusy}>
+                <Text style={styles.exportButtonText}>Download</Text>
+              </AppButton>
+            )}
+          </View>
+          <Text style={styles.attributionText}>Contains OpenStreetMap data © OpenStreetMap contributors (ODbL).</Text>
         </View>
       </View>
 
@@ -675,12 +855,28 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       color: theme.colors.onSurface,
       opacity: 0.6,
     },
+    errorText: {
+      fontSize: 12,
+      color: theme.colors.error,
+    },
+    packActionRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+    },
     exportButton: {
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.sm,
       backgroundColor: theme.colors.primary,
       borderRadius: theme.radius.md,
       alignSelf: 'flex-start',
+    },
+    secondaryActionButton: {
+      alignSelf: 'flex-start',
+    },
+    secondaryActionButtonText: {
+      color: theme.colors.onBackground,
+      fontWeight: '600',
     },
     exportButtonDisabled: {
       opacity: 0.6,
@@ -693,5 +889,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: theme.spacing.sm,
+    },
+    attributionText: {
+      fontSize: 12,
+      color: theme.colors.onSurface,
+      opacity: 0.6,
     },
   });

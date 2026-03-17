@@ -7,6 +7,7 @@ jest.mock('@/db/client', () => ({
   db: {
     select: jest.fn(),
     insert: jest.fn(),
+    delete: jest.fn(),
   },
 }));
 
@@ -39,6 +40,7 @@ describe('SettingsService', () => {
     jest.clearAllMocks();
     (db.select as jest.Mock).mockReturnValue(mockQuery([]));
     (db.insert as jest.Mock).mockReturnValue(mockQuery());
+    (db.delete as jest.Mock).mockReturnValue(mockQuery());
   });
 
   describe('getDriverName', () => {
@@ -156,6 +158,93 @@ describe('SettingsService', () => {
         })
       );
       expect(success).toBe(true);
+    });
+  });
+
+  describe('getSpeedLimitDetectionEnabled', () => {
+    it('should return false if no setting exists', async () => {
+      const chain = mockQuery([]);
+      (db.select as jest.Mock).mockReturnValue(chain);
+
+      const result = await SettingsService.getSpeedLimitDetectionEnabled();
+
+      expect(result).toBe(false);
+    });
+
+    it('should return the stored boolean value', async () => {
+      const chain = mockQuery([{ value: 'true' }]);
+      (db.select as jest.Mock).mockReturnValue(chain);
+
+      const result = await SettingsService.getSpeedLimitDetectionEnabled();
+
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('setSpeedLimitDetectionEnabled', () => {
+    it('should upsert the speed limit detection setting', async () => {
+      const chain = mockQuery();
+      (db.insert as jest.Mock).mockReturnValue(chain);
+
+      const success = await SettingsService.setSpeedLimitDetectionEnabled(false);
+
+      expect(db.insert).toHaveBeenCalledWith(settings);
+      expect(chain.values).toHaveBeenCalledWith({ key: 'speedLimitDetectionEnabled', value: 'false' });
+      expect(chain.onConflictDoUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target: settings.key,
+          set: { value: 'false' },
+        })
+      );
+      expect(success).toBe(true);
+    });
+  });
+
+  describe('installed speed limit pack metadata', () => {
+    const metadata = {
+      regionId: 'ie-ni',
+      regionName: 'Ireland + Northern Ireland',
+      packVersion: '20260317',
+      sha256: 'abc123',
+      sizeBytes: 123,
+      sourceTimestamp: '2026-03-17T00:00:00Z',
+      installedAt: 123456,
+      fileName: 'ie-ni.sqlite',
+      filePath: '/tmp/ie-ni.sqlite',
+      osmAttribution: 'OpenStreetMap contributors',
+    };
+
+    it('loads stored installed speed limit pack metadata', async () => {
+      const chain = mockQuery([{ value: JSON.stringify(metadata) }]);
+      (db.select as jest.Mock).mockReturnValue(chain);
+
+      const result = await SettingsService.getInstalledSpeedLimitPackMetadata();
+
+      expect(result).toEqual(metadata);
+    });
+
+    it('persists installed speed limit pack metadata', async () => {
+      const chain = mockQuery();
+      (db.insert as jest.Mock).mockReturnValue(chain);
+
+      const success = await SettingsService.setInstalledSpeedLimitPackMetadata(metadata);
+
+      expect(success).toBe(true);
+      expect(chain.values).toHaveBeenCalledWith({
+        key: 'installedSpeedLimitPackMetadata',
+        value: JSON.stringify(metadata),
+      });
+    });
+
+    it('clears installed speed limit pack metadata', async () => {
+      const chain = mockQuery();
+      (db.delete as jest.Mock).mockReturnValue(chain);
+
+      const success = await SettingsService.clearInstalledSpeedLimitPackMetadata();
+
+      expect(success).toBe(true);
+      expect(db.delete).toHaveBeenCalledWith(settings);
+      expect(chain.where).toHaveBeenCalled();
     });
   });
 });
