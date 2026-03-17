@@ -378,7 +378,7 @@ export default function Settings() {
           <View style={styles.rowBetween}>
             <View style={styles.rowText}>
               <Text style={styles.itemTitle}>Enable Speed Limit Detection</Text>
-              <Text style={styles.itemSubtitle}>Uses offline road data stored on this device for private speeding detection.</Text>
+              <Text style={styles.itemSubtitle}>Uses downloaded road data for speeding detection.</Text>
             </View>
             <Switch
               value={settings.speedLimitDetectionEnabled}

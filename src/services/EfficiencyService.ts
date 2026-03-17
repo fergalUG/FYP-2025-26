@@ -189,6 +189,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
 
   const checkSpeeding = async (location: Location.LocationObject, speedKmh: number, nowMs: number): Promise<void> => {
     if (!currentJourneySpeedLimitDetectionEnabled || !currentJourneySpeedLimitPackRef) {
+      speedingDetector.reset();
       return;
     }
 
@@ -197,6 +198,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       longitude: location.coords.longitude,
     });
     if (!speedLimit) {
+      speedingDetector.reset();
       deps.logger.debug('Skipping speeding check: no road speed limit available', {
         latitude: Number(location.coords.latitude.toFixed(6)),
         longitude: Number(location.coords.longitude.toFixed(6)),
@@ -626,6 +628,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       if (speedConfidence !== 'low' && speedConfidence !== 'none') {
         await checkSpeeding(location, speedKmh, currentTime);
       } else {
+        speedingDetector.reset();
         deps.logger.debug('Skipping speeding check due to low speed confidence', {
           speedKmh: speedKmh.toFixed(1),
           speedConfidence,
