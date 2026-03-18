@@ -1,9 +1,9 @@
 import type { Event } from '@types';
-import { EventType } from '@types';
 import type { ScoringStats } from '@types';
 
 import type { EfficiencyScoringConfig } from '@utils/scoring/efficiencyScoringConfig';
 import { DEFAULT_EFFICIENCY_SCORING_CONFIG } from '@utils/scoring/efficiencyScoringConfig';
+import { getJourneyBounds, sortJourneyEventsByTimestamp } from '@utils/scoring/journeyEvents';
 import { normalizeJourneyEvents } from '@utils/scoring/normalizeEvents';
 import { simulateScoreTimeline } from '@utils/scoring/simulateScore';
 
@@ -19,23 +19,6 @@ interface CalculateEfficiencyScoreOptions {
 
 const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 
-const getJourneyBounds = (events: Event[]): { startTimestamp: number; endTimestamp: number } | null => {
-  if (events.length === 0) {
-    return null;
-  }
-
-  const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
-
-  const startEvent = sorted.find((e) => e.type === EventType.JourneyStart);
-  const endEvent = [...sorted].reverse().find((e) => e.type === EventType.JourneyEnd);
-
-  const earliestTimestamp = sorted[0].timestamp;
-  const startTimestamp = startEvent ? Math.min(startEvent.timestamp, earliestTimestamp) : earliestTimestamp;
-  const endTimestamp = endEvent?.timestamp ?? sorted[sorted.length - 1].timestamp;
-
-  return { startTimestamp, endTimestamp };
-};
-
 export const calculateEfficiencyScore = (
   events: Event[],
   distanceKm: number = 0,
@@ -44,7 +27,8 @@ export const calculateEfficiencyScore = (
 ): EfficiencyScoreResult => {
   const speedLimitDetectionEnabled = options.speedLimitDetectionEnabled ?? true;
   const speedLimitDataStatus = options.speedLimitDataStatus;
-  const bounds = getJourneyBounds(events);
+  const sortedEvents = sortJourneyEventsByTimestamp(events);
+  const bounds = getJourneyBounds(sortedEvents, { eventsAreSorted: true });
   if (!bounds) {
     const stats: ScoringStats = {
       durationMs: 0,
@@ -92,7 +76,7 @@ export const calculateEfficiencyScore = (
     };
   }
 
-  const normalized = normalizeJourneyEvents(events, config);
+  const normalized = normalizeJourneyEvents(sortedEvents, config, { eventsAreSorted: true });
 
   const penaltyActions = [
     ...normalized.incidents.map((incident) => ({

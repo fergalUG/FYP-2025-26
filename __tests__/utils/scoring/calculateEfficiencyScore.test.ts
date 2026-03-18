@@ -235,4 +235,16 @@ describe('calculateEfficiencyScore', () => {
     const result = calculateEfficiencyScore(events, 0, baseConfig);
     expect(result.stats.durationMs).toBe(600000);
   });
+
+  it('returns the same score for unsorted input events', () => {
+    const sortedEvents = [
+      makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
+      makeEvent({ id: 2, timestamp: 100000, type: EventType.DrivingEvent, family: 'braking', severity: 'harsh' }),
+      makeEvent({ id: 3, timestamp: 110000, type: EventType.DrivingEvent, family: 'cornering', severity: 'moderate' }),
+      makeEvent({ id: 4, timestamp: 300000, type: EventType.JourneyEnd }),
+    ];
+    const unsortedEvents = [sortedEvents[2], sortedEvents[0], sortedEvents[3], sortedEvents[1]];
+
+    expect(calculateEfficiencyScore(unsortedEvents, 0, baseConfig)).toEqual(calculateEfficiencyScore(sortedEvents, 0, baseConfig));
+  });
 });

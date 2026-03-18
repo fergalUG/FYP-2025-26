@@ -1,7 +1,7 @@
 import type { Event, ScoreTimelinePoint } from '@types';
-import { EventType } from '@types';
 
 import { DEFAULT_EFFICIENCY_SCORING_CONFIG, type EfficiencyScoringConfig } from '@utils/scoring/efficiencyScoringConfig';
+import { getJourneyBounds, sortJourneyEventsByTimestamp } from '@utils/scoring/journeyEvents';
 import { normalizeJourneyEvents, type NormalizedJourneyEvents } from '@utils/scoring/normalizeEvents';
 import {
   advanceScoreTimelineSegment,
@@ -17,23 +17,6 @@ interface BuildScoreTimelineSeriesOptions {
 
 const DEFAULT_MAX_POINTS = 100;
 const DEFAULT_BASE_SAMPLES = 180;
-
-const getJourneyBounds = (events: Event[]): { startTimestamp: number; endTimestamp: number } | null => {
-  if (events.length === 0) {
-    return null;
-  }
-
-  const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
-
-  const startEvent = sorted.find((event) => event.type === EventType.JourneyStart);
-  const endEvent = [...sorted].reverse().find((event) => event.type === EventType.JourneyEnd);
-
-  const earliestTimestamp = sorted[0].timestamp;
-  const startTimestamp = startEvent ? Math.min(startEvent.timestamp, earliestTimestamp) : earliestTimestamp;
-  const endTimestamp = endEvent?.timestamp ?? sorted[sorted.length - 1].timestamp;
-
-  return { startTimestamp, endTimestamp };
-};
 
 const buildPenaltyActions = (normalized: NormalizedJourneyEvents): PenaltyAction[] => {
   return [
@@ -126,13 +109,14 @@ const compressScoreTimelinePoints = (points: ScoreTimelinePoint[], maxPoints: nu
 export const buildScoreTimelineSeries = (events: Event[], options: BuildScoreTimelineSeriesOptions = {}): ScoreTimelinePoint[] => {
   const config = options.config ?? DEFAULT_EFFICIENCY_SCORING_CONFIG;
   const maxPoints = options.maxPoints ?? DEFAULT_MAX_POINTS;
-  const bounds = getJourneyBounds(events);
+  const sortedEvents = sortJourneyEventsByTimestamp(events);
+  const bounds = getJourneyBounds(sortedEvents, { eventsAreSorted: true });
 
   if (!bounds) {
     return [];
   }
 
-  const normalized = normalizeJourneyEvents(events, config);
+  const normalized = normalizeJourneyEvents(sortedEvents, config, { eventsAreSorted: true });
   const simulation = simulateScoreTimelineDetailed({
     startTimestamp: bounds.startTimestamp,
     endTimestamp: bounds.endTimestamp,

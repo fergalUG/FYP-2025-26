@@ -2,6 +2,7 @@ import type { DrivingEventFamily, Event, EventSeverity } from '@types';
 import { EventType } from '@types';
 
 import type { EfficiencyScoringConfig, IncidentFamily, SpeedingSeverity } from '@utils/scoring/efficiencyScoringConfig';
+import { sortJourneyEventsByTimestamp } from '@utils/scoring/journeyEvents';
 
 interface NormalizedIncident {
   family: IncidentFamily;
@@ -56,6 +57,10 @@ interface NormalizedDrivingEvent {
   severity: EventSeverity;
 }
 
+interface NormalizeJourneyEventsOptions {
+  eventsAreSorted?: boolean;
+}
+
 const severityWeight: Record<EventSeverity, number> = {
   light: 1,
   moderate: 2,
@@ -100,8 +105,12 @@ const getOscillationDurationSeconds = (event: Event): number => {
   return episodeDurationMs / 1000;
 };
 
-export const normalizeJourneyEvents = (events: Event[], config: EfficiencyScoringConfig): NormalizedJourneyEvents => {
-  const sorted = [...events].sort((a, b) => a.timestamp - b.timestamp);
+export const normalizeJourneyEvents = (
+  events: Event[],
+  config: EfficiencyScoringConfig,
+  options: NormalizeJourneyEventsOptions = {}
+): NormalizedJourneyEvents => {
+  const sorted = options.eventsAreSorted ? events : sortJourneyEventsByTimestamp(events);
 
   const incidents: NormalizedIncident[] = [];
   const lastIncidentTimestampByFamily = new Map<IncidentFamily, number>();

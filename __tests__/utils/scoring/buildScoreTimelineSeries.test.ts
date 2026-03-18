@@ -57,4 +57,17 @@ describe('buildScoreTimelineSeries', () => {
     expect(duringOrAfterSpeeding?.score ?? 100).toBeLessThan(beforeSpeeding?.score ?? 100);
     expect(finalPoint?.score ?? 0).toBeGreaterThan(duringOrAfterSpeeding?.score ?? 0);
   });
+
+  it('returns the same series for unsorted input events', () => {
+    const sortedEvents = [
+      makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart }),
+      makeEvent({ id: 2, timestamp: 100000, type: EventType.DrivingEvent, family: 'speeding', severity: 'moderate', speed: 70 }),
+      makeEvent({ id: 3, timestamp: 110000, type: EventType.DrivingEvent, family: 'speeding', severity: 'moderate', speed: 72 }),
+      makeEvent({ id: 4, timestamp: 120000, type: EventType.DrivingEvent, family: 'speeding', severity: 'moderate', speed: 74 }),
+      makeEvent({ id: 5, timestamp: 300000, type: EventType.JourneyEnd }),
+    ];
+    const unsortedEvents = [sortedEvents[3], sortedEvents[0], sortedEvents[4], sortedEvents[1], sortedEvents[2]];
+
+    expect(buildScoreTimelineSeries(unsortedEvents, { maxPoints: 24 })).toEqual(buildScoreTimelineSeries(sortedEvents, { maxPoints: 24 }));
+  });
 });
