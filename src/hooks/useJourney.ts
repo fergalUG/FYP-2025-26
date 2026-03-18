@@ -6,11 +6,7 @@ import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.Hooks);
 
-const subscribeToJourneyResource = (
-  journeyId: number,
-  onDelete: () => void,
-  onRefresh: () => void
-): (() => void) | undefined => {
+const subscribeToJourneyResource = (journeyId: number, onDelete: () => void, onRefresh: () => void): (() => void) | undefined => {
   if (!journeyId) {
     return undefined;
   }
