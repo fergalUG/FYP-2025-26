@@ -209,7 +209,7 @@ const buildOverviewCategorySummary = (args: {
       evaluatedJourneyCount: 0,
       affectedJourneyPercentage: null,
       severityBreakdown: severityResolver ? createSeverityBreakdown() : null,
-      totalDurationSeconds: durationResolver ? null : null,
+      totalDurationSeconds: null,
       availability,
       availabilityMessage,
     };

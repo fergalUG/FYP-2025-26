@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@hooks/useTheme';
+import { createSurfaceCardStyle } from '@utils/themeStyles';
 
 export type ToastVariant = 'info' | 'success' | 'warning' | 'error';
 
@@ -44,14 +45,9 @@ export const Toast = (props: ToastProps) => {
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
     container: {
+      ...createSurfaceCardStyle(theme, { gap: 'sm' }),
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: theme.spacing.sm,
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
       shadowColor: theme.colors.shadow,
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.15,

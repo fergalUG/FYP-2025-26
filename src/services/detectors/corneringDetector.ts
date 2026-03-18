@@ -2,10 +2,11 @@ import {
   CORNERING_MAX_ABS_SPEED_CHANGE_KMH_PER_SEC,
   CORNERING_TIER_THRESHOLDS,
   DETECTION_COOLDOWN_MS,
-  SEVERITY_ORDER_DESC,
 } from '@utils/tracking/severityThresholds';
+import { roundTo } from '@utils/number';
 
 import type { CorneringDetectorContext, DetectorResult } from '@types';
+import { createCooldownGate, findHighestSeverity } from '@services/detectors/shared';
 
 interface CorneringDetector {
   detect: (context: CorneringDetectorContext) => DetectorResult;
@@ -13,7 +14,7 @@ interface CorneringDetector {
 }
 
 export const createCorneringDetector = (): CorneringDetector => {
-  let lastEventTimeMs: number | null = null;
+  const cooldownGate = createCooldownGate(DETECTION_COOLDOWN_MS.cornering);
 
   const detect = (context: CorneringDetectorContext): DetectorResult => {
     const { nowMs, speedChangeRateKmhPerSec, horizontalForceG, headingChangeDeg, speedBand } = context;
@@ -38,32 +39,29 @@ export const createCorneringDetector = (): CorneringDetector => {
       return { detected: false, reason: 'heading' };
     }
 
-    const severity =
-      SEVERITY_ORDER_DESC.find((tier) => {
-        const tierThresholds = thresholds[tier];
-        return horizontalForceG >= tierThresholds.minForceG && headingChangeDeg >= tierThresholds.minHeadingChangeDeg;
-      }) ?? 'light';
+    const severity = findHighestSeverity(thresholds, (tierThresholds) => {
+      return horizontalForceG >= tierThresholds.minForceG && headingChangeDeg >= tierThresholds.minHeadingChangeDeg;
+    });
 
-    const cooldownMs = DETECTION_COOLDOWN_MS.cornering[severity];
-    if (lastEventTimeMs !== null && nowMs - lastEventTimeMs < cooldownMs) {
-      return { detected: false, reason: 'cooldown' };
+    const cooldownResult = cooldownGate.enter(nowMs, severity);
+    if (cooldownResult) {
+      return cooldownResult;
     }
 
-    lastEventTimeMs = nowMs;
     return {
       detected: true,
       severity,
       reason: 'none',
       metadata: {
-        horizontalForceG: Number(horizontalForceG.toFixed(3)),
-        headingChangeDeg: Number(headingChangeDeg.toFixed(3)),
-        speedChangeRateKmhPerSec: Number(speedChangeRateKmhPerSec.toFixed(3)),
+        horizontalForceG: roundTo(horizontalForceG, 3),
+        headingChangeDeg: roundTo(headingChangeDeg, 3),
+        speedChangeRateKmhPerSec: roundTo(speedChangeRateKmhPerSec, 3),
       },
     };
   };
 
   const reset = () => {
-    lastEventTimeMs = null;
+    cooldownGate.reset();
   };
 
   return {

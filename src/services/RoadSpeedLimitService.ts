@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 import { createLogger, LogModule } from '@utils/logger';
+import { roundTo } from '@utils/number';
 
 import type {
   RoadSpeedLimitLookupArgs,
@@ -275,8 +276,8 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
         secondBest.distanceMeters - bestMatch.distanceMeters <= AMBIGUOUS_DISTANCE_DELTA_METERS
       ) {
         deps.logger.debug('Skipping offline speed limit lookup due to ambiguous nearby road match', {
-          latitude: Number(args.latitude.toFixed(6)),
-          longitude: Number(args.longitude.toFixed(6)),
+          latitude: roundTo(args.latitude, 6),
+          longitude: roundTo(args.longitude, 6),
           bestWayId: bestMatch.row.wayId,
           secondWayId: secondBest.row.wayId,
         });
@@ -284,7 +285,7 @@ export const createRoadSpeedLimitServiceController = (deps: RoadSpeedLimitServic
       }
 
       return {
-        speedLimitKmh: Number(bestMatch.row.speedLimitKmh.toFixed(1)),
+        speedLimitKmh: roundTo(bestMatch.row.speedLimitKmh, 1),
         source: 'offline_osm',
         wayId: bestMatch.row.wayId,
         rawMaxspeed: bestMatch.row.rawSpeedTag ?? undefined,

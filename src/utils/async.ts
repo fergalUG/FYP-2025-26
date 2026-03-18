@@ -17,3 +17,12 @@ export const executeWithLoading = async <T>(
     setLoading(false);
   }
 };
+
+export const withLoadingState = async <T>(operation: () => Promise<T>, setLoading: (loading: boolean) => void): Promise<T> => {
+  setLoading(true);
+  try {
+    return await operation();
+  } finally {
+    setLoading(false);
+  }
+};

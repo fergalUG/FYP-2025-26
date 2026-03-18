@@ -1,6 +1,8 @@
-import { ACCELERATION_TIER_THRESHOLDS, DETECTION_COOLDOWN_MS, SEVERITY_ORDER_DESC } from '@utils/tracking/severityThresholds';
+import { DETECTION_COOLDOWN_MS, ACCELERATION_TIER_THRESHOLDS } from '@utils/tracking/severityThresholds';
+import { roundTo } from '@utils/number';
 
 import type { DetectorContext, DetectorResult } from '@types';
+import { createCooldownGate, findHighestSeverity } from '@services/detectors/shared';
 
 interface AccelerationDetector {
   detect: (context: DetectorContext) => DetectorResult;
@@ -8,7 +10,7 @@ interface AccelerationDetector {
 }
 
 export const createAccelerationDetector = (): AccelerationDetector => {
-  let lastEventTimeMs: number | null = null;
+  const cooldownGate = createCooldownGate(DETECTION_COOLDOWN_MS.acceleration);
 
   const detect = (context: DetectorContext): DetectorResult => {
     const { nowMs, speedChangeRateKmhPerSec, horizontalForceG, speedBand } = context;
@@ -28,31 +30,28 @@ export const createAccelerationDetector = (): AccelerationDetector => {
       return { detected: false, reason: 'force' };
     }
 
-    const severity =
-      SEVERITY_ORDER_DESC.find((tier) => {
-        const tierThresholds = thresholds[tier];
-        return accelRate >= tierThresholds.minRateKmhPerSec && horizontalForceG >= tierThresholds.minForceG;
-      }) ?? 'light';
+    const severity = findHighestSeverity(thresholds, (tierThresholds) => {
+      return accelRate >= tierThresholds.minRateKmhPerSec && horizontalForceG >= tierThresholds.minForceG;
+    });
 
-    const cooldownMs = DETECTION_COOLDOWN_MS.acceleration[severity];
-    if (lastEventTimeMs !== null && nowMs - lastEventTimeMs < cooldownMs) {
-      return { detected: false, reason: 'cooldown' };
+    const cooldownResult = cooldownGate.enter(nowMs, severity);
+    if (cooldownResult) {
+      return cooldownResult;
     }
 
-    lastEventTimeMs = nowMs;
     return {
       detected: true,
       severity,
       reason: 'none',
       metadata: {
-        horizontalForceG: Number(horizontalForceG.toFixed(3)),
-        speedChangeRateKmhPerSec: Number(speedChangeRateKmhPerSec.toFixed(3)),
+        horizontalForceG: roundTo(horizontalForceG, 3),
+        speedChangeRateKmhPerSec: roundTo(speedChangeRateKmhPerSec, 3),
       },
     };
   };
 
   const reset = () => {
-    lastEventTimeMs = null;
+    cooldownGate.reset();
   };
 
   return {

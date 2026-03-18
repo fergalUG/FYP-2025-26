@@ -8,6 +8,7 @@ import type { JourneyComparisonSummary } from '@types';
 import { buildJourneyComparisonSummary } from '@utils/journeyInsights';
 import { getScoreColor } from '@utils/score';
 import { buildScoreTimelineSeries } from '@utils/scoring/buildScoreTimelineSeries';
+import { createCenteredContentStyle, createContentContainerStyle, createScreenStyle, createSurfaceCardStyle } from '@utils/themeStyles';
 
 const formatDurationLabel = (durationMs: number): string => {
   const totalMinutes = Math.max(0, Math.round(durationMs / 60000));
@@ -269,28 +270,10 @@ export default function JourneyDetail() {
 
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    content: {
-      padding: theme.spacing.lg,
-      paddingBottom: theme.spacing.xl,
-      gap: theme.spacing.lg,
-    },
-    centerContent: {
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: theme.spacing.lg,
-    },
-    headerCard: {
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      gap: theme.spacing.md,
-    },
+    screen: createScreenStyle(theme),
+    content: createContentContainerStyle(theme),
+    centerContent: createCenteredContentStyle(theme),
+    headerCard: createSurfaceCardStyle(theme, { gap: 'md' }),
     headerTop: {
       flexDirection: 'row',
       gap: theme.spacing.md,
@@ -336,14 +319,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontWeight: '700',
       color: theme.colors.onBackground,
     },
-    sectionCard: {
-      padding: theme.spacing.lg,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      gap: theme.spacing.md,
-    },
+    sectionCard: createSurfaceCardStyle(theme, { padding: 'lg', gap: 'md' }),
     sectionTitle: {
       fontSize: 18,
       fontWeight: '700',

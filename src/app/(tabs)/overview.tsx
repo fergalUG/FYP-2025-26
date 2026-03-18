@@ -7,6 +7,7 @@ import { OverviewCategoryCard } from '@components/overview/OverviewCategoryCard'
 import { formatOverviewDrivingTime, shouldUseCompactOverviewCards } from '@components/overview/model';
 import { useAppSettings, useJourneys, useTheme } from '@hooks';
 import { buildDrivingOverviewSummary } from '@utils/journeyInsights';
+import { createCenteredContentStyle, createContentContainerStyle, createScreenStyle, createSurfaceCardStyle } from '@utils/themeStyles';
 
 const formatDistance = (distanceKm: number): string => `${distanceKm.toFixed(1)} km`;
 
@@ -116,31 +117,10 @@ export default function OverviewScreen() {
 
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    content: {
-      padding: theme.spacing.lg,
-      paddingBottom: theme.spacing.xl,
-      gap: theme.spacing.lg,
-      maxWidth: theme.dimensions.deviceMaxWidth,
-      width: '100%',
-      alignSelf: 'center',
-    },
-    centerContent: {
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: theme.spacing.lg,
-      gap: theme.spacing.md,
-    },
-    headerCard: {
-      padding: theme.spacing.lg,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-    },
+    screen: createScreenStyle(theme),
+    content: createContentContainerStyle(theme, { constrainWidth: true }),
+    centerContent: createCenteredContentStyle(theme, { gap: 'md' }),
+    headerCard: createSurfaceCardStyle(theme, { padding: 'lg' }),
     headerRow: {
       alignItems: 'stretch',
       gap: theme.spacing.md,
@@ -206,14 +186,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     categoryCardCompact: {
       width: '48%',
     },
-    emptyCard: {
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      gap: theme.spacing.xs,
-    },
+    emptyCard: createSurfaceCardStyle(theme, { gap: 'xs' }),
     emptyTitle: {
       fontSize: 16,
       fontWeight: '700',

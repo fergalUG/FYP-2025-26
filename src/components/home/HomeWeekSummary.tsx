@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@hooks/useTheme';
 import { getScoreColor } from '@utils/score';
+import { createSurfaceCardStyle } from '@utils/themeStyles';
 import { StatTile } from '@components/common/StatTile';
 import { AppButton } from '@components/common/AppButton';
 import type { JourneyPeriodSummary, SummaryRange } from '@types';
@@ -62,14 +63,7 @@ export const HomeWeekSummary = (props: HomeWeekSummaryProps) => {
 
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
-    sectionCard: {
-      padding: theme.spacing.lg,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      gap: theme.spacing.md,
-    },
+    sectionCard: createSurfaceCardStyle(theme, { padding: 'lg', gap: 'md' }),
     headerRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',

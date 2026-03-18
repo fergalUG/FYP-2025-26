@@ -9,6 +9,7 @@ import { HomeHeroCard, HomeWeekSummary, HomeLastDriveCard } from '@components';
 
 import { createLogger, LogModule } from '@utils/logger';
 import { buildJourneyPeriodSummary, isCompletedJourney } from '@utils/journeyInsights';
+import { createContentContainerStyle, createScreenStyle } from '@utils/themeStyles';
 
 const logger = createLogger(LogModule.Component);
 
@@ -83,16 +84,6 @@ export default function Page() {
 
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    content: {
-      padding: theme.spacing.lg,
-      paddingBottom: theme.spacing.xl,
-      gap: theme.spacing.lg,
-      maxWidth: theme.dimensions.deviceMaxWidth,
-      alignSelf: 'center',
-      width: '100%',
-    },
+    screen: createScreenStyle(theme),
+    content: createContentContainerStyle(theme, { constrainWidth: true }),
   });

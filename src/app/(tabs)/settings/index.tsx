@@ -11,6 +11,8 @@ import { useBackgroundService } from '@hooks';
 import { LogService } from '@services/LogService';
 import { SpeedLimitPackService } from '@services/SpeedLimitPackService';
 import { showConfirmAlert, showSuccessAlert } from '@utils/alert';
+import { withLoadingState } from '@utils/async';
+import { createContentContainerStyle, createScreenStyle, createSurfaceCardStyle } from '@utils/themeStyles';
 
 import type { SpeedLimitPackStatus } from '@types';
 
@@ -68,12 +70,9 @@ export default function Settings() {
   };
 
   const loadLogFiles = async () => {
-    setLoadingLogFiles(true);
-    try {
+    await withLoadingState(async () => {
       setLogFiles(LogService.listLogFiles());
-    } finally {
-      setLoadingLogFiles(false);
-    }
+    }, setLoadingLogFiles);
   };
 
   const formattedLogFiles = useMemo(() => {
@@ -85,36 +84,34 @@ export default function Settings() {
   }, [logFiles]);
 
   const handleExportDatabase = async () => {
-    setExporting(true);
-    await JourneyService.exportDatabase();
-    setExporting(false);
+    await withLoadingState(() => JourneyService.exportDatabase(), setExporting);
   };
 
   const handleExportLogs = async () => {
-    setExportingLogs(true);
-    await LogService.exportSessionLogs();
-    setExportingLogs(false);
-    loadLogFiles();
+    await withLoadingState(async () => {
+      await LogService.exportSessionLogs();
+      await loadLogFiles();
+    }, setExportingLogs);
   };
 
   const handleExportAllLogs = async () => {
-    setExportingAllLogs(true);
-    await LogService.exportAllLogs();
-    setExportingAllLogs(false);
+    await withLoadingState(() => LogService.exportAllLogs(), setExportingAllLogs);
   };
 
   const handleClearLogs = async () => {
-    setClearingLogs(true);
-    await LogService.clearSessionLogs();
-    setClearingLogs(false);
-    loadLogFiles();
+    await withLoadingState(async () => {
+      await LogService.clearSessionLogs();
+      await loadLogFiles();
+    }, setClearingLogs);
   };
 
   const executeDeleteOldLogs = async () => {
-    setDeletingLogs(true);
-    const deletedCount = await LogService.deleteOldLogs();
-    setDeletingLogs(false);
-    loadLogFiles();
+    const deletedCount = await withLoadingState(async () => {
+      const deletedFileCount = await LogService.deleteOldLogs();
+      await loadLogFiles();
+      return deletedFileCount;
+    }, setDeletingLogs);
+
     showSuccessAlert(
       'Old logs deleted',
       deletedCount > 0 ? `Deleted ${deletedCount} old log file${deletedCount === 1 ? '' : 's'}.` : 'No old log files found.'
@@ -269,32 +266,26 @@ export default function Settings() {
             : null;
 
   const handleManualStartActiveTracking = async () => {
-    setStartingManualTracking(true);
     try {
-      await backgroundService.manualStartActiveTracking();
+      await withLoadingState(() => backgroundService.manualStartActiveTracking(), setStartingManualTracking);
     } catch (error) {
       showToast({
         title: 'Error',
         message: 'Failed to start active tracking: ' + (error instanceof Error ? error.message : String(error)),
         variant: 'error',
       });
-    } finally {
-      setStartingManualTracking(false);
     }
   };
 
   const handleManualStopActiveTracking = async () => {
-    setStoppingManualTracking(true);
     try {
-      await backgroundService.manualStopActiveTracking();
+      await withLoadingState(() => backgroundService.manualStopActiveTracking(), setStoppingManualTracking);
     } catch (error) {
       showToast({
         title: 'Error',
         message: 'Failed to stop active tracking: ' + (error instanceof Error ? error.message : String(error)),
         variant: 'error',
       });
-    } finally {
-      setStoppingManualTracking(false);
     }
   };
 
@@ -676,24 +667,12 @@ const formatBytes = (value: number | null): string => {
 
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    content: {
-      padding: theme.spacing.lg,
-      paddingBottom: theme.spacing.xl,
-      gap: theme.spacing.lg,
-    },
+    screen: createScreenStyle(theme),
+    content: createContentContainerStyle(theme),
     profileCard: {
+      ...createSurfaceCardStyle(theme, { gap: 'md' }),
       flexDirection: 'row',
       alignItems: 'center',
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      gap: theme.spacing.md,
     },
     avatarWrap: {
       width: 72,
@@ -772,14 +751,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       textTransform: 'uppercase',
       letterSpacing: 0.6,
     },
-    card: {
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      gap: theme.spacing.sm,
-    },
+    card: createSurfaceCardStyle(theme, { radius: 'md', gap: 'sm' }),
     itemTitle: {
       fontSize: 16,
       fontWeight: '700',
