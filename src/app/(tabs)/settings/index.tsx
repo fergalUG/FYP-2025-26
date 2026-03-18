@@ -61,6 +61,12 @@ export default function Settings() {
     };
   }, []);
 
+  const refreshSpeedLimitPackStatus = async (): Promise<SpeedLimitPackStatus> => {
+    const latestStatus = await SpeedLimitPackService.getLocalStatus();
+    setPackStatus(latestStatus);
+    return latestStatus;
+  };
+
   const loadLogFiles = async () => {
     setLoadingLogFiles(true);
     try {
@@ -196,8 +202,7 @@ export default function Settings() {
   const handleDownloadSpeedLimitPack = async () => {
     const success = await SpeedLimitPackService.downloadPack('ie-ni');
     if (!success) {
-      const latestStatus = await SpeedLimitPackService.getLocalStatus();
-      setPackStatus(latestStatus);
+      const latestStatus = await refreshSpeedLimitPackStatus();
       showToast({
         title: 'Road data download failed',
         message: latestStatus.errorMessage ?? 'Could not install the offline road data pack.',
@@ -205,6 +210,8 @@ export default function Settings() {
       });
       return;
     }
+
+    await refreshSpeedLimitPackStatus();
 
     showToast({
       title: 'Road data ready',
@@ -217,8 +224,7 @@ export default function Settings() {
   const executeRemoveSpeedLimitPack = async () => {
     const success = await SpeedLimitPackService.removePack('ie-ni');
     if (!success) {
-      const latestStatus = await SpeedLimitPackService.getLocalStatus();
-      setPackStatus(latestStatus);
+      const latestStatus = await refreshSpeedLimitPackStatus();
       showToast({
         title: 'Could not remove road data',
         message: latestStatus.errorMessage ?? 'Offline road data could not be removed.',
@@ -226,6 +232,8 @@ export default function Settings() {
       });
       return;
     }
+
+    await refreshSpeedLimitPackStatus();
 
     showToast({
       title: 'Road data removed',
