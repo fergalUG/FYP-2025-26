@@ -38,6 +38,8 @@ const renderComparisonContent = (
   const roundedCurrentScore = Math.round(comparisonSummary.currentScore);
   const roundedBaselineScore = Math.round(comparisonSummary.baselineAverageScore);
   const roundedDelta = Math.round(comparisonSummary.delta ?? 0);
+  const deltaToneColor = roundedDelta > 0 ? theme.colors.primary : roundedDelta < 0 ? theme.colors.error : theme.colors.textSecondary;
+  const deltaCopy = roundedDelta > 0 ? 'above your usual' : roundedDelta < 0 ? 'below your usual' : 'right on your usual';
 
   return (
     <>
@@ -56,13 +58,18 @@ const renderComparisonContent = (
           variant="compact"
           style={styles.comparisonTile}
         />
-        <StatTile
-          label="Delta"
-          value={`${roundedDelta >= 0 ? '+' : ''}${roundedDelta}`}
-          valueColor={roundedDelta >= 0 ? theme.colors.primary : theme.colors.error}
-          variant="compact"
-          style={styles.comparisonTileFull}
-        />
+      </View>
+      <View
+        style={[
+          styles.comparisonDeltaBadge,
+          {
+            backgroundColor: `${deltaToneColor}18`,
+            borderColor: `${deltaToneColor}40`,
+          },
+        ]}
+      >
+        <Text style={[styles.comparisonDeltaValue, { color: deltaToneColor }]}>{`${roundedDelta >= 0 ? '+' : ''}${roundedDelta}`}</Text>
+        <Text style={styles.comparisonDeltaText}>{deltaCopy}</Text>
       </View>
       <Text style={styles.mutedText}>Based on {comparisonSummary.baselineJourneyCount} prior completed journeys.</Text>
     </>
@@ -379,8 +386,27 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     comparisonTile: {
       width: '48%',
     },
-    comparisonTileFull: {
-      width: '100%',
+    comparisonDeltaBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: theme.spacing.xs,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      minHeight: 44,
+    },
+    comparisonDeltaValue: {
+      fontSize: 20,
+      lineHeight: 22,
+      fontWeight: '900',
+    },
+    comparisonDeltaText: {
+      fontSize: 14,
+      lineHeight: 18,
+      fontWeight: '700',
+      color: theme.colors.onSurface,
     },
     timelineMetaRow: {
       flexDirection: 'row',
