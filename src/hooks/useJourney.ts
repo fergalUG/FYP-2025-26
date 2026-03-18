@@ -6,6 +6,27 @@ import { createLogger, LogModule } from '@utils/logger';
 
 const logger = createLogger(LogModule.Hooks);
 
+const subscribeToJourneyResource = (journeyId: number, onDelete: () => void, onRefresh: () => void): (() => void) | undefined => {
+  if (!journeyId) {
+    return undefined;
+  }
+
+  return JourneyService.addJourneyListener((event) => {
+    if (event.journeyId !== journeyId) {
+      return;
+    }
+
+    if (event.type === 'journey-deleted') {
+      onDelete();
+      return;
+    }
+
+    if (event.type === 'journey-updated' || event.type === 'journey-ended') {
+      onRefresh();
+    }
+  });
+};
+
 const useJourney = (id: number) => {
   const [journey, setJourney] = useState<Journey | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -28,26 +49,7 @@ const useJourney = (id: number) => {
   }, [fetchJourney]);
 
   useEffect(() => {
-    if (!id) {
-      return;
-    }
-
-    const unsubscribe = JourneyService.addJourneyListener((event) => {
-      if (event.journeyId !== id) {
-        return;
-      }
-
-      if (event.type === 'journey-deleted') {
-        setJourney(null);
-        return;
-      }
-
-      if (event.type === 'journey-updated' || event.type === 'journey-ended') {
-        fetchJourney();
-      }
-    });
-
-    return unsubscribe;
+    return subscribeToJourneyResource(id, () => setJourney(null), fetchJourney);
   }, [id, fetchJourney]);
 
   const updateJourney = async (updates: Partial<Journey>) => {
@@ -96,26 +98,7 @@ const useJourneyEvents = (journeyId: number) => {
   }, [fetchEvents]);
 
   useEffect(() => {
-    if (!journeyId) {
-      return;
-    }
-
-    const unsubscribe = JourneyService.addJourneyListener((event) => {
-      if (event.journeyId !== journeyId) {
-        return;
-      }
-
-      if (event.type === 'journey-deleted') {
-        setEvents([]);
-        return;
-      }
-
-      if (event.type === 'journey-updated' || event.type === 'journey-ended') {
-        fetchEvents();
-      }
-    });
-
-    return unsubscribe;
+    return subscribeToJourneyResource(journeyId, () => setEvents([]), fetchEvents);
   }, [journeyId, fetchEvents]);
 
   return {

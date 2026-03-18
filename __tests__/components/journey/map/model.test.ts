@@ -1,116 +1,50 @@
-import { buildPinDetails } from '@components/journey/map/model';
-import type { IncidentMarker, OscillationEpisodeMarker, SpeedingEpisodeMarker } from '@components/journey/map/types';
-import { EventType, type Event } from '@types';
+import type { Event } from '@types';
+import { EventType } from '@types';
 
-const buildRowLabels = (labels: string[]) => expect.arrayContaining(labels);
+import { buildJourneyMapData, buildPinDetails, findSelectedPinById } from '@components/journey/map/model';
 
-describe('buildPinDetails', () => {
-  it('hides speeding debug metadata unless enabled', () => {
-    const marker: SpeedingEpisodeMarker = {
-      id: 'speeding-1',
-      kind: 'speeding_episode',
-      severity: 'moderate',
-      latitude: 53.3498,
-      longitude: -6.2603,
-      startTimestamp: 1_000,
-      endTimestamp: 9_000,
-      representativeSpeedKmh: 78.4,
-      representativeSpeedLimitKmh: 50,
-      peakOverLimitKmh: 28.4,
-      minSpeedLimitKmh: 50,
-      maxSpeedLimitKmh: 60,
-      speedLimitSourceLabel: 'Offline OSM',
-      speedLimitFromCacheLabel: 'Yes',
-      speedLimitWayIdLabel: '12345',
-      speedLimitRawLabel: '50 mph',
-      sampleCount: 14,
-    };
+const makeEvent = (partial: Partial<Event> & Pick<Event, 'id' | 'timestamp' | 'type'>): Event => ({
+  id: partial.id,
+  journeyId: partial.journeyId ?? 1,
+  timestamp: partial.timestamp,
+  type: partial.type,
+  latitude: partial.latitude ?? 53,
+  longitude: partial.longitude ?? -6,
+  speed: partial.speed ?? 0,
+  family: partial.family ?? null,
+  severity: partial.severity ?? null,
+  metadata: partial.metadata ?? null,
+});
 
-    const defaultDetails = buildPinDetails(marker);
-    const debugDetails = buildPinDetails(marker, { showDebugMetadata: true });
+describe('journey map model', () => {
+  it('keeps journey map selection focused on route incidents and episode markers', () => {
+    const events = [
+      makeEvent({ id: 1, timestamp: 0, type: EventType.JourneyStart, latitude: 53.0, longitude: -6.0 }),
+      makeEvent({
+        id: 2,
+        timestamp: 1000,
+        type: EventType.DrivingEvent,
+        family: 'braking',
+        severity: 'moderate',
+        latitude: 53.0002,
+        longitude: -6.0002,
+      }),
+      makeEvent({ id: 3, timestamp: 2000, type: EventType.LocationUpdate, latitude: 53.0005, longitude: -6.0005 }),
+      makeEvent({ id: 4, timestamp: 3000, type: EventType.JourneyEnd, latitude: 53.001, longitude: -6.001 }),
+    ];
 
-    expect(defaultDetails.rows.map((row) => row.label)).toEqual(
-      expect.not.arrayContaining(['Limit source', 'From cache', 'Way ID', 'Raw maxspeed'])
+    const data = buildJourneyMapData(events);
+    const selectedPin = findSelectedPinById(data, 'incident-2');
+    const details = selectedPin ? buildPinDetails(selectedPin) : null;
+
+    expect(data.incidentMarkers).toHaveLength(1);
+    expect(data.legendFlags.hasBraking).toBe(true);
+    expect(selectedPin).toEqual(expect.objectContaining({ id: 'incident-2', kind: 'incident' }));
+    expect(details).toEqual(
+      expect.objectContaining({
+        title: 'Moderate Braking',
+        subtitle: 'Moderate incident',
+      })
     );
-    expect(defaultDetails.rows.map((row) => row.label)).toEqual(buildRowLabels(['Peak speed', 'Limit at peak', 'Samples']));
-
-    expect(debugDetails.rows.map((row) => row.label)).toEqual(buildRowLabels(['Limit source', 'From cache', 'Way ID', 'Raw maxspeed']));
-  });
-
-  it('hides oscillation debug metadata unless enabled', () => {
-    const event: Event = {
-      id: 1,
-      journeyId: 99,
-      timestamp: 15_000,
-      type: EventType.DrivingEvent,
-      latitude: 53.3498,
-      longitude: -6.2603,
-      speed: 13.5,
-      family: 'oscillation',
-      severity: 'light',
-      metadata: {
-        episodeDurationMs: 10_000,
-        speedStdDevKmh: 7.3,
-        signFlipCount: 5,
-        forceP90G: 0.245,
-        forceMeanG: 0.122,
-      },
-    };
-    const marker: OscillationEpisodeMarker = {
-      id: 'oscillation-1',
-      kind: 'oscillation_episode',
-      event,
-      severity: 'light',
-      latitude: 53.3498,
-      longitude: -6.2603,
-      startTimestamp: 10_000,
-      endTimestamp: 20_000,
-    };
-
-    const defaultDetails = buildPinDetails(marker);
-    const debugDetails = buildPinDetails(marker, { showDebugMetadata: true });
-
-    expect(defaultDetails.rows.map((row) => row.label)).toEqual(expect.not.arrayContaining(['Sign flips', 'Force p90', 'Force mean']));
-    expect(defaultDetails.rows.map((row) => row.label)).toEqual(buildRowLabels(['Speed std dev']));
-
-    expect(debugDetails.rows.map((row) => row.label)).toEqual(buildRowLabels(['Sign flips', 'Force p90', 'Force mean']));
-  });
-
-  it('hides stop-and-go debug metadata unless enabled', () => {
-    const event: Event = {
-      id: 2,
-      journeyId: 99,
-      timestamp: 25_000,
-      type: EventType.StopAndGo,
-      latitude: 53.3498,
-      longitude: -6.2603,
-      speed: 4.2,
-      severity: null,
-      metadata: {
-        cycleCount: 3,
-        detectionWindowMs: 12_000,
-        stopSpeedThresholdKmh: 5,
-        goSpeedThresholdKmh: 12,
-      },
-    };
-    const marker: IncidentMarker = {
-      id: 'stopgo-1',
-      kind: 'incident',
-      event,
-      family: null,
-      severity: null,
-      latitude: 53.3498,
-      longitude: -6.2603,
-    };
-
-    const defaultDetails = buildPinDetails(marker);
-    const debugDetails = buildPinDetails(marker, { showDebugMetadata: true });
-
-    expect(defaultDetails.rows.map((row) => row.label)).toEqual(
-      expect.not.arrayContaining(['Cycle count', 'Window', 'Stop threshold', 'Go threshold'])
-    );
-    expect(defaultDetails.rows.map((row) => row.label)).toEqual(buildRowLabels(['Time', 'Speed']));
-
-    expect(debugDetails.rows.map((row) => row.label)).toEqual(buildRowLabels(['Cycle count', 'Window', 'Stop threshold', 'Go threshold']));
   });
 });

@@ -10,7 +10,9 @@ import type { Journey } from '@/types/db';
 
 import { IconChip, ScoreBadge, AppButton } from '@components';
 
+import { withLoadingState } from '@utils/async';
 import { getScoreColor } from '@utils/score';
+import { createScreenStyle, createSurfaceCardStyle } from '@utils/themeStyles';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type JourneysStyles = ReturnType<typeof createStyles>;
@@ -90,9 +92,7 @@ export default function Journeys() {
   const completedJourneys = useMemo(() => journeys.filter((journey) => journey.endTime && journey.distanceKm != null), [journeys]);
 
   const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
+    await withLoadingState(refetch, setRefreshing);
   }, [refetch]);
 
   const handleDeleteJourney = useCallback(
@@ -188,10 +188,7 @@ export default function Journeys() {
 
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
+    container: createScreenStyle(theme),
     list: {
       padding: theme.spacing.lg,
       gap: theme.spacing.sm,
@@ -206,14 +203,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    card: {
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      gap: theme.spacing.md,
-    },
+    card: createSurfaceCardStyle(theme, { gap: 'md' }),
     cardTopRow: {
       flexDirection: 'row',
       gap: theme.spacing.md,

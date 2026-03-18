@@ -1,6 +1,7 @@
 export { DrivingScoreWheel } from './journey/DrivingScoreWheel';
 export { JourneyMap } from './journey/JourneyMap';
 export { JourneyStats } from './journey/JourneyStats';
+export { ScoreTimelineChart } from './journey/ScoreTimelineChart';
 export { ServiceStatusIndicator } from './ServiceStatusIndicator';
 
 export { IconChip } from './common/IconChip';

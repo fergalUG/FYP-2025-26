@@ -6,6 +6,7 @@ import type { DrivingEventFamily, EventMetadata, EventSeverity } from '@/types/d
 import { EventType } from '@/types/db';
 import type { ScoringStats } from '@/types/scoring';
 import { createLogger, LogModule } from '@utils/logger';
+import { roundTo } from '@utils/number';
 
 const logger = createLogger(LogModule.DB);
 
@@ -318,8 +319,8 @@ const createMockStats = (score: number, durationMs: number, distanceKm: number, 
     moderateOscillationSeconds: 0,
     harshOscillationSeconds: 0,
 
-    avgSpeed: Number(avgSpeed.toFixed(1)),
-    maxSpeed: Number((avgSpeed * 1.45).toFixed(1)),
+    avgSpeed: roundTo(avgSpeed, 1),
+    maxSpeed: roundTo(avgSpeed * 1.45, 1),
   };
 };
 
@@ -358,9 +359,9 @@ const generateRoutePoints = (startLat: number, startLng: number, baseSpeedKmh: n
     const speedKmh = Math.max(8, baseSpeedKmh + speedWave);
 
     points.push({
-      lat: Number(currentLat.toFixed(6)),
-      lng: Number(currentLng.toFixed(6)),
-      speedKmh: Number(speedKmh.toFixed(1)),
+      lat: roundTo(currentLat, 6),
+      lng: roundTo(currentLng, 6),
+      speedKmh: roundTo(speedKmh, 1),
       offsetMs: Math.floor(progress * durationMs),
     });
   }
@@ -372,8 +373,8 @@ const buildRouteEvents = (startLat: number, startLng: number, routePoints: Route
   const routeEvents: MockEventSeed[] = [
     {
       type: EventType.JourneyStart,
-      lat: Number(startLat.toFixed(6)),
-      lng: Number(startLng.toFixed(6)),
+      lat: roundTo(startLat, 6),
+      lng: roundTo(startLng, 6),
       speed: 0,
       offsetMs: 0,
     },
@@ -495,7 +496,7 @@ const createRatios = (count: number, startRatio: number, endRatio: number): numb
 const buildIncidentEvent = (spec: IncidentEventSpec, routePoints: RoutePoint[], durationMs: number): MockEventSeed => {
   const anchor = getRoutePointByRatio(routePoints, spec.ratio);
   const offsetMs = Math.max(1, Math.min(durationMs - 1, Math.floor(spec.ratio * durationMs)));
-  const speedKmh = Number((spec.speedKmh ?? anchor.speedKmh).toFixed(1));
+  const speedKmh = roundTo(spec.speedKmh ?? anchor.speedKmh, 1);
 
   if (spec.kind === 'stop_and_go') {
     return {
@@ -540,7 +541,7 @@ const buildDrivingMetadata = (family: DrivingEventFamily, severity: EventSeverit
 
   if (family === 'speeding') {
     return {
-      speedKmh: Number(speedKmh.toFixed(1)),
+      speedKmh: roundTo(speedKmh, 1),
       speedBand,
     };
   }
@@ -550,9 +551,9 @@ const buildDrivingMetadata = (family: DrivingEventFamily, severity: EventSeverit
     const baseHeading = 6 + scale * 6;
     return {
       speedBand,
-      horizontalForceG: Number(baseForce.toFixed(3)),
-      headingChangeDeg: Number(baseHeading.toFixed(3)),
-      speedChangeRateKmhPerSec: Number((1.5 * scale).toFixed(3)),
+      horizontalForceG: roundTo(baseForce, 3),
+      headingChangeDeg: roundTo(baseHeading, 3),
+      speedChangeRateKmhPerSec: roundTo(1.5 * scale, 3),
     };
   }
 
@@ -562,8 +563,8 @@ const buildDrivingMetadata = (family: DrivingEventFamily, severity: EventSeverit
 
   return {
     speedBand,
-    horizontalForceG: Number(baseForce.toFixed(3)),
-    speedChangeRateKmhPerSec: Number(signedRate.toFixed(3)),
+    horizontalForceG: roundTo(baseForce, 3),
+    speedChangeRateKmhPerSec: roundTo(signedRate, 3),
   };
 };
 

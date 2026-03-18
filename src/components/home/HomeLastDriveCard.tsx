@@ -4,6 +4,7 @@ import type { Journey } from '@types';
 
 import { useTheme } from '@hooks/useTheme';
 import { getScoreColor } from '@utils/score';
+import { createSurfaceCardStyle } from '@utils/themeStyles';
 import { AppButton } from '@components/common/AppButton';
 import { IconChip } from '@components/common/IconChip';
 import { ScoreBadge } from '@components/common/ScoreBadge';
@@ -83,14 +84,7 @@ export const HomeLastDriveCard = (props: HomeLastDriveCardProps) => {
 
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
-    sectionCard: {
-      padding: theme.spacing.lg,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      gap: theme.spacing.md,
-    },
+    sectionCard: createSurfaceCardStyle(theme, { padding: 'lg', gap: 'md' }),
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',

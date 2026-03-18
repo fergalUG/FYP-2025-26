@@ -8,6 +8,7 @@ import {
   OSCILLATION_WINDOW_MS,
   SEVERITY_ORDER_DESC,
 } from '@utils/tracking/severityThresholds';
+import { roundTo } from '@utils/number';
 
 import type { DetectorResult, EventSeverity, OscillationDetectorContext } from '@types';
 
@@ -240,10 +241,10 @@ export const createOscillationDetector = (): OscillationDetector => {
         episodeStartTs: episodeStartMs,
         episodeEndTs: nowMs,
         episodeDurationMs,
-        speedStdDevKmh: Number(episodePeakStdDevKmh.toFixed(3)),
+        speedStdDevKmh: roundTo(episodePeakStdDevKmh, 3),
         signFlipCount: episodePeakSignFlips,
-        forceP90G: Number(Math.max(episodePeakForceP90G, forceEpisodeP90G).toFixed(3)),
-        forceMeanG: Number(forceMeanG.toFixed(3)),
+        forceP90G: roundTo(Math.max(episodePeakForceP90G, forceEpisodeP90G), 3),
+        forceMeanG: roundTo(forceMeanG, 3),
         speedSampleCount: speedWindow.length,
         forceSampleCount: episodeForceCount > 0 ? episodeForceCount : forceWindow.length,
       },

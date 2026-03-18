@@ -4,6 +4,7 @@ import {
   SPEEDING_OVER_LIMIT_THRESHOLD_KMH,
   SPEEDING_PERSISTENCE_MS,
 } from '@utils/tracking/severityThresholds';
+import { roundTo } from '@utils/number';
 
 import type { DetectorResult, SpeedingDetectorContext } from '@types';
 
@@ -84,8 +85,8 @@ export const createSpeedingDetector = (): SpeedingDetector => {
       severity,
       reason: 'none',
       metadata: {
-        speedLimitKmh: Number(speedLimitKmh.toFixed(1)),
-        overLimitKmh: Number(overLimitKmh.toFixed(2)),
+        speedLimitKmh: roundTo(speedLimitKmh, 1),
+        overLimitKmh: roundTo(overLimitKmh, 2),
       },
     };
   };

@@ -37,3 +37,9 @@ export interface ScoringStats {
   avgSpeed: number;
   maxSpeed: number;
 }
+
+export interface ScoreTimelinePoint {
+  timestamp: number;
+  elapsedMs: number;
+  score: number;
+}

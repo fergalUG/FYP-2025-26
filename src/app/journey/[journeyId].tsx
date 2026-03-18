@@ -1,22 +1,94 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { View, StyleSheet, ActivityIndicator, ScrollView, Text, TextInput } from 'react-native';
-import { Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { useJourneyWithEvents, useTheme } from '@hooks';
+import { AppButton, DrivingScoreWheel, JourneyMap, JourneyStats, ScoreTimelineChart, StatTile } from '@components';
+import { useAppSettings, useJourneyWithEvents, useJourneys, useTheme } from '@hooks';
+import type { JourneyComparisonSummary } from '@types';
+import { buildJourneyComparisonSummary } from '@utils/journeyInsights';
+import { getScoreColor } from '@utils/score';
+import { buildScoreTimelineSeries } from '@utils/scoring/buildScoreTimelineSeries';
+import { createCenteredContentStyle, createContentContainerStyle, createScreenStyle, createSurfaceCardStyle } from '@utils/themeStyles';
 
-import { DrivingScoreWheel, JourneyMap, JourneyStats, AppButton } from '@components';
+const formatDurationLabel = (durationMs: number): string => {
+  const totalMinutes = Math.max(0, Math.round(durationMs / 60000));
+  if (totalMinutes < 60) {
+    return `${totalMinutes}m`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+};
+
+const renderComparisonContent = (
+  comparisonSummary: JourneyComparisonSummary | null,
+  loading: boolean,
+  rangeLabel: string,
+  theme: ReturnType<typeof useTheme>['theme'],
+  styles: ReturnType<typeof createStyles>
+) => {
+  if (loading || !comparisonSummary) {
+    return <Text style={styles.mutedText}>Loading recent journey baseline...</Text>;
+  }
+
+  if (comparisonSummary.baselineAverageScore == null || comparisonSummary.currentScore == null) {
+    return <Text style={styles.mutedText}>No earlier scored journeys in this {rangeLabel} window yet.</Text>;
+  }
+
+  const roundedCurrentScore = Math.round(comparisonSummary.currentScore);
+  const roundedBaselineScore = Math.round(comparisonSummary.baselineAverageScore);
+  const roundedDelta = Math.round(comparisonSummary.delta ?? 0);
+  const deltaToneColor = roundedDelta > 0 ? theme.colors.primary : roundedDelta < 0 ? theme.colors.error : theme.colors.textSecondary;
+  const deltaCopy = roundedDelta > 0 ? 'above your usual' : roundedDelta < 0 ? 'below your usual' : 'right on your usual';
+
+  return (
+    <>
+      <View style={styles.comparisonGrid}>
+        <StatTile
+          label="This Journey"
+          value={`${roundedCurrentScore}/100`}
+          valueColor={getScoreColor(roundedCurrentScore, theme)}
+          variant="compact"
+          style={styles.comparisonTile}
+        />
+        <StatTile
+          label="Your Usual"
+          value={`${roundedBaselineScore}/100`}
+          valueColor={getScoreColor(roundedBaselineScore, theme)}
+          variant="compact"
+          style={styles.comparisonTile}
+        />
+      </View>
+      <View
+        style={[
+          styles.comparisonDeltaBadge,
+          {
+            backgroundColor: `${deltaToneColor}18`,
+            borderColor: `${deltaToneColor}40`,
+          },
+        ]}
+      >
+        <Text style={[styles.comparisonDeltaValue, { color: deltaToneColor }]}>{`${roundedDelta >= 0 ? '+' : ''}${roundedDelta}`}</Text>
+        <Text style={styles.comparisonDeltaText}>{deltaCopy}</Text>
+      </View>
+      <Text style={styles.mutedText}>Based on {comparisonSummary.baselineJourneyCount} prior completed journeys.</Text>
+    </>
+  );
+};
 
 export default function JourneyDetail() {
   const router = useRouter();
   const { theme } = useTheme();
+  const { settings } = useAppSettings();
   const { journeyId } = useLocalSearchParams<{ journeyId: string }>();
-  const { journey, events, journeyLoading, eventsLoading, journeyError, eventsError, updateJourney } = useJourneyWithEvents(
-    Number(journeyId)
-  );
+  const numericJourneyId = Number(journeyId);
+  const { journey, events, journeyLoading, eventsLoading, journeyError, eventsError, updateJourney } =
+    useJourneyWithEvents(numericJourneyId);
+  const { journeys, loading: journeysLoading } = useJourneys();
   const styles = createStyles(theme);
 
-  const [isEditingtitle, setIsEditingtitle] = useState<boolean>(false);
+  const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [draftTitle, setDraftTitle] = useState<string>('');
   const [showMapLegend, setShowMapLegend] = useState<boolean>(true);
 
@@ -26,9 +98,19 @@ export default function JourneyDetail() {
     }
   }, [journey]);
 
+  const comparisonSummary = useMemo(() => {
+    if (!journey) {
+      return null;
+    }
+
+    return buildJourneyComparisonSummary(journeys, journey, settings.summaryRange);
+  }, [journey, journeys, settings.summaryRange]);
+
+  const scoreTimelinePoints = useMemo(() => buildScoreTimelineSeries(events), [events]);
+
   const handleTitleSave = async () => {
     if (!journey || draftTitle === journey.title) {
-      setIsEditingtitle(false);
+      setIsEditingTitle(false);
       return;
     }
 
@@ -37,7 +119,7 @@ export default function JourneyDetail() {
     } catch {
       setDraftTitle(journey.title || '');
     } finally {
-      setIsEditingtitle(false);
+      setIsEditingTitle(false);
     }
   };
 
@@ -65,7 +147,7 @@ export default function JourneyDetail() {
       <>
         <Stack.Screen options={{ title: 'Error' }} />
         <View style={[styles.screen, styles.centerContent]}>
-          <Text style={styles.errorText}>Error: {journeyError}</Text>
+          <Text style={styles.errorText}>Error: {journeyError || eventsError}</Text>
         </View>
       </>
     );
@@ -82,6 +164,8 @@ export default function JourneyDetail() {
     );
   }
 
+  const rangeLabel = settings.summaryRange === 'week' ? '7-day' : '30-day';
+
   return (
     <>
       <Stack.Screen options={{ title: 'Journey Details', contentStyle: styles.screen, headerBackVisible: true }} />
@@ -96,7 +180,7 @@ export default function JourneyDetail() {
         <View style={styles.headerCard}>
           <View style={styles.headerTop}>
             <View style={styles.headerText}>
-              {isEditingtitle ? (
+              {isEditingTitle ? (
                 <TextInput
                   style={[styles.journeyTitle, styles.journeyTitleInput]}
                   value={draftTitle}
@@ -108,7 +192,7 @@ export default function JourneyDetail() {
                   multiline={false}
                 />
               ) : (
-                <AppButton style={styles.titleButton} onPress={() => setIsEditingtitle(true)}>
+                <AppButton style={styles.titleButton} onPress={() => setIsEditingTitle(true)}>
                   <Text style={styles.journeyTitle}>{journey.title || 'Untitled Journey'}</Text>
                 </AppButton>
               )}
@@ -138,19 +222,38 @@ export default function JourneyDetail() {
           <View style={styles.scoreWheelContainer}>
             <DrivingScoreWheel score={journey.score ?? journey.stats?.score ?? 0} size={200} />
           </View>
-          {journey.stats && (
+          {journey.stats ? (
             <Text style={styles.scoreMeta}>
               Avg {journey.stats.avgScore.toFixed(1)} • Min {Math.round(journey.stats.minScore)} • End {Math.round(journey.stats.endScore)}
             </Text>
-          )}
+          ) : null}
+        </View>
+
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Vs Your Usual</Text>
+          <Text style={styles.sectionSubtitle}>Comparing this journey with your recent {rangeLabel} driving history.</Text>
+          {renderComparisonContent(comparisonSummary, journeysLoading, rangeLabel, theme, styles)}
+        </View>
+
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Score During Drive</Text>
+          <Text style={styles.sectionSubtitle}>Shows how your score dropped and recovered over the length of the journey.</Text>
+          <ScoreTimelineChart points={scoreTimelinePoints} />
+          <View style={styles.timelineMetaRow}>
+            <Text style={styles.timelineMetaText}>Start 100</Text>
+            <Text style={styles.timelineMetaText}>{formatDurationLabel(journey.stats?.durationMs ?? 0)}</Text>
+            <Text style={styles.timelineMetaText}>End {Math.round(journey.stats?.endScore ?? journey.score ?? 0)}</Text>
+          </View>
         </View>
 
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Route Map</Text>
-            <AppButton style={styles.legendToggleButton} onPress={() => setShowMapLegend((prev) => !prev)} variant="secondary">
-              <Text style={styles.legendToggleText}>{showMapLegend ? 'Hide legend' : 'Show legend'}</Text>
-            </AppButton>
+            <View style={styles.headerActions}>
+              <AppButton style={styles.legendToggleButton} onPress={() => setShowMapLegend((prev) => !prev)} variant="secondary">
+                <Text style={styles.legendToggleText}>{showMapLegend ? 'Hide legend' : 'Show legend'}</Text>
+              </AppButton>
+            </View>
           </View>
           <AppButton style={styles.mapButton} onPress={handleMapPress} variant="secondary">
             <JourneyMap events={events} height={300} interactive={false} showLegend={showMapLegend} />
@@ -167,51 +270,14 @@ export default function JourneyDetail() {
 
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    content: {
-      padding: theme.spacing.lg,
-      paddingBottom: theme.spacing.xl,
-      gap: theme.spacing.lg,
-    },
-    centerContent: {
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: theme.spacing.lg,
-    },
-    headerCard: {
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      gap: theme.spacing.md,
-    },
+    screen: createScreenStyle(theme),
+    content: createContentContainerStyle(theme),
+    centerContent: createCenteredContentStyle(theme),
+    headerCard: createSurfaceCardStyle(theme, { gap: 'md' }),
     headerTop: {
       flexDirection: 'row',
       gap: theme.spacing.md,
       alignItems: 'center',
-    },
-    scoreBadge: {
-      width: 70,
-      height: 70,
-      borderRadius: 18,
-      backgroundColor: theme.colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    scoreValue: {
-      fontSize: 24,
-      fontWeight: '800',
-      color: theme.colors.background,
-    },
-    scoreLabel: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: theme.colors.background,
-      opacity: 0.9,
     },
     headerText: {
       flex: 1,
@@ -253,24 +319,29 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontWeight: '700',
       color: theme.colors.onBackground,
     },
-    sectionCard: {
-      padding: theme.spacing.lg,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.outline,
-      gap: theme.spacing.md,
-    },
+    sectionCard: createSurfaceCardStyle(theme, { padding: 'lg', gap: 'md' }),
     sectionTitle: {
       fontSize: 18,
       fontWeight: '700',
       color: theme.colors.onBackground,
     },
+    sectionSubtitle: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      marginTop: -theme.spacing.sm,
+    },
     sectionHeaderRow: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
       gap: theme.spacing.sm,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      gap: theme.spacing.xs,
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      flexShrink: 1,
     },
     scoreWheelContainer: {
       alignItems: 'center',
@@ -281,6 +352,50 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       color: theme.colors.textSecondary,
       textAlign: 'center',
       fontWeight: '600',
+    },
+    comparisonGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      gap: theme.spacing.sm,
+    },
+    comparisonTile: {
+      width: '48%',
+    },
+    comparisonDeltaBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: theme.spacing.xs,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      minHeight: 44,
+    },
+    comparisonDeltaValue: {
+      fontSize: 20,
+      lineHeight: 22,
+      fontWeight: '900',
+    },
+    comparisonDeltaText: {
+      fontSize: 14,
+      lineHeight: 18,
+      fontWeight: '700',
+      color: theme.colors.onSurface,
+    },
+    timelineMetaRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: theme.spacing.sm,
+    },
+    timelineMetaText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
+    },
+    mutedText: {
+      fontSize: 13,
+      color: theme.colors.textSecondary,
     },
     title: {
       fontSize: 22,

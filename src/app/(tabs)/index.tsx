@@ -3,17 +3,20 @@ import * as Linking from 'expo-linking';
 import { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 
-import { useBackgroundService, useDriverProfile, useJourneys, useTheme } from '@hooks';
+import { useAppSettings, useBackgroundService, useDriverProfile, useJourneys, useTheme } from '@hooks';
 
 import { HomeHeroCard, HomeWeekSummary, HomeLastDriveCard } from '@components';
 
 import { createLogger, LogModule } from '@utils/logger';
+import { buildJourneyPeriodSummary, isCompletedJourney } from '@utils/journeyInsights';
+import { createContentContainerStyle, createScreenStyle } from '@utils/themeStyles';
 
 const logger = createLogger(LogModule.Component);
 
 export default function Page() {
   const router = useRouter();
   const backgroundService = useBackgroundService();
+  const { settings, setSummaryRange } = useAppSettings();
   const { theme } = useTheme();
   const { driverName } = useDriverProfile();
   const { journeys, loading: journeysLoading, error: journeysError, refetch: refetchJourneys } = useJourneys();
@@ -39,17 +42,14 @@ export default function Page() {
   };
 
   const completedJourneys = useMemo(() => {
-    return journeys.filter(
-      (journey) => typeof journey.endTime === 'number' && journey.endTime > 0 && typeof journey.distanceKm === 'number'
-    );
+    return journeys.filter(isCompletedJourney);
   }, [journeys]);
 
   const lastJourney = completedJourneys[0] ?? null;
-
-  const weekJouneys = useMemo(() => {
-    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    return completedJourneys.filter((j) => typeof j.startTime === 'number' && j.startTime >= weekAgo);
-  }, [completedJourneys]);
+  const summary = useMemo(
+    () => buildJourneyPeriodSummary(completedJourneys, settings.summaryRange, Date.now()),
+    [completedJourneys, settings.summaryRange]
+  );
 
   const trackingEnabled = backgroundService.permissionState === 'granted' && backgroundService.serviceState !== 'stopped';
 
@@ -69,7 +69,7 @@ export default function Page() {
         onPressJourneys={() => router.push('/journeys')}
       />
 
-      <HomeWeekSummary weekJourneys={weekJouneys} />
+      <HomeWeekSummary summary={summary} summaryRange={settings.summaryRange} onChangeRange={setSummaryRange} />
 
       <HomeLastDriveCard
         lastJourney={lastJourney}
@@ -84,16 +84,6 @@ export default function Page() {
 
 const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
   StyleSheet.create({
-    screen: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    content: {
-      padding: theme.spacing.lg,
-      paddingBottom: theme.spacing.xl,
-      gap: theme.spacing.lg,
-      maxWidth: theme.dimensions.deviceMaxWidth,
-      alignSelf: 'center',
-      width: '100%',
-    },
+    screen: createScreenStyle(theme),
+    content: createContentContainerStyle(theme, { constrainWidth: true }),
   });

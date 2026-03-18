@@ -25,6 +25,7 @@ import {
 import { JourneyService } from '@services/JourneyService';
 import { RoadSpeedLimitService } from '@services/RoadSpeedLimitService';
 import { createLogger, isDebugEnabled, LogModule } from '@utils/logger';
+import { roundTo } from '@utils/number';
 import { calculateEfficiencyScore } from '@utils/scoring/calculateEfficiencyScore';
 import { convertMsToKmh, type SpeedConfidence, type SpeedSource } from '@utils/gpsValidation';
 import { resolveSpeedBand } from '@utils/tracking/thresholdBands';
@@ -182,7 +183,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
       metadata: metadata ?? null,
     });
     deps.logger.info(`${family} detected (${severity})`, {
-      speedKmh: Number(speedKmh.toFixed(2)),
+      speedKmh: roundTo(speedKmh, 2),
       ...(metadata ?? {}),
     });
   };
@@ -200,8 +201,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     if (!speedLimit) {
       speedingDetector.reset();
       deps.logger.debug('Skipping speeding check: no road speed limit available', {
-        latitude: Number(location.coords.latitude.toFixed(6)),
-        longitude: Number(location.coords.longitude.toFixed(6)),
+        latitude: roundTo(location.coords.latitude, 6),
+        longitude: roundTo(location.coords.longitude, 6),
       });
       return;
     }
@@ -218,8 +219,8 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
     }
 
     await logDrivingEvent('speeding', speedingResult.severity, location, speedKmh, {
-      speedKmh: Number(speedKmh.toFixed(2)),
-      speedLimitKmh: Number(speedLimit.speedLimitKmh.toFixed(1)),
+      speedKmh: roundTo(speedKmh, 2),
+      speedLimitKmh: roundTo(speedLimit.speedLimitKmh, 1),
       speedLimitSource: speedLimit.source,
       speedLimitFromCache: speedLimit.fromCache,
       ...(typeof speedLimit.wayId === 'number' ? { speedLimitWayId: speedLimit.wayId } : {}),
@@ -617,7 +618,7 @@ export const createEfficiencyServiceController = (deps: EfficiencyServiceDeps): 
           metadata: stopAndGoResult.metadata ?? null,
         });
         deps.logger.info('stop_and_go detected', {
-          speedKmh: Number(speedKmh.toFixed(2)),
+          speedKmh: roundTo(speedKmh, 2),
           ...(stopAndGoResult.metadata ?? {}),
         });
         if (debugEnabled) {

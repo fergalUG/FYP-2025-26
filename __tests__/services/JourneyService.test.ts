@@ -26,7 +26,7 @@ jest.mock('@/utils/logger', () => ({
 const mockQuery = (resolveValue: any = undefined) => {
   const chain: any = {};
 
-  const methods = ['from', 'where', 'orderBy', 'limit', 'values', 'returning', 'set', 'catch'];
+  const methods = ['from', 'where', 'orderBy', 'limit', 'values', 'returning', 'set', 'catch', 'innerJoin'];
 
   methods.forEach((method) => {
     chain[method] = jest.fn().mockReturnThis();
