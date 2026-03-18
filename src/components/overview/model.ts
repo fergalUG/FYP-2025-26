@@ -15,24 +15,6 @@ const formatRatePerHour = (rate: number | null): string => {
   return `${rate >= 10 ? Math.round(rate) : rate.toFixed(1)}/hr`;
 };
 
-const formatMinutes = (minutes: number | null): string => {
-  if (minutes == null) {
-    return '—';
-  }
-
-  if (minutes >= 60) {
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = Math.round(minutes % 60);
-    return remainingMinutes === 0 ? `${hours}h` : `${hours}h ${remainingMinutes}m`;
-  }
-
-  if (minutes >= 10) {
-    return `${Math.round(minutes)}m`;
-  }
-
-  return `${minutes.toFixed(1)}m`;
-};
-
 const formatSeconds = (seconds: number): string => {
   const rounded = Math.round(seconds);
   if (rounded < 60) {
@@ -86,7 +68,6 @@ export const buildOverviewCategoryRows = (category: DrivingOverviewCategorySumma
 
   const rows: OverviewDetailRow[] = [
     { label: 'Rate', value: formatRatePerHour(category.perHourRate) },
-    { label: 'Between', value: formatMinutes(category.averageMinutesBetween) },
     {
       label: 'Drives',
       value:

@@ -41,7 +41,6 @@ describe('overview model', () => {
     expect(formatOverviewPrimaryValue(category)).toBe('6');
     expect(buildOverviewCategoryRows(category, 5)).toEqual([
       { label: 'Rate', value: '2.0/hr' },
-      { label: 'Between', value: '30m' },
       { label: 'Drives', value: '3/3 (75%)' },
       { label: 'Time', value: '3m 30s' },
       { label: 'Split', value: 'L2 M3 H1' },

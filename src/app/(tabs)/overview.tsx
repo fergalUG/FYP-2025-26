@@ -178,7 +178,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       flexDirection: 'row',
       flexWrap: 'wrap',
       justifyContent: 'space-between',
-      gap: theme.spacing.sm,
+      rowGap: theme.spacing.md,
     },
     categoryCard: {
       width: '100%',
