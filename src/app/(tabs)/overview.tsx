@@ -142,15 +142,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       borderColor: theme.colors.outline,
     },
     headerRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      alignItems: 'stretch',
       gap: theme.spacing.md,
-      flexWrap: 'wrap',
     },
     headerText: {
-      flex: 1,
-      minWidth: 220,
       gap: 4,
     },
     title: {
@@ -164,12 +159,15 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     },
     toggleGroup: {
       flexDirection: 'row',
-      gap: theme.spacing.xs,
+      width: '100%',
+      gap: theme.spacing.sm,
     },
     toggleButton: {
+      flex: 1,
+      flexBasis: 0,
+      minWidth: 0,
       minHeight: 0,
       height: 35,
-      width: '60%',
       paddingHorizontal: theme.spacing.sm,
       paddingVertical: theme.spacing.xs,
       borderRadius: theme.radius.md,
@@ -182,6 +180,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       fontSize: 12,
       fontWeight: '700',
       color: theme.colors.onSurface,
+      textAlign: 'center',
     },
     toggleTextSelected: {
       color: theme.colors.background,
