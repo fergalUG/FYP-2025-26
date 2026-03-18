@@ -142,6 +142,36 @@ describe('SettingsService', () => {
     });
   });
 
+  describe('summary range', () => {
+    it('loads the stored summary range', async () => {
+      const chain = mockQuery([{ value: 'month' }]);
+      (db.select as jest.Mock).mockReturnValue(chain);
+
+      const result = await SettingsService.getSummaryRange();
+
+      expect(result).toBe('month');
+    });
+
+    it('falls back to week for unknown stored values', async () => {
+      const chain = mockQuery([{ value: 'year' }]);
+      (db.select as jest.Mock).mockReturnValue(chain);
+
+      const result = await SettingsService.getSummaryRange();
+
+      expect(result).toBe('week');
+    });
+
+    it('persists the summary range', async () => {
+      const chain = mockQuery();
+      (db.insert as jest.Mock).mockReturnValue(chain);
+
+      const success = await SettingsService.setSummaryRange('month');
+
+      expect(success).toBe(true);
+      expect(chain.values).toHaveBeenCalledWith({ key: 'summaryRange', value: 'month' });
+    });
+  });
+
   describe('setMapMarkerDebugMetadataEnabled', () => {
     it('should upsert the map marker debug metadata setting', async () => {
       const chain = mockQuery();

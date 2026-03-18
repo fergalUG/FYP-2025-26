@@ -1,4 +1,4 @@
-import type { Event, EventSeverity } from '@types';
+import type { Event, EventSeverity, HotspotMarker } from '@types';
 
 export interface RoutePoint {
   latitude: number;
@@ -63,7 +63,7 @@ export interface OscillationEpisodeMarker {
   endTimestamp: number;
 }
 
-export type SelectablePin = IncidentMarker | SpeedingEpisodeMarker | OscillationEpisodeMarker;
+export type SelectablePin = IncidentMarker | SpeedingEpisodeMarker | OscillationEpisodeMarker | HotspotMarker;
 
 export interface PinDetailRow {
   label: string;
@@ -88,12 +88,14 @@ export interface JourneyMapLegendFlags {
   hasCornering: boolean;
   hasStopAndGo: boolean;
   hasTieredIncidents: boolean;
+  hasHotspots: boolean;
 }
 
 export interface JourneyMapDerivedData {
   routePoints: RoutePoint[];
   routeCoordinates: Array<{ latitude: number; longitude: number }>;
   incidentMarkers: IncidentMarker[];
+  hotspotMarkers: HotspotMarker[];
   speedingEpisodeMarkers: SpeedingEpisodeMarker[];
   speedingSegments: SpeedingSegment[];
   oscillationEpisodeMarkers: OscillationEpisodeMarker[];

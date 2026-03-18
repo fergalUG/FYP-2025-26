@@ -7,6 +7,7 @@ import { createLogger, LogModule } from '@utils/logger';
 import { DEFAULT_DRIVER_NAME } from '@constants/defaults';
 
 import type { InstalledSpeedLimitPackMetadata } from '@/types/services/speedLimitPackService';
+import type { SummaryRange } from '@types';
 
 const logger = createLogger(LogModule.SettingsService);
 
@@ -16,6 +17,11 @@ const DEBUG_LOGS_KEY = 'debugLogs';
 const MAP_MARKER_DEBUG_METADATA_KEY = 'mapMarkerDebugMetadata';
 const SPEED_LIMIT_DETECTION_ENABLED_KEY = 'speedLimitDetectionEnabled';
 const INSTALLED_SPEED_LIMIT_PACK_METADATA_KEY = 'installedSpeedLimitPackMetadata';
+const SUMMARY_RANGE_KEY = 'summaryRange';
+
+const isSummaryRange = (value: unknown): value is SummaryRange => {
+  return value === 'week' || value === 'month';
+};
 
 export const getDriverName = async (): Promise<string> => {
   try {
@@ -48,6 +54,31 @@ export const setDriverName = async (name: string): Promise<boolean> => {
     return true;
   } catch (error) {
     logger.warn('Failed to save driver name:', error);
+    return false;
+  }
+};
+
+export const getSummaryRange = async (): Promise<SummaryRange> => {
+  try {
+    const result = await db.select().from(settings).where(eq(settings.key, SUMMARY_RANGE_KEY));
+    const value = result[0]?.value;
+    return isSummaryRange(value) ? value : 'week';
+  } catch (error) {
+    logger.warn('Failed to load summary range setting:', error);
+    return 'week';
+  }
+};
+
+export const setSummaryRange = async (range: SummaryRange): Promise<boolean> => {
+  try {
+    logger.debug('Saving summary range setting:', range);
+    await db
+      .insert(settings)
+      .values({ key: SUMMARY_RANGE_KEY, value: range })
+      .onConflictDoUpdate({ target: settings.key, set: { value: range } });
+    return true;
+  } catch (error) {
+    logger.warn('Failed to save summary range setting:', error);
     return false;
   }
 };

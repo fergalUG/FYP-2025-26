@@ -3,7 +3,7 @@ import { File, Directory, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { db, resetDatabase } from '@/db/client';
 import { journeys, events } from '@/db/schema';
-import { and, desc, eq, gte } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, ne, or } from 'drizzle-orm';
 
 import { EventType } from '@types';
 import type {
@@ -248,6 +248,45 @@ const createJourneyServiceController = (deps: JourneyServiceDeps): JourneyServic
     }
   };
 
+  const getHotspotCandidateEvents = async (excludedJourneyId?: number): Promise<Event[]> => {
+    try {
+      const filters = [
+        isNotNull(journeys.endTime),
+        or(
+          eq(events.type, EventType.StopAndGo),
+          and(eq(events.type, EventType.DrivingEvent), inArray(events.family, ['braking', 'acceleration', 'cornering', 'oscillation']))
+        ),
+      ];
+
+      if (typeof excludedJourneyId === 'number') {
+        filters.push(ne(events.journeyId, excludedJourneyId));
+      }
+
+      const rows = await db
+        .select({
+          id: events.id,
+          journeyId: events.journeyId,
+          timestamp: events.timestamp,
+          type: events.type,
+          latitude: events.latitude,
+          longitude: events.longitude,
+          speed: events.speed,
+          family: events.family,
+          severity: events.severity,
+          metadata: events.metadata,
+        })
+        .from(events)
+        .innerJoin(journeys, eq(events.journeyId, journeys.id))
+        .where(and(...filters))
+        .orderBy(events.timestamp);
+
+      return rows;
+    } catch (error) {
+      deps.logger.error('Error fetching hotspot candidate events:', error);
+      return [];
+    }
+  };
+
   const exportDatabase = async (): Promise<void> => {
     try {
       const dbDirectory = new fileSystem.Directory(fileSystem.Paths.document, 'SQLite');
@@ -299,6 +338,7 @@ const createJourneyServiceController = (deps: JourneyServiceDeps): JourneyServic
     getAllJourneys,
     deleteJourney,
     getEventsByJourneyId,
+    getHotspotCandidateEvents,
     exportDatabase,
     addJourneyListener: (listener: (event: JourneyChangeEvent) => void) => {
       listeners.push(listener);

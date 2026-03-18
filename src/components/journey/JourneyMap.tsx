@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, type ViewStyle, type StyleProp, type DimensionValue } from 'react-native';
 import MapView, { type MapPressEvent } from 'react-native-maps';
 
-import type { Event } from '@types';
+import type { Event, HotspotMarker } from '@types';
 import { useAppSettings, useTheme } from '@hooks';
 import {
   buildJourneyMapData,
@@ -16,20 +16,23 @@ import {
 
 interface JourneyMapProps {
   events: Event[];
+  hotspotMarkers?: HotspotMarker[];
   height?: DimensionValue;
   interactive?: boolean;
   showLegend?: boolean;
+  showHotspots?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
 export const JourneyMap = (props: JourneyMapProps) => {
-  const { events, height = 300, interactive = true, showLegend = true, style } = props;
+  const { events, hotspotMarkers = [], height = 300, interactive = true, showLegend = true, showHotspots = true, style } = props;
   const { theme } = useTheme();
   const { settings } = useAppSettings();
   const styles = createStyles(theme);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
 
-  const data = useMemo(() => buildJourneyMapData(events), [events]);
+  const visibleHotspots = useMemo(() => (showHotspots ? hotspotMarkers : []), [hotspotMarkers, showHotspots]);
+  const data = useMemo(() => buildJourneyMapData(events, { hotspotMarkers: visibleHotspots }), [events, visibleHotspots]);
   const selectedPin = useMemo(() => findSelectedPinById(data, selectedPinId), [data, selectedPinId]);
 
   useEffect(() => {
@@ -105,6 +108,7 @@ export const JourneyMap = (props: JourneyMapProps) => {
           speedingSegments={data.speedingSegments}
           oscillationSegments={data.oscillationSegments}
           incidentMarkers={data.incidentMarkers}
+          hotspotMarkers={data.hotspotMarkers}
           speedingEpisodeMarkers={data.speedingEpisodeMarkers}
           oscillationEpisodeMarkers={data.oscillationEpisodeMarkers}
           startPoint={startPoint}

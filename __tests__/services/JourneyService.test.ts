@@ -26,7 +26,7 @@ jest.mock('@/utils/logger', () => ({
 const mockQuery = (resolveValue: any = undefined) => {
   const chain: any = {};
 
-  const methods = ['from', 'where', 'orderBy', 'limit', 'values', 'returning', 'set', 'catch'];
+  const methods = ['from', 'where', 'orderBy', 'limit', 'values', 'returning', 'set', 'catch', 'innerJoin'];
 
   methods.forEach((method) => {
     chain[method] = jest.fn().mockReturnThis();
@@ -238,6 +238,23 @@ describe('JourneyService', () => {
       expect(chain.from).toHaveBeenCalledWith(events);
       expect(chain.where).toHaveBeenCalled();
       expect(chain.orderBy).toHaveBeenCalled();
+      expect(result).toEqual(mockEvents);
+    });
+  });
+
+  describe('getHotspotCandidateEvents', () => {
+    it('selects completed-journey hotspot candidate events', async () => {
+      const mockEvents = [{ id: 1, type: EventType.DrivingEvent, family: 'braking' }];
+      const chain = mockQuery(mockEvents);
+      (db.select as jest.Mock).mockReturnValue(chain);
+
+      const result = await JourneyService.getHotspotCandidateEvents(5);
+
+      expect(db.select).toHaveBeenCalled();
+      expect(chain.from).toHaveBeenCalledWith(events);
+      expect(chain.innerJoin).toHaveBeenCalledWith(journeys, expect.anything());
+      expect(chain.where).toHaveBeenCalled();
+      expect(chain.orderBy).toHaveBeenCalledWith(events.timestamp);
       expect(result).toEqual(mockEvents);
     });
   });

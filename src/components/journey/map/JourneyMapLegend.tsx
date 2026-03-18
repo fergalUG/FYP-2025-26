@@ -82,6 +82,14 @@ export const JourneyMapLegend = (props: JourneyMapLegendProps) => {
           <Text style={styles.legendText}>Stop & Go</Text>
         </View>
       )}
+      {legendFlags.hasHotspots && (
+        <View style={styles.legendItem}>
+          <View style={styles.legendHotspotWrap}>
+            <View style={[styles.legendHotspotCore, { backgroundColor: theme.colors.warning }]} />
+          </View>
+          <Text style={styles.legendText}>Historical hotspot</Text>
+        </View>
+      )}
       {legendFlags.hasTieredIncidents && (
         <View style={styles.legendItem}>
           <View style={styles.markerSizeLegend}>
@@ -124,6 +132,21 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
       width: 18,
       height: 4,
       borderRadius: 2,
+    },
+    legendHotspotWrap: {
+      width: 14,
+      height: 14,
+      borderRadius: 7,
+      borderWidth: 1.5,
+      borderColor: theme.colors.warning,
+      backgroundColor: `${theme.colors.warning}33`,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    legendHotspotCore: {
+      width: 7,
+      height: 7,
+      borderRadius: 999,
     },
     legendText: {
       fontSize: 12,

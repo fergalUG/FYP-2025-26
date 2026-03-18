@@ -126,6 +126,41 @@ const useJourneyEvents = (journeyId: number) => {
   };
 };
 
+export const useHotspotCandidateEvents = (excludedJourneyId?: number) => {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchEvents = useCallback(async () => {
+    const result = await executeWithLoading(() => JourneyService.getHotspotCandidateEvents(excludedJourneyId), setLoading, setError);
+
+    setEvents(result || []);
+  }, [excludedJourneyId]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  useEffect(() => {
+    const unsubscribe = JourneyService.addJourneyListener((event) => {
+      if (typeof excludedJourneyId === 'number' && event.journeyId === excludedJourneyId && event.type === 'journey-updated') {
+        return;
+      }
+
+      fetchEvents();
+    });
+
+    return unsubscribe;
+  }, [excludedJourneyId, fetchEvents]);
+
+  return {
+    events,
+    loading,
+    error,
+    refetch: fetchEvents,
+  };
+};
+
 export const useJourneyWithEvents = (id: number) => {
   const { journey, loading: journeyLoading, error: journeyError, refetch: refetchJourney, updateJourney } = useJourney(id);
   const { events, loading: eventsLoading, error: eventsError, refetch: refetchEvents } = useJourneyEvents(id);

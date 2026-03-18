@@ -1,9 +1,9 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Marker, Polyline } from 'react-native-maps';
 
 import { useTheme } from '@hooks/useTheme';
-import { EventType, type Event } from '@types';
+import { EventType, type Event, type HotspotMarker } from '@types';
 
 import { getIncidentLabel, getIncidentMarkerSize, formatSeverityLabel } from '@components/journey/map/model';
 import type {
@@ -20,6 +20,7 @@ interface JourneyMapMarkersProps {
   speedingSegments: SpeedingSegment[];
   oscillationSegments: OscillationSegment[];
   incidentMarkers: IncidentMarker[];
+  hotspotMarkers: HotspotMarker[];
   speedingEpisodeMarkers: SpeedingEpisodeMarker[];
   oscillationEpisodeMarkers: OscillationEpisodeMarker[];
   startPoint: RoutePoint | undefined;
@@ -54,6 +55,10 @@ const getOscillationColor = (severity: OscillationSegment['severity'], theme: Re
   return theme.colors.event.lightOscillation;
 };
 
+const getHotspotMarkerSize = (count: number): number => {
+  return Math.max(22, Math.min(34, 20 + count * 2));
+};
+
 export const JourneyMapMarkers = (props: JourneyMapMarkersProps) => {
   const { theme } = useTheme();
   const {
@@ -61,6 +66,7 @@ export const JourneyMapMarkers = (props: JourneyMapMarkersProps) => {
     speedingSegments,
     oscillationSegments,
     incidentMarkers,
+    hotspotMarkers,
     speedingEpisodeMarkers,
     oscillationEpisodeMarkers,
     startPoint,
@@ -98,6 +104,44 @@ export const JourneyMapMarkers = (props: JourneyMapMarkersProps) => {
           lineJoin="round"
         />
       ))}
+
+      {hotspotMarkers.map((marker) => {
+        const selected = selectedPinId === marker.id;
+        const markerSize = getHotspotMarkerSize(marker.count);
+        return (
+          <Marker
+            key={marker.id}
+            coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
+            title="Historical hotspot"
+            description={`${marker.count} repeated events`}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+            stopPropagation
+            onPress={() => {
+              selectPin(interactive, onSelectPin, marker.id);
+            }}
+            onSelect={() => {
+              selectPin(interactive, onSelectPin, marker.id);
+            }}
+          >
+            <View
+              style={[
+                styles.hotspotMarker,
+                {
+                  width: markerSize,
+                  height: markerSize,
+                  borderRadius: markerSize / 2,
+                  borderColor: selected ? theme.colors.onSurface : theme.colors.warning,
+                },
+              ]}
+            >
+              <View style={[styles.hotspotMarkerCore, { backgroundColor: theme.colors.warning }]}>
+                <Text style={[styles.hotspotCountText, { color: theme.colors.onBackground }]}>{marker.count}</Text>
+              </View>
+            </View>
+          </Marker>
+        );
+      })}
 
       {incidentMarkers.map((marker) => {
         const markerSize = getIncidentMarkerSize(marker.event.type, marker.severity);
@@ -235,6 +279,24 @@ const createStyles = (theme: ReturnType<typeof useTheme>['theme']) =>
     incidentMarker: {
       borderWidth: 1.5,
       borderColor: theme.colors.surface,
+    },
+    hotspotMarker: {
+      borderWidth: 2,
+      backgroundColor: `${theme.colors.warning}33`,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    hotspotMarkerCore: {
+      minWidth: 18,
+      height: 18,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
+    },
+    hotspotCountText: {
+      fontSize: 10,
+      fontWeight: '800',
     },
     speedingEpisodeMarker: {
       width: 18,

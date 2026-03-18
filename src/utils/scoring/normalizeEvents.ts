@@ -16,7 +16,7 @@ export interface SpeedingEpisode {
   severity: SpeedingSeverity;
 }
 
-interface NormalizedJourneyEvents {
+export interface NormalizedJourneyEvents {
   incidents: NormalizedIncident[];
   speedingEpisodes: SpeedingEpisode[];
 
