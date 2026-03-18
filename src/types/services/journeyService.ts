@@ -36,7 +36,6 @@ export interface JourneyServiceController {
   getAllJourneys: () => Promise<Journey[]>;
   deleteJourney: (journeyId: number) => Promise<boolean>;
   getEventsByJourneyId: (journeyId: number) => Promise<Event[]>;
-  getHotspotCandidateEvents: (excludedJourneyId?: number) => Promise<Event[]>;
   exportDatabase: () => Promise<void>;
   addJourneyListener: (listener: (event: JourneyChangeEvent) => void) => () => void;
 }

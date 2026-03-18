@@ -1,4 +1,5 @@
 import type { ScoringStats } from '@types';
+import { getSpeedLimitDataStatus, isSpeedLimitDataUsable } from '@utils/scoring/speedLimitDataStatus';
 
 const formatSeconds = (seconds: number): string => {
   const rounded = Math.round(seconds);
@@ -11,22 +12,9 @@ const formatSeconds = (seconds: number): string => {
   return remainingSeconds === 0 ? `${minutes}m` : `${minutes}m ${remainingSeconds}s`;
 };
 
-export const getSpeedLimitDataStatusForJourney = (stats: ScoringStats): NonNullable<ScoringStats['speedLimitDataStatus']> | 'legacy' => {
-  if (stats.speedLimitDataStatus) {
-    return stats.speedLimitDataStatus;
-  }
+export const getSpeedLimitDataStatusForJourney = (stats: ScoringStats) => getSpeedLimitDataStatus(stats);
 
-  if (stats.speedLimitDetectionEnabled === false) {
-    return 'disabled';
-  }
-
-  return 'legacy';
-};
-
-export const isSpeedLimitDetectionEnabledForJourney = (stats: ScoringStats): boolean => {
-  const status = getSpeedLimitDataStatusForJourney(stats);
-  return status === 'legacy' || status === 'ready';
-};
+export const isSpeedLimitDetectionEnabledForJourney = (stats: ScoringStats): boolean => isSpeedLimitDataUsable(stats);
 
 export const buildJourneyStatsSummary = (stats: ScoringStats): string => {
   const lightOscillationEpisodeCount = stats.lightOscillationEpisodeCount ?? 0;

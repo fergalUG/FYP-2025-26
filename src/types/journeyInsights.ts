@@ -20,21 +20,45 @@ export interface JourneyComparisonSummary {
   delta: number | null;
 }
 
-export interface HotspotFamilyBreakdown {
-  braking: number;
-  acceleration: number;
-  cornering: number;
-  oscillation: number;
-  stopAndGo: number;
+export type DrivingOverviewCategoryKey = 'braking' | 'acceleration' | 'cornering' | 'stopAndGo' | 'speeding' | 'oscillation';
+
+export interface DrivingOverviewSeverityBreakdown {
+  light: number;
+  moderate: number;
+  harsh: number;
 }
 
-export interface HotspotMarker {
-  id: string;
-  kind: 'hotspot';
-  latitude: number;
-  longitude: number;
-  count: number;
-  journeyCount: number;
-  dominantFamily: keyof HotspotFamilyBreakdown | null;
-  familyBreakdown: HotspotFamilyBreakdown;
+export type DrivingOverviewAvailability = 'ready' | 'unavailable';
+
+export interface DrivingOverviewCategorySummary {
+  key: DrivingOverviewCategoryKey;
+  label: string;
+  totalCount: number | null;
+  perHourRate: number | null;
+  averageMinutesBetween: number | null;
+  affectedJourneyCount: number;
+  evaluatedJourneyCount: number;
+  affectedJourneyPercentage: number | null;
+  severityBreakdown: DrivingOverviewSeverityBreakdown | null;
+  totalDurationSeconds: number | null;
+  availability: DrivingOverviewAvailability;
+  availabilityMessage: string | null;
+}
+
+export interface DrivingOverviewSpeedingAvailabilitySummary {
+  readyJourneyCount: number;
+  legacyJourneyCount: number;
+  unavailableJourneyCount: number;
+  disabledJourneyCount: number;
+}
+
+export interface DrivingOverviewSummary {
+  range: SummaryRange;
+  anchorTimestamp: number;
+  analyzedJourneyCount: number;
+  drivingTimeMs: number;
+  distanceKm: number;
+  totalOccurrenceCount: number;
+  categories: DrivingOverviewCategorySummary[];
+  speedingAvailability: DrivingOverviewSpeedingAvailabilitySummary;
 }

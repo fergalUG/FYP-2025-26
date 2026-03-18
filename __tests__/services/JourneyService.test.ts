@@ -242,23 +242,6 @@ describe('JourneyService', () => {
     });
   });
 
-  describe('getHotspotCandidateEvents', () => {
-    it('selects completed-journey hotspot candidate events', async () => {
-      const mockEvents = [{ id: 1, type: EventType.DrivingEvent, family: 'braking' }];
-      const chain = mockQuery(mockEvents);
-      (db.select as jest.Mock).mockReturnValue(chain);
-
-      const result = await JourneyService.getHotspotCandidateEvents(5);
-
-      expect(db.select).toHaveBeenCalled();
-      expect(chain.from).toHaveBeenCalledWith(events);
-      expect(chain.innerJoin).toHaveBeenCalledWith(journeys, expect.anything());
-      expect(chain.where).toHaveBeenCalled();
-      expect(chain.orderBy).toHaveBeenCalledWith(events.timestamp);
-      expect(result).toEqual(mockEvents);
-    });
-  });
-
   describe('deleteJourney', () => {
     it('should delete journey by ID', async () => {
       const chain = mockQuery();

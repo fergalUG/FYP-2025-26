@@ -15,6 +15,10 @@ export default function Layout() {
         <Label>Journeys</Label>
         <Icon sf={{ default: 'car', selected: 'car.fill' }} />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="overview" options={{ title: 'Overview' }}>
+        <Label>Overview</Label>
+        <Icon sf={{ default: 'chart.bar', selected: 'chart.bar.fill' }} />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings" options={{ title: 'Settings' }}>
         <Label>Settings</Label>
         <Icon sf={{ default: 'gear', selected: 'gear' }} />

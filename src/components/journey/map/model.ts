@@ -1,4 +1,4 @@
-import type { Event, EventSeverity, HotspotFamilyBreakdown, HotspotMarker } from '@types';
+import type { Event, EventSeverity } from '@types';
 import { EventType } from '@types';
 import { DEFAULT_EFFICIENCY_SCORING_CONFIG } from '@utils/scoring/efficiencyScoringConfig';
 import { normalizeJourneyEvents } from '@utils/scoring/normalizeEvents';
@@ -154,14 +154,6 @@ const formatDurationMs = (durationMs: number): string => {
     return `${seconds}s`;
   }
   return `${minutes}m ${seconds}s`;
-};
-
-const formatHotspotFamilyLabel = (family: keyof HotspotFamilyBreakdown): string => {
-  if (family === 'stopAndGo') {
-    return 'Stop & Go';
-  }
-
-  return family.charAt(0).toUpperCase() + family.slice(1);
 };
 
 const getEpisodeRange = (event: Event): { startTimestamp: number; endTimestamp: number } => {
@@ -549,40 +541,12 @@ const buildOscillationEpisodeDetails = (marker: OscillationEpisodeMarker, option
   };
 };
 
-const buildHotspotPinDetails = (marker: HotspotMarker): PinDetails => {
-  const rows: PinDetailRow[] = [
-    { label: 'Events', value: String(marker.count) },
-    { label: 'Journeys', value: String(marker.journeyCount) },
-  ];
-
-  if (marker.dominantFamily) {
-    rows.push({ label: 'Most common', value: formatHotspotFamilyLabel(marker.dominantFamily) });
-  }
-
-  const familyMix = (Object.entries(marker.familyBreakdown) as Array<[keyof HotspotFamilyBreakdown, number]>)
-    .filter(([, count]) => count > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([family, count]) => `${formatHotspotFamilyLabel(family)} ${count}`)
-    .join(' • ');
-
-  if (familyMix.length > 0) {
-    rows.push({ label: 'Mix', value: familyMix });
-  }
-
-  return {
-    title: 'Historical hotspot',
-    subtitle: 'Repeated event location near this route',
-    rows,
-  };
-};
-
 const buildLegendFlags = (args: {
   incidentMarkers: IncidentMarker[];
-  hotspotMarkers: HotspotMarker[];
   speedingEpisodeMarkers: SpeedingEpisodeMarker[];
   oscillationEpisodeMarkers: OscillationEpisodeMarker[];
 }): JourneyMapLegendFlags => {
-  const { incidentMarkers, hotspotMarkers, speedingEpisodeMarkers, oscillationEpisodeMarkers } = args;
+  const { incidentMarkers, speedingEpisodeMarkers, oscillationEpisodeMarkers } = args;
 
   return {
     hasLightSpeeding: speedingEpisodeMarkers.some((segment) => segment.severity === 'light'),
@@ -598,12 +562,10 @@ const buildLegendFlags = (args: {
     hasTieredIncidents: incidentMarkers.some(
       (marker) => marker.severity === 'light' || marker.severity === 'moderate' || marker.severity === 'harsh'
     ),
-    hasHotspots: hotspotMarkers.length > 0,
   };
 };
 
-export const buildJourneyMapData = (events: Event[], options: { hotspotMarkers?: HotspotMarker[] } = {}): JourneyMapDerivedData => {
-  const hotspotMarkers = options.hotspotMarkers ?? [];
+export const buildJourneyMapData = (events: Event[]): JourneyMapDerivedData => {
   const routePoints = events
     .filter((event) => isRouteEventType(event.type))
     .filter((event) => isValidCoordinate(event.latitude, event.longitude))
@@ -717,9 +679,8 @@ export const buildJourneyMapData = (events: Event[], options: { hotspotMarkers?:
     })
     .filter((segment): segment is OscillationSegment => Boolean(segment));
 
-  const legendFlags = buildLegendFlags({ incidentMarkers, hotspotMarkers, speedingEpisodeMarkers, oscillationEpisodeMarkers });
+  const legendFlags = buildLegendFlags({ incidentMarkers, speedingEpisodeMarkers, oscillationEpisodeMarkers });
   const hasLegendContent =
-    hotspotMarkers.length > 0 ||
     incidentMarkers.length > 0 ||
     speedingSegments.length > 0 ||
     oscillationSegments.length > 0 ||
@@ -730,7 +691,6 @@ export const buildJourneyMapData = (events: Event[], options: { hotspotMarkers?:
     routePoints,
     routeCoordinates,
     incidentMarkers,
-    hotspotMarkers,
     speedingEpisodeMarkers,
     speedingSegments,
     oscillationEpisodeMarkers,
@@ -747,7 +707,6 @@ export const findSelectedPinById = (data: JourneyMapDerivedData, selectedPinId: 
 
   return (
     data.incidentMarkers.find((marker) => marker.id === selectedPinId) ??
-    data.hotspotMarkers.find((marker) => marker.id === selectedPinId) ??
     data.speedingEpisodeMarkers.find((marker) => marker.id === selectedPinId) ??
     data.oscillationEpisodeMarkers.find((marker) => marker.id === selectedPinId) ??
     null
@@ -755,9 +714,6 @@ export const findSelectedPinById = (data: JourneyMapDerivedData, selectedPinId: 
 };
 
 export const buildPinDetails = (pin: SelectablePin, options: BuildPinDetailsOptions = {}): PinDetails => {
-  if (pin.kind === 'hotspot') {
-    return buildHotspotPinDetails(pin);
-  }
   if (pin.kind === 'incident') {
     return buildIncidentPinDetails(pin, options);
   }

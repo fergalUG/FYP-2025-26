@@ -3,10 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppButton, DrivingScoreWheel, JourneyMap, JourneyStats, ScoreTimelineChart, StatTile } from '@components';
-import { useAppSettings, useHotspotCandidateEvents, useJourneyWithEvents, useJourneys, useTheme } from '@hooks';
+import { useAppSettings, useJourneyWithEvents, useJourneys, useTheme } from '@hooks';
 import type { JourneyComparisonSummary } from '@types';
 import { buildJourneyComparisonSummary } from '@utils/journeyInsights';
-import { buildJourneyHotspotMarkers } from '@utils/journeyHotspots';
 import { getScoreColor } from '@utils/score';
 import { buildScoreTimelineSeries } from '@utils/scoring/buildScoreTimelineSeries';
 
@@ -79,17 +78,11 @@ export default function JourneyDetail() {
   const { journey, events, journeyLoading, eventsLoading, journeyError, eventsError, updateJourney } =
     useJourneyWithEvents(numericJourneyId);
   const { journeys, loading: journeysLoading } = useJourneys();
-  const {
-    events: hotspotCandidateEvents,
-    loading: hotspotsLoading,
-    error: hotspotsError,
-  } = useHotspotCandidateEvents(Number.isFinite(numericJourneyId) ? numericJourneyId : undefined);
   const styles = createStyles(theme);
 
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [draftTitle, setDraftTitle] = useState<string>('');
   const [showMapLegend, setShowMapLegend] = useState<boolean>(true);
-  const [showHotspots, setShowHotspots] = useState<boolean>(true);
 
   useEffect(() => {
     if (journey) {
@@ -106,15 +99,6 @@ export default function JourneyDetail() {
   }, [journey, journeys, settings.summaryRange]);
 
   const scoreTimelinePoints = useMemo(() => buildScoreTimelineSeries(events), [events]);
-  const hotspotMarkers = useMemo(
-    () =>
-      buildJourneyHotspotMarkers({
-        routeEvents: events,
-        candidateEvents: hotspotCandidateEvents,
-        excludedJourneyId: numericJourneyId,
-      }),
-    [events, hotspotCandidateEvents, numericJourneyId]
-  );
 
   const handleTitleSave = async () => {
     if (!journey || draftTitle === journey.title) {
@@ -134,11 +118,7 @@ export default function JourneyDetail() {
   const handleMapPress = () => {
     router.push({
       pathname: '/journey/map',
-      params: {
-        journeyId,
-        showLegend: showMapLegend ? '1' : '0',
-        showHotspots: showHotspots ? '1' : '0',
-      },
+      params: { journeyId, showLegend: showMapLegend ? '1' : '0' },
     });
   };
 
@@ -249,7 +229,7 @@ export default function JourneyDetail() {
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Score During Drive</Text>
-          <Text style={styles.sectionSubtitle}>In-drive score curve showing when points dropped and how the score recovered.</Text>
+          <Text style={styles.sectionSubtitle}>Shows how your score dropped and recovered over the length of the journey.</Text>
           <ScoreTimelineChart points={scoreTimelinePoints} />
           <View style={styles.timelineMetaRow}>
             <Text style={styles.timelineMetaText}>Start 100</Text>
@@ -265,26 +245,11 @@ export default function JourneyDetail() {
               <AppButton style={styles.legendToggleButton} onPress={() => setShowMapLegend((prev) => !prev)} variant="secondary">
                 <Text style={styles.legendToggleText}>{showMapLegend ? 'Hide legend' : 'Show legend'}</Text>
               </AppButton>
-              <AppButton style={styles.legendToggleButton} onPress={() => setShowHotspots((prev) => !prev)} variant="secondary">
-                <Text style={styles.legendToggleText}>{showHotspots ? 'Hide hotspots' : 'Show hotspots'}</Text>
-              </AppButton>
             </View>
           </View>
-          <Text style={styles.sectionSubtitle}>
-            Historical hotspots mark repeated event locations from your other completed journeys near this route.
-          </Text>
           <AppButton style={styles.mapButton} onPress={handleMapPress} variant="secondary">
-            <JourneyMap
-              events={events}
-              hotspotMarkers={hotspotMarkers}
-              height={300}
-              interactive={false}
-              showLegend={showMapLegend}
-              showHotspots={showHotspots}
-            />
+            <JourneyMap events={events} height={300} interactive={false} showLegend={showMapLegend} />
           </AppButton>
-          {hotspotsLoading ? <Text style={styles.mutedText}>Loading historical hotspots...</Text> : null}
-          {hotspotsError ? <Text style={styles.errorText}>Hotspots unavailable: {hotspotsError}</Text> : null}
         </View>
 
         <View style={styles.sectionCard}>
