@@ -59,7 +59,7 @@ export const DEFAULT_EFFICIENCY_SCORING_CONFIG: EfficiencyScoringConfig = {
         harsh: 3.5,
       },
     },
-    stopAndGo: 2.5,
+    stopAndGo: 5,
   },
 
   incidentCooldownMs: {
